@@ -1,7 +1,3 @@
-//import { open } from '@tauri-apps/plugin-dialog';
-//для открытия окна проводника
-const { open } = window.__TAURI__.dialog;
-
 const { invoke } = window.__TAURI__.core;
 
 const resizer = document.getElementById('resizer');
@@ -19,18 +15,6 @@ const inputLangSelect = document.getElementById('input-lang-select');
 let isResizing = false;
 let startX = 0;
 let startLeftWidth = 0;
-
-// Функция для получения фильтров на основе выбранного языка
-function getFileFiltersForLanguage(language) {
-    const filters = {
-        'c': [{ name: 'C Files', extensions: ['c', 'h'] }],
-        'fortran': [{ name: 'Fortran Files', extensions: ['f', 'for', 'f90', 'f95'] }],
-        'php': [{ name: 'PHP Files', extensions: ['php'] }],
-        'cobol': [{ name: 'COBOL Files', extensions: ['cob', 'cbl'] }]
-    };
-    
-    return filters[language] || null;
-}
 
 // Устанавливаем начальные пропорции (50/50)
 function setInitialWidths() {
@@ -125,30 +109,21 @@ openFile.addEventListener('click', async function(e){
         // Получаем выбранный входной язык
         const selectedLang = inputLangSelect.value;
         
-        // Получаем фильтры для этого языка
-        const filters = getFileFiltersForLanguage(selectedLang);
+        // Вызываем Rust-команду, которая:
+        // 1. Открывает диалог с фильтрацией
+        // 2. Читает файл
+        // 3. Возвращает содержимое
+        const fileContent = await invoke('open_file_with_filter', { lang: selectedLang });
         
-        // Подготавливаем опции для диалога
-        const options = {
-            multiple: false,
-            directory: false,
-        };
-        
-        // Добавляем фильтры, если они есть
-        if (filters) {
-            options.filters = filters;
-        }
-        
-        // Открываем диалог выбора файла с фильтрацией
-        const filePath = await open(options);
-        
-        if (filePath) {
-            inputCode.value = filePath;
-            console.log('Выбран файл:', filePath);
-        } else {
-            console.log('Пользователь отменил выбор');
+        if (fileContent) {
+            inputCode.value = fileContent;
+            console.log('Файл успешно загружен');
         }
     } catch (error) {
-        console.error('Ошибка при открытии диалога:', error);
+        console.error('Ошибка при открытии файла:', error);
+        // Не показываем alert если пользователь просто отменил выбор
+        if (!error.includes("Файл не выбран")) {
+            alert('Ошибка при открытии файла: ' + error);
+        }
     }
 });
