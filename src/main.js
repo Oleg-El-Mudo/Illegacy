@@ -8,9 +8,12 @@ const gridContainer = document.querySelector('.grid-container');
 const clearInput = document.getElementById('clearInput');
 //textarea для ввода кода
 const inputCode = document.getElementById('inputCode');
+const outputCode = document.querySelector('.right-column .code-textarea'); // Получаем textarea для вывода
 const openFile = document.getElementById('openFile');
-//получаем селект с входным языком
+const exportFile = document.getElementById('exportFile'); // Кнопка экспорта
+//получаем селекты с языками
 const inputLangSelect = document.getElementById('input-lang-select');
+const outputLangSelect = document.getElementById('output-lang-select');
 
 let isResizing = false;
 let startX = 0;
@@ -124,6 +127,40 @@ openFile.addEventListener('click', async function(e){
         // Не показываем alert если пользователь просто отменил выбор
         if (!error.includes("Файл не выбран")) {
             alert('Ошибка при открытии файла: ' + error);
+        }
+    }
+});
+
+exportFile.addEventListener('click', async function(e){
+    e.preventDefault();
+    
+    // Получаем содержимое для экспорта (сначала проверяем output, потом input)
+    const contentToExport = outputCode.value || inputCode.value;
+    
+    if (!contentToExport.trim()) {
+        alert('Нет содержимого для экспорта');
+        return;
+    }
+    
+    try {
+        // Получаем выбранный выходной язык
+        const selectedLang = outputLangSelect.value;
+        
+        // Вызываем Rust-команду для сохранения файла
+        const savedPath = await invoke('save_file_with_filter', { 
+            content: contentToExport,
+            lang: selectedLang 
+        });
+        
+        if (savedPath) {
+            console.log('Файл успешно сохранен:', savedPath);
+            alert(`Файл успешно сохранен: ${savedPath}`);
+        }
+    } catch (error) {
+        console.error('Ошибка при сохранении файла:', error);
+        // Не показываем alert если пользователь просто отменил сохранение
+        if (!error.includes("Сохранение отменено")) {
+            alert('Ошибка при сохранении файла: ' + error);
         }
     }
 });

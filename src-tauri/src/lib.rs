@@ -1,8 +1,8 @@
 use tauri::AppHandle;
 use tauri_plugin_dialog::{DialogExt, FilePath};
-//чтение файла
+//чтение и запись файлов
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, Write};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -12,14 +12,9 @@ struct FileFilter {
 }
 
 #[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
-#[tauri::command]
 async fn open_file_with_filter(app: AppHandle, lang: String) -> Result<String, String> {
     // Получаем фильтры для выбранного языка
-    let filters = get_filters_for_language(&lang);
+    let filters = get_input_filters_for_language(&lang);
     
     // Создаем диалог
     let mut dialog = app.dialog().file();
@@ -49,7 +44,48 @@ async fn open_file_with_filter(app: AppHandle, lang: String) -> Result<String, S
     }
 }
 
-fn get_filters_for_language(language: &str) -> Vec<FileFilter> {
+#[tauri::command]
+async fn save_file_with_filter(app: AppHandle, content: String, lang: String) -> Result<String, String> {
+    // Получаем фильтры для выбранного выходного языка
+    let filters = get_output_filters_for_language(&lang);
+    
+    // Создаем диалог для сохранения
+    let mut dialog = app.dialog().file();
+    
+    // Добавляем фильтры
+    for filter in &filters {
+        let extensions: Vec<&str> = filter.extensions.iter().map(|s| s.as_str()).collect();
+        dialog = dialog.add_filter(&filter.name, &extensions);
+    }
+    
+    // Если есть фильтры, предлагаем расширение по умолчанию
+    if let Some(first_filter) = filters.first() {
+        if let Some(default_ext) = first_filter.extensions.first() {
+            let default_file_name = format!("output.{}", default_ext);
+            dialog = dialog.set_file_name(&default_file_name);
+        }
+    }
+    
+    // Открываем диалог сохранения
+    let file_path = dialog.blocking_save_file();
+    
+    // Проверяем, выбран ли путь для сохранения
+    match file_path {
+        Some(path) => {
+            // Преобразуем FilePath в строку пути
+            let path_str = path.to_string();
+            
+            // Сохраняем содержимое в файл
+            match write_file_content(&path_str, &content) {
+                Ok(_) => Ok(path_str),
+                Err(e) => Err(format!("Не удалось сохранить файл: {}", e))
+            }
+        },
+        None => Err("Сохранение отменено".to_string())
+    }
+}
+
+fn get_input_filters_for_language(language: &str) -> Vec<FileFilter> {
     match language {
         "c" => vec![
             FileFilter { 
@@ -89,6 +125,39 @@ fn get_filters_for_language(language: &str) -> Vec<FileFilter> {
     }
 }
 
+fn get_output_filters_for_language(language: &str) -> Vec<FileFilter> {
+    match language {
+        "python" => vec![
+            FileFilter { 
+                name: "Python Files".to_string(), 
+                extensions: vec!["py".to_string()] 
+            }
+        ],
+        "java" => vec![
+            FileFilter { 
+                name: "Java Files".to_string(), 
+                extensions: vec!["java".to_string()] 
+            }
+        ],
+        "go" => vec![
+            FileFilter { 
+                name: "Go Files".to_string(), 
+                extensions: vec!["go".to_string()] 
+            }
+        ],
+        _ => vec![
+            FileFilter { 
+                name: "Text Files".to_string(), 
+                extensions: vec!["txt".to_string()] 
+            },
+            FileFilter { 
+                name: "All Files".to_string(), 
+                extensions: vec!["*".to_string()] 
+            }
+        ]
+    }
+}
+
 fn read_file_content(path: &str) -> Result<String, String> {
     let mut file = File::open(path).map_err(|e| format!("Ошибка открытия файла: {}", e))?;
     let mut content = String::new();
@@ -97,12 +166,22 @@ fn read_file_content(path: &str) -> Result<String, String> {
     Ok(content)
 }
 
+fn write_file_content(path: &str, content: &str) -> Result<(), String> {
+    let mut file = File::create(path).map_err(|e| format!("Ошибка создания файла: {}", e))?;
+    file.write_all(content.as_bytes())
+        .map_err(|e| format!("Ошибка записи в файл: {}", e))?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet, open_file_with_filter])
+        .invoke_handler(tauri::generate_handler![
+            open_file_with_filter,
+            save_file_with_filter
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
