@@ -14,7 +14,7 @@ struct FileFilter {
 #[tauri::command]
 async fn open_file_with_filter(app: AppHandle, lang: String) -> Result<String, String> {
     // Получаем фильтры для выбранного языка
-    let filters = get_input_filters_for_language(&lang);
+    let filters = get_filters_for_language(&lang);
     
     // Создаем диалог
     let mut dialog = app.dialog().file();
@@ -47,7 +47,7 @@ async fn open_file_with_filter(app: AppHandle, lang: String) -> Result<String, S
 #[tauri::command]
 async fn save_file_with_filter(app: AppHandle, content: String, lang: String) -> Result<String, String> {
     // Получаем фильтры для выбранного выходного языка
-    let filters = get_output_filters_for_language(&lang);
+    let filters = get_filters_for_language(&lang);
     
     // Создаем диалог для сохранения
     let mut dialog = app.dialog().file();
@@ -85,11 +85,11 @@ async fn save_file_with_filter(app: AppHandle, content: String, lang: String) ->
     }
 }
 
-fn get_input_filters_for_language(language: &str) -> Vec<FileFilter> {
+fn get_filters_for_language(language: &str) -> Vec<FileFilter> {
     match language {
         "c" => vec![
             FileFilter { 
-                name: "C/C++ Files".to_string(), 
+                name: "C Files".to_string(), 
                 extensions: vec!["c".to_string(), "h".to_string()] 
             }
         ],
@@ -116,17 +116,6 @@ fn get_input_filters_for_language(language: &str) -> Vec<FileFilter> {
                 extensions: vec!["cob".to_string(), "cbl".to_string()] 
             }
         ],
-        _ => vec![
-            FileFilter { 
-                name: "All Files".to_string(), 
-                extensions: vec!["*".to_string()] 
-            }
-        ]
-    }
-}
-
-fn get_output_filters_for_language(language: &str) -> Vec<FileFilter> {
-    match language {
         "python" => vec![
             FileFilter { 
                 name: "Python Files".to_string(), 
@@ -147,16 +136,13 @@ fn get_output_filters_for_language(language: &str) -> Vec<FileFilter> {
         ],
         _ => vec![
             FileFilter { 
-                name: "Text Files".to_string(), 
-                extensions: vec!["txt".to_string()] 
-            },
-            FileFilter { 
                 name: "All Files".to_string(), 
                 extensions: vec!["*".to_string()] 
             }
         ]
     }
 }
+
 
 fn read_file_content(path: &str) -> Result<String, String> {
     let mut file = File::open(path).map_err(|e| format!("Ошибка открытия файла: {}", e))?;
