@@ -2,6 +2,10 @@ const resizer = document.getElementById('resizer');
 const leftColumn = document.querySelector('.left-column');
 const rightColumn = document.querySelector('.right-column');
 const gridContainer = document.querySelector('.grid-container');
+//кнопка очистки ввода
+const clearInput = document.getElementById('clearInput');
+//textarea для ввода кода
+const inputCode = document.getElementById('inputCode');
 
 let isResizing = false;
 let startX = 0;
@@ -87,3 +91,8 @@ document.body.addEventListener('selectstart', (e) => {
         e.preventDefault();
     }
 });
+
+clearInput.addEventListener('click', function(e){
+    e.preventDefault();
+    inputCode.value='';
+})

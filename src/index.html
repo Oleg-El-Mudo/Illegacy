@@ -24,7 +24,10 @@
                       <a class="nav-link active" href="#" role="button">Открыть файл</a>
                   </li>
                   <li class="nav-item">
-                      <a class="nav-link" href="#" role="button">Очистить ввод</a>
+                      <a class="nav-link" href="#" role="button" id="clearInput">Очистить ввод</a>
+                  </li>
+                  <li class="nav-item">
+                    <a class="nav-link" href="#" role="button">Перевести</a>
                   </li>
                   <li class="nav-item">
                       <a class="nav-link" href="#" role="button">Экспорт файла</a>
@@ -45,7 +48,7 @@
                     <option value="cobol">COBOL</option>
                 </select>
             </div>
-            <textarea class="code-textarea" placeholder="Введите программу..."></textarea>
+            <textarea class="code-textarea" placeholder="Введите программу..." id="inputCode"></textarea>
         </div>
         <div id="resizer"></div>
         <div class="column right-column">
