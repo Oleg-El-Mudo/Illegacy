@@ -13,10 +13,24 @@ const clearInput = document.getElementById('clearInput');
 //textarea для ввода кода
 const inputCode = document.getElementById('inputCode');
 const openFile = document.getElementById('openFile');
+//получаем селект с входным языком
+const inputLangSelect = document.getElementById('input-lang-select');
 
 let isResizing = false;
 let startX = 0;
 let startLeftWidth = 0;
+
+// Функция для получения фильтров на основе выбранного языка
+function getFileFiltersForLanguage(language) {
+    const filters = {
+        'c': [{ name: 'C Files', extensions: ['c', 'h'] }],
+        'fortran': [{ name: 'Fortran Files', extensions: ['f', 'for', 'f90', 'f95'] }],
+        'php': [{ name: 'PHP Files', extensions: ['php'] }],
+        'cobol': [{ name: 'COBOL Files', extensions: ['cob', 'cbl'] }]
+    };
+    
+    return filters[language] || null;
+}
 
 // Устанавливаем начальные пропорции (50/50)
 function setInitialWidths() {
@@ -106,19 +120,27 @@ clearInput.addEventListener('click', function(e){
 
 openFile.addEventListener('click', async function(e){
     e.preventDefault();
-    // Open a dialog
-
-    //js 
-// const file = await open({
-//   multiple: false,
-//   directory: false,
-// });
-// inputCode.value=file;
     
-//rust
-try {
-        // Вызываем Rust-команду вместо @tauri-apps/api/dialog
-        const filePath = await invoke('open_file');
+    try {
+        // Получаем выбранный входной язык
+        const selectedLang = inputLangSelect.value;
+        
+        // Получаем фильтры для этого языка
+        const filters = getFileFiltersForLanguage(selectedLang);
+        
+        // Подготавливаем опции для диалога
+        const options = {
+            multiple: false,
+            directory: false,
+        };
+        
+        // Добавляем фильтры, если они есть
+        if (filters) {
+            options.filters = filters;
+        }
+        
+        // Открываем диалог выбора файла с фильтрацией
+        const filePath = await open(options);
         
         if (filePath) {
             inputCode.value = filePath;
@@ -129,4 +151,4 @@ try {
     } catch (error) {
         console.error('Ошибка при открытии диалога:', error);
     }
-})
+});
