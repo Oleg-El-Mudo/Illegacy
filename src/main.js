@@ -1,3 +1,7 @@
+//import { open } from '@tauri-apps/plugin-dialog';
+//для открытия окна проводника
+const { open } = window.__TAURI__.dialog;
+
 const resizer = document.getElementById('resizer');
 const leftColumn = document.querySelector('.left-column');
 const rightColumn = document.querySelector('.right-column');
@@ -6,6 +10,7 @@ const gridContainer = document.querySelector('.grid-container');
 const clearInput = document.getElementById('clearInput');
 //textarea для ввода кода
 const inputCode = document.getElementById('inputCode');
+const openFile = document.getElementById('openFile');
 
 let isResizing = false;
 let startX = 0;
@@ -95,4 +100,14 @@ document.body.addEventListener('selectstart', (e) => {
 clearInput.addEventListener('click', function(e){
     e.preventDefault();
     inputCode.value='';
+})
+
+openFile.addEventListener('click', async function(e){
+    e.preventDefault();
+    // Open a dialog
+const file = await open({
+  multiple: false,
+  directory: false,
+});
+inputCode.value=file;
 })
