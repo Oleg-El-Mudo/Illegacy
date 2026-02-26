@@ -2,6 +2,8 @@
 //для открытия окна проводника
 const { open } = window.__TAURI__.dialog;
 
+const { invoke } = window.__TAURI__.core;
+
 const resizer = document.getElementById('resizer');
 const leftColumn = document.querySelector('.left-column');
 const rightColumn = document.querySelector('.right-column');
@@ -105,9 +107,26 @@ clearInput.addEventListener('click', function(e){
 openFile.addEventListener('click', async function(e){
     e.preventDefault();
     // Open a dialog
-const file = await open({
-  multiple: false,
-  directory: false,
-});
-inputCode.value=file;
+
+    //js 
+// const file = await open({
+//   multiple: false,
+//   directory: false,
+// });
+// inputCode.value=file;
+    
+//rust
+try {
+        // Вызываем Rust-команду вместо @tauri-apps/api/dialog
+        const filePath = await invoke('open_file');
+        
+        if (filePath) {
+            inputCode.value = filePath;
+            console.log('Выбран файл:', filePath);
+        } else {
+            console.log('Пользователь отменил выбор');
+        }
+    } catch (error) {
+        console.error('Ошибка при открытии диалога:', error);
+    }
 })
