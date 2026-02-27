@@ -6,9 +6,11 @@ const rightColumn = document.querySelector('.right-column');
 const gridContainer = document.querySelector('.grid-container');
 //кнопка очистки ввода
 const clearInput = document.getElementById('clearInput');
+//кнопка перевода
+const translateBtn = document.getElementById('translateBtn'); // Третья кнопка в navbar
 //textarea для ввода кода
 const inputCode = document.getElementById('inputCode');
-const outputCode = document.querySelector('.right-column .code-textarea'); // Получаем textarea для вывода
+const outputCode = document.getElementById('outputCode'); // Изменено: теперь ищем по id
 const openFile = document.getElementById('openFile');
 const exportFile = document.getElementById('exportFile'); // Кнопка экспорта
 //получаем селекты с языками
@@ -163,4 +165,95 @@ exportFile.addEventListener('click', async function(e){
             alert('Ошибка при сохранении файла: ' + error);
         }
     }
+});
+
+// НОВАЯ ФУНКЦИЯ: Перевод кода
+async function translateCode() {
+    const inputLang = inputLangSelect.value;
+    const outputLang = outputLangSelect.value;
+    const code = inputCode.value.trim();
+    
+    if (!code) {
+        alert('Введите код для перевода');
+        return;
+    }
+    
+    // Проверяем, поддерживается ли выбранная пара языков
+    if (inputLang !== 'c' || outputLang !== 'python') {
+        outputCode.value = `// Транспиляция из ${inputLang} в ${outputLang} пока не поддерживается\n// Доступно: C -> Python`;
+        alert(`Пара языков ${inputLang} -> ${outputLang} пока не поддерживается. Доступно: C -> Python`);
+        return;
+    }
+    
+    // Блокируем кнопку на время перевода
+    const originalText = translateBtn.textContent;
+    translateBtn.textContent = 'Перевод...';
+    translateBtn.style.opacity = '0.7';
+    translateBtn.style.pointerEvents = 'none';
+    
+    try {
+        console.log('Запуск транспиляции C -> Python');
+        
+        // Вызываем Rust-команду для транспиляции
+        const result = await invoke('transpile_c_to_python', { code });
+        
+        if (result.success) {
+            outputCode.value = result.output;
+            console.log('Транспиляция успешна');
+            
+            // Если есть AST для отладки, можно вывести в консоль
+            if (result.ast_json) {
+                console.log('AST получен');
+            }
+        } else {
+            outputCode.value = '';
+            alert('Ошибка транспиляции: ' + result.error);
+        }
+    } catch (error) {
+        console.error('Ошибка при переводе:', error);
+        outputCode.value = '';
+        alert('Ошибка при переводе: ' + error);
+    } finally {
+        // Возвращаем кнопку в исходное состояние
+        translateBtn.textContent = originalText;
+        translateBtn.style.opacity = '1';
+        translateBtn.style.pointerEvents = 'auto';
+    }
+}
+
+// Добавляем обработчик на кнопку "Перевести"
+if (translateBtn) {
+    translateBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        translateCode();
+    });
+}
+
+// Добавляем горячие клавиши (Ctrl+Enter для перевода)
+inputCode.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.key === 'Enter') {
+        e.preventDefault();
+        translateCode();
+    }
+});
+
+// Функция для проверки статуса Docker (опционально)
+async function checkDockerStatus() {
+    try {
+        const status = await invoke('check_parser_status');
+        console.log('Статус Docker:', status.docker_available ? 'Доступен' : 'Не доступен');
+        
+        // Можно добавить индикатор в консоль или UI
+        if (!status.docker_available) {
+            console.warn('Docker не запущен. Транспиляция может не работать.');
+        }
+    } catch (error) {
+        console.error('Ошибка при проверке Docker:', error);
+    }
+}
+
+// Проверяем статус Docker при загрузке
+window.addEventListener('load', function() {
+    setInitialWidths();
+    checkDockerStatus();
 });
