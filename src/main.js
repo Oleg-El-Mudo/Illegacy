@@ -1,5 +1,8 @@
 const { invoke } = window.__TAURI__.core;
 
+// Загружаем Highlight.js из глобальной переменной
+const hljs = window.hljs;
+
 const resizer = document.getElementById('resizer');
 const leftColumn = document.querySelector('.left-column');
 const rightColumn = document.querySelector('.right-column');
@@ -7,12 +10,14 @@ const gridContainer = document.querySelector('.grid-container');
 //кнопка очистки ввода
 const clearInput = document.getElementById('clearInput');
 //кнопка перевода
-const translateBtn = document.getElementById('translateBtn'); // Третья кнопка в navbar
+const translateBtn = document.getElementById('translateBtn');
 //textarea для ввода кода
 const inputCode = document.getElementById('inputCode');
-const outputCode = document.getElementById('outputCode'); // Изменено: теперь ищем по id
+const outputCode = document.getElementById('outputCode');
+const inputCodePreview = document.getElementById('inputCodePreview');
+const outputCodePreview = document.getElementById('outputCodePreview');
 const openFile = document.getElementById('openFile');
-const exportFile = document.getElementById('exportFile'); // Кнопка экспорта
+const exportFile = document.getElementById('exportFile');
 //получаем селекты с языками
 const inputLangSelect = document.getElementById('input-lang-select');
 const outputLangSelect = document.getElementById('output-lang-select');
@@ -20,6 +25,116 @@ const outputLangSelect = document.getElementById('output-lang-select');
 let isResizing = false;
 let startX = 0;
 let startLeftWidth = 0;
+let scrollSyncEnabled = true; // Флаг для предотвращения циклической синхронизации
+
+// Маппинг языков для Highlight.js
+const languageMap = {
+    // Входные языки
+    'c': 'c',
+    'fortran': 'fortran',
+    'php': 'php',
+    'cobol': 'cobol',
+    // Выходные языки
+    'python': 'python',
+    'java': 'java',
+    'go': 'go'
+};
+
+// Функция для обновления подсветки синтаксиса
+function updateSyntaxHighlighting() {
+    // Проверяем, загружен ли hljs
+    if (!hljs) {
+        console.warn('Highlight.js не загружен');
+        return;
+    }
+    
+    // Сохраняем позиции скролла
+    const inputScrollTop = inputCode.scrollTop;
+    const inputScrollLeft = inputCode.scrollLeft;
+    const outputScrollTop = outputCode.scrollTop;
+    const outputScrollLeft = outputCode.scrollLeft;
+    
+    // Обновляем подсветку для входного кода
+    const inputLang = languageMap[inputLangSelect.value] || 'plaintext';
+    const inputText = inputCode.value;
+    
+    if (inputText.trim()) {
+        try {
+            // Проверяем, поддерживается ли язык
+            if (hljs.getLanguage(inputLang)) {
+                inputCodePreview.innerHTML = hljs.highlight(inputText, { language: inputLang }).value;
+            } else {
+                console.warn(`Язык ${inputLang} не поддерживается Highlight.js`);
+                inputCodePreview.innerHTML = escapeHtml(inputText);
+            }
+        } catch (e) {
+            console.warn('Ошибка подсветки для входного кода:', e);
+            inputCodePreview.innerHTML = escapeHtml(inputText);
+        }
+    } else {
+        inputCodePreview.innerHTML = '';
+    }
+    
+    // Обновляем подсветку для выходного кода
+    const outputLang = languageMap[outputLangSelect.value] || 'plaintext';
+    const outputText = outputCode.value;
+    
+    if (outputText.trim()) {
+        try {
+            // Проверяем, поддерживается ли язык
+            if (hljs.getLanguage(outputLang)) {
+                outputCodePreview.innerHTML = hljs.highlight(outputText, { language: outputLang }).value;
+            } else {
+                console.warn(`Язык ${outputLang} не поддерживается Highlight.js`);
+                outputCodePreview.innerHTML = escapeHtml(outputText);
+            }
+        } catch (e) {
+            console.warn('Ошибка подсветки для выходного кода:', e);
+            outputCodePreview.innerHTML = escapeHtml(outputText);
+        }
+    } else {
+        outputCodePreview.innerHTML = '';
+    }
+    
+    // Восстанавливаем позиции скролла
+    scrollSyncEnabled = false;
+    inputCode.scrollTop = inputScrollTop;
+    inputCode.scrollLeft = inputScrollLeft;
+    outputCode.scrollTop = outputScrollTop;
+    outputCode.scrollLeft = outputScrollLeft;
+    
+    // Синхронизируем preview
+    syncScroll();
+    scrollSyncEnabled = true;
+}
+
+// Функция для экранирования HTML (на случай ошибок подсветки)
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Функция для синхронизации скролла между textarea и preview
+function syncScroll() {
+    if (!scrollSyncEnabled) return;
+    
+    // Синхронизация для левой колонки
+    const leftContainer = inputCode.closest('.code-container');
+    const leftPreview = leftContainer.querySelector('.code-preview');
+    if (leftPreview) {
+        leftPreview.scrollTop = inputCode.scrollTop;
+        leftPreview.scrollLeft = inputCode.scrollLeft;
+    }
+    
+    // Синхронизация для правой колонки
+    const rightContainer = outputCode.closest('.code-container');
+    const rightPreview = rightContainer.querySelector('.code-preview');
+    if (rightPreview) {
+        rightPreview.scrollTop = outputCode.scrollTop;
+        rightPreview.scrollLeft = outputCode.scrollLeft;
+    }
+}
 
 // Устанавливаем начальные пропорции (50/50)
 function setInitialWidths() {
@@ -105,7 +220,8 @@ document.body.addEventListener('selectstart', (e) => {
 clearInput.addEventListener('click', function(e){
     e.preventDefault();
     inputCode.value='';
-})
+    updateSyntaxHighlighting();
+});
 
 openFile.addEventListener('click', async function(e){
     e.preventDefault();
@@ -122,6 +238,7 @@ openFile.addEventListener('click', async function(e){
         
         if (fileContent) {
             inputCode.value = fileContent;
+            updateSyntaxHighlighting();
             console.log('Файл успешно загружен');
         }
     } catch (error) {
@@ -167,7 +284,7 @@ exportFile.addEventListener('click', async function(e){
     }
 });
 
-// НОВАЯ ФУНКЦИЯ: Перевод кода
+// Функция перевода кода
 async function translateCode() {
     const inputLang = inputLangSelect.value;
     const outputLang = outputLangSelect.value;
@@ -180,7 +297,9 @@ async function translateCode() {
     
     // Проверяем, поддерживается ли выбранная пара языков
     if (inputLang !== 'c' || outputLang !== 'python') {
-        outputCode.value = `// Транспиляция из ${inputLang} в ${outputLang} пока не поддерживается\n// Доступно: C -> Python`;
+        const errorMsg = `// Транспиляция из ${inputLang} в ${outputLang} пока не поддерживается\n// Доступно: C -> Python`;
+        outputCode.value = errorMsg;
+        updateSyntaxHighlighting();
         alert(`Пара языков ${inputLang} -> ${outputLang} пока не поддерживается. Доступно: C -> Python`);
         return;
     }
@@ -199,6 +318,7 @@ async function translateCode() {
         
         if (result.success) {
             outputCode.value = result.output;
+            updateSyntaxHighlighting();
             console.log('Транспиляция успешна');
             
             // Если есть AST для отладки, можно вывести в консоль
@@ -207,11 +327,13 @@ async function translateCode() {
             }
         } else {
             outputCode.value = '';
+            updateSyntaxHighlighting();
             alert('Ошибка транспиляции: ' + result.error);
         }
     } catch (error) {
         console.error('Ошибка при переводе:', error);
         outputCode.value = '';
+        updateSyntaxHighlighting();
         alert('Ошибка при переводе: ' + error);
     } finally {
         // Возвращаем кнопку в исходное состояние
@@ -237,6 +359,46 @@ inputCode.addEventListener('keydown', function(e) {
     }
 });
 
+// Обновление подсветки при вводе текста
+inputCode.addEventListener('input', updateSyntaxHighlighting);
+outputCode.addEventListener('input', updateSyntaxHighlighting);
+
+// Обновление подсветки при смене языка
+inputLangSelect.addEventListener('change', updateSyntaxHighlighting);
+outputLangSelect.addEventListener('change', updateSyntaxHighlighting);
+
+// Синхронизация скролла с защитой от цикличности
+inputCode.addEventListener('scroll', () => {
+    if (scrollSyncEnabled) {
+        requestAnimationFrame(syncScroll);
+    }
+});
+
+outputCode.addEventListener('scroll', () => {
+    if (scrollSyncEnabled) {
+        requestAnimationFrame(syncScroll);
+    }
+});
+
+// Добавляем обработку вставки текста
+inputCode.addEventListener('paste', function(e) {
+    // Даем время на вставку текста
+    setTimeout(updateSyntaxHighlighting, 0);
+});
+
+outputCode.addEventListener('paste', function(e) {
+    setTimeout(updateSyntaxHighlighting, 0);
+});
+
+// Добавляем обработку вырезания текста
+inputCode.addEventListener('cut', function(e) {
+    setTimeout(updateSyntaxHighlighting, 0);
+});
+
+outputCode.addEventListener('cut', function(e) {
+    setTimeout(updateSyntaxHighlighting, 0);
+});
+
 // Функция для проверки статуса Docker (опционально)
 async function checkDockerStatus() {
     try {
@@ -256,4 +418,15 @@ async function checkDockerStatus() {
 window.addEventListener('load', function() {
     setInitialWidths();
     checkDockerStatus();
+    
+    // Даем время на загрузку Highlight.js
+    setTimeout(updateSyntaxHighlighting, 100);
+});
+
+// Добавляем обработчик на загрузку Highlight.js (на случай асинхронной загрузки)
+document.addEventListener('DOMContentLoaded', function() {
+    // Если hljs загрузился после DOM, обновляем подсветку
+    if (window.hljs) {
+        updateSyntaxHighlighting();
+    }
 });

@@ -1,42 +1,57 @@
 <!doctype html>
 <html lang="ru" data-bs-theme="dark">
-  <head>
+
+<head>
     <meta charset="UTF-8" />
     <link rel="stylesheet" href="styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>IlLegacy</title>
     <!-- Bootstrap css -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <!-- Highlight.js тема (можно выбрать другую) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/vs2015.min.css">
+    <!-- Highlight.js библиотека -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <!-- Дополнительные языки для Highlight.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/java.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/php.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/fortran.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/cobol.min.js"></script>
     <script type="module" src="/main.js" defer></script>
-  </head>
+</head>
 
-  <body>
+<body>
     <!-- Навигационная панель -->
     <nav class="navbar navbar-expand-lg bg-body-tertiary">
-      <div class="container-fluid">
-          <a class="navbar-brand" href="#">IlLegacy</a>
-          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-              <span class="navbar-toggler-icon"></span>
-          </button>
-          <div class="collapse navbar-collapse" id="navbarNav">
-              <ul class="navbar-nav ms-auto">
-                  <li class="nav-item">
-                      <a class="nav-link" href="#" role="button" id="openFile">Открыть файл</a>
-                  </li>
-                  <li class="nav-item">
-                      <a class="nav-link" href="#" role="button" id="clearInput">Очистить ввод</a>
-                  </li>
-                  <li class="nav-item">
-                    <a class="nav-link" href="#" role="button" id="translateBtn">Перевести</a>
-                  </li>
-                  <li class="nav-item">
-                      <a class="nav-link" href="#" role="button" id="exportFile">Экспорт файла</a>
-                  </li>
-              </ul>
-          </div>
-      </div>
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">IlLegacy</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" role="button" id="openFile">Открыть файл</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" role="button" id="clearInput">Очистить ввод</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" role="button" id="translateBtn">Перевести</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" role="button" id="exportFile">Экспорт файла</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
     </nav>
-    
+
     <div class="grid-container">
         <div class="column left-column">
             <div class="select-wrapper">
@@ -48,7 +63,10 @@
                     <option value="cobol">COBOL</option>
                 </select>
             </div>
-            <textarea class="code-textarea" placeholder="Введите программу..." id="inputCode"></textarea>
+            <div class="code-container">
+                <textarea class="code-textarea" placeholder="Введите программу..." id="inputCode"></textarea>
+                <pre class="code-preview"><code class="hljs" id="inputCodePreview"></code></pre>
+            </div>
         </div>
         <div id="resizer"></div>
         <div class="column right-column">
@@ -60,10 +78,16 @@
                     <option value="go">Go</option>
                 </select>
             </div>
-            <textarea class="code-textarea" placeholder="Результат преобразования..." id="outputCode"></textarea>
+            <div class="code-container">
+                <textarea class="code-textarea" placeholder="Результат преобразования..." id="outputCode"></textarea>
+                <pre class="code-preview"><code class="hljs" id="outputCodePreview"></code></pre>
+            </div>
         </div>
     </div>
-    
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
-  </body>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+        crossorigin="anonymous"></script>
+</body>
+
 </html>
