@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  c-parser:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./parser_service:/app
+    environment:
+      - FLASK_ENV=development
