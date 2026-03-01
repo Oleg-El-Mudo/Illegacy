@@ -24,7 +24,14 @@ int main(){
     char str[255] = "name";
     int a;
     a=18;
+    a++;
+    ++a;
+    a--;
+    --a;
+    a = -1;
+
     int b = 20;
+    b = a -9;
     int c = foo(a, b);
     int result;
     if (a > 20){
@@ -72,7 +79,13 @@ def main():
     str = "name"
     a = None
     a = 18
+    a += 1
+    a += 1
+    a -= 1
+    a -= 1
+    a = -1
     b = 20
+    b = a - 9
     c = foo(a, b)
     result = None
     if a > 20:
@@ -97,6 +110,8 @@ def main():
 
 def foo(x, y):
     return x + y
+
+
 "#;
 
     println!("Запуск комплексного теста...");
