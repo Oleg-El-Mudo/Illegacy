@@ -19,14 +19,17 @@ async fn test_complete_example() {
     let c_code = r#"
 int main(){
     int arr = {1, 2, 3, 4, 5};
+    int sec[] = {1,2,3};
+    int th[3]={3,2,1};
+    char str[255] = "name";
     int a;
-    a = 18;
+    a=18;
     int b = 20;
     int c = foo(a, b);
     int result;
     if (a > 20){
         result = 1;
-    } else if (a > 30){
+    } else if ( a > 30){
         result = 2;
     } else if (a > 40){
         result = 3;
@@ -36,7 +39,7 @@ int main(){
 
     switch (result){
         case 1:
-            result += 1;
+            result +=1;
             break;
         case 2:
             result += 2;
@@ -50,7 +53,7 @@ int main(){
 }
 
 int foo(int x, int y){
-    return x + y;
+    return x+y;
 }
 "#;
 
@@ -64,6 +67,9 @@ import os
 
 def main():
     arr = [1, 2, 3, 4, 5]
+    sec = [1, 2, 3]
+    th = [3, 2, 1]
+    str = "name"
     a = None
     a = 18
     b = 20
