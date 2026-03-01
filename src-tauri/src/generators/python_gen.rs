@@ -215,7 +215,7 @@ impl PythonGenerator {
                     }
                     Ok(String::new())
                 } else {
-                    self.generate_declaration(node)
+                    self.generate_declaration(node) // Это вызовет исправленный метод
                 }
             }
             "Switch" => self.generate_switch(node), // Добавить эту строку
@@ -461,6 +461,33 @@ impl PythonGenerator {
                     values
                 );
                 Ok(format!("[{}]", values.join(", ")))
+            }
+
+            // В методе generate_expression_internal, добавьте обработку "TernaryOp":
+            "TernaryOp" => {
+                debug!("Генерация TernaryOp");
+
+                // В Python тернарный оператор имеет синтаксис: value_if_true if condition else value_if_false
+                // В C: condition ? value_if_true : value_if_false
+                // Поэтому порядок детей: [cond, iftrue, iffalse]
+
+                if node.children.len() >= 3 {
+                    let cond = self.generate_expression_internal(&node.children[0])?;
+                    let iftrue = self.generate_expression_internal(&node.children[1])?;
+                    let iffalse = self.generate_expression_internal(&node.children[2])?;
+
+                    debug!(
+                        "Тернарный оператор: cond={}, true={}, false={}",
+                        cond, iftrue, iffalse
+                    );
+                    Ok(format!("{} if {} else {}", iftrue, cond, iffalse))
+                } else {
+                    debug!(
+                        "TernaryOp имеет недостаточно детей: {}",
+                        node.children.len()
+                    );
+                    Ok("None".to_string())
+                }
             }
             _ => {
                 debug!("Неизвестное выражение: {}", node.node_type);
@@ -724,9 +751,18 @@ impl PythonGenerator {
         if let Some(name) = node.attributes.get("name").and_then(|v| v.as_str()) {
             self.symbols.insert(name.to_string());
 
-            if !node.children.is_empty() {
-                let init_code = self.generate_expression(&node.children[0])?;
-                Ok(self.line(&format!("{} = {}", name, init_code)))
+            // Ищем инициализатор среди детей
+            let mut init_code = None;
+            for child in &node.children {
+                // Пропускаем TypeDecl, ищем выражение инициализации
+                if child.node_type != "TypeDecl" {
+                    init_code = Some(self.generate_expression(child)?);
+                    break;
+                }
+            }
+
+            if let Some(code) = init_code {
+                Ok(self.line(&format!("{} = {}", name, code)))
             } else {
                 Ok(self.line(&format!("{} = None", name)))
             }

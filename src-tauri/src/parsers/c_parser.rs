@@ -713,6 +713,40 @@ impl CParser {
                         }
                     }
 
+                    // В методе parse_ast_node, в секции match node_type добавьте:
+                    "TernaryOp" => {
+                        debug!("Обработка TernaryOp узла");
+                        debug!("Содержимое TernaryOp: {:#?}", obj);
+
+                        if let Some(coord) = obj.get("coord").and_then(|c| c.as_str()) {
+                            node.coord = Some(coord.to_string());
+                        }
+
+                        // Обрабатываем условие (cond)
+                        if let Some(cond) = obj.get("cond") {
+                            debug!("Условие TernaryOp: {:#?}", cond);
+                            if let Ok(cond_node) = self.parse_ast_node(cond) {
+                                node.children.push(cond_node);
+                            }
+                        }
+
+                        // Обрабатываем значение если true (iftrue)
+                        if let Some(iftrue) = obj.get("iftrue") {
+                            debug!("Значение если true: {:#?}", iftrue);
+                            if let Ok(true_node) = self.parse_ast_node(iftrue) {
+                                node.children.push(true_node);
+                            }
+                        }
+
+                        // Обрабатываем значение если false (iffalse)
+                        if let Some(iffalse) = obj.get("iffalse") {
+                            debug!("Значение если false: {:#?}", iffalse);
+                            if let Ok(false_node) = self.parse_ast_node(iffalse) {
+                                node.children.push(false_node);
+                            }
+                        }
+                    }
+
                     _ => {
                         // Для остальных узлов просто копируем все атрибуты
                         debug!("Обработка узла типа: {}", node_type);
