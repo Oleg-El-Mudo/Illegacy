@@ -426,7 +426,6 @@ impl CParser {
                         }
                     }
 
-                    // В методе parse_ast_node для "FuncCall":
                     "FuncCall" => {
                         // Для вызова функции
                         debug!("Обработка вызова функции");
@@ -447,12 +446,21 @@ impl CParser {
 
                         // Ищем аргументы
                         if let Some(args) = obj.get("args") {
+                            debug!("Найдены аргументы функции: {:#?}", args);
                             if let Some(args_obj) = args.as_object() {
                                 if args_obj.get("__node__").and_then(|n| n.as_str())
                                     == Some("ExprList")
                                 {
-                                    debug!("Найдены аргументы функции");
-                                    node.children.push(self.parse_ast_node(args)?);
+                                    debug!("Найдены аргументы функции (ExprList)");
+                                    // Важно: парсим args как узел, чтобы получить его детей
+                                    if let Ok(args_node) = self.parse_ast_node(args) {
+                                        debug!(
+                                            "Аргументы узел типа {} с {} детьми",
+                                            args_node.node_type,
+                                            args_node.children.len()
+                                        );
+                                        node.children.push(args_node);
+                                    }
                                 }
                             }
                         }
@@ -484,6 +492,46 @@ impl CParser {
                                 }
                             }
                         }
+                    }
+
+                    "ExprList" => {
+                        debug!("Обработка ExprList");
+                        debug!("Содержимое ExprList: {:#?}", obj);
+
+                        // В pycparser ExprList может иметь поля вида "exprs[0]", "exprs[1]" и т.д.
+                        let mut values = std::collections::HashMap::new();
+
+                        for (key, value) in obj {
+                            if key.starts_with("exprs[") && key.ends_with(']') {
+                                if let Some(index_str) =
+                                    key.strip_prefix("exprs[").and_then(|s| s.strip_suffix(']'))
+                                {
+                                    if let Ok(index) = index_str.parse::<usize>() {
+                                        debug!("Найдено поле {} с индексом {}", key, index);
+                                        values.insert(index, value);
+                                    }
+                                }
+                            }
+                        }
+
+                        // Сортируем по индексу и добавляем детей
+                        let mut indices: Vec<_> = values.keys().collect();
+                        indices.sort();
+
+                        for index in indices {
+                            if let Some(value) = values.get(index) {
+                                debug!("Добавляем аргумент с индексом {}: {:#?}", index, value);
+                                if let Ok(expr_node) = self.parse_ast_node(value) {
+                                    node.children.push(expr_node);
+                                    debug!("Добавлен аргумент");
+                                }
+                            }
+                        }
+
+                        debug!(
+                            "Итоговое количество детей в ExprList: {}",
+                            node.children.len()
+                        );
                     }
 
                     // В методе parse_ast_node, в секции match node_type
@@ -757,13 +805,14 @@ impl CParser {
                 for (key, val) in obj {
                     // Пропускаем уже обработанные специальные поля
                     if key == "__node__"
-                        || key == "coord"
-                        || key == "name"
-                        || key == "type"
-                        || key == "decl"
-                        || key == "params"
-                        || key == "init"
-                        || key.starts_with("exprs")
+        || key == "coord"
+        || key == "name"
+        || key == "type"
+        || key == "decl"
+        || key == "params"
+        || key == "init"
+        || key == "args"           // Добавить эту строку!
+        || key.starts_with("exprs")
                     {
                         continue;
                     }
@@ -785,7 +834,6 @@ impl CParser {
                         }
                     }
                 }
-
                 Ok(node)
             } else {
                 // Обычный объект (не узел)

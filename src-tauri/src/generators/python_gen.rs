@@ -344,8 +344,7 @@ impl PythonGenerator {
                     name = Some(name_attr.to_string());
                 }
 
-                // Обрабатываем детей - в AST от pycparser структура должна быть:
-                // FuncCall -> name (ID) + args (ExprList)
+                // Обрабатываем детей
                 for child in &node.children {
                     match child.node_type.as_str() {
                         "ID" => {
@@ -356,16 +355,13 @@ impl PythonGenerator {
                                 if name.is_none() {
                                     name = Some(id_name.to_string());
                                 }
-                                // НЕ добавляем ID как аргумент!
                             }
                         }
                         "ExprList" => {
-                            // Это список аргументов - обрабатываем только здесь
+                            // Это список аргументов
                             debug!("Обработка ExprList с {} детьми", child.children.len());
 
-                            // Очищаем предыдущие аргументы, если они были добавлены по ошибке
-                            args_exprs.clear();
-
+                            // Проходим по всем детям ExprList
                             for arg in &child.children {
                                 let arg_expr = self.generate_expression_internal(arg)?;
                                 if !arg_expr.is_empty() && arg_expr != "None" {
@@ -375,7 +371,6 @@ impl PythonGenerator {
                             }
                         }
                         _ => {
-                            // Игнорируем другие типы детей в FuncCall
                             debug!("Игнорируем ребенка типа {} в FuncCall", child.node_type);
                         }
                     }
@@ -391,10 +386,17 @@ impl PythonGenerator {
             }
 
             "ExprList" => {
+                // Это отдельное выражение (не как аргумент функции)
                 let mut exprs = Vec::new();
+                debug!(
+                    "Генерация ExprList как отдельного выражения с {} детьми",
+                    node.children.len()
+                );
+
                 for child in &node.children {
                     let expr = self.generate_expression_internal(child)?;
                     if !expr.is_empty() {
+                        debug!("  Выражение в ExprList: {}", expr);
                         exprs.push(expr);
                     }
                 }
