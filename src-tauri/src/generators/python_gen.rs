@@ -196,7 +196,28 @@ impl PythonGenerator {
             "While" => self.generate_while(node),
             "For" => self.generate_for(node),
             "Assignment" => self.generate_assignment(node),
-            "Decl" => self.generate_declaration(node),
+            "Decl" => {
+                // Проверяем, является ли это объявлением массива
+                let mut is_array = false;
+                for child in &node.children {
+                    if child.node_type == "ArrayDecl" {
+                        is_array = true;
+                        break;
+                    }
+                }
+
+                if is_array {
+                    // Ищем узел ArrayDecl среди детей
+                    for child in &node.children {
+                        if child.node_type == "ArrayDecl" {
+                            return self.generate_array_decl(child);
+                        }
+                    }
+                    Ok(String::new())
+                } else {
+                    self.generate_declaration(node)
+                }
+            }
             "Switch" => self.generate_switch(node), // Добавить эту строку
             "FuncCall" => {
                 let expr = self.generate_expression(node)?;
@@ -380,6 +401,67 @@ impl PythonGenerator {
                 Ok(exprs.join(", "))
             }
 
+            "ArrayRef" => self.generate_array_ref(node),
+
+            "InitList" => {
+                // InitList как выражение (может использоваться в других контекстах)
+                let mut values = Vec::new();
+                let node_id = node.coord.as_deref().unwrap_or("unknown");
+
+                debug!(
+                    "Генерация InitList (id: {}) с {} детьми",
+                    node_id,
+                    node.children.len()
+                );
+
+                // Важно: не вызываем generate_expression_internal для всего InitList снова!
+                // Проходим по детям и генерируем каждое значение
+                for (i, child) in node.children.iter().enumerate() {
+                    // Убедимся, что это не сам InitList (предотвращаем рекурсию)
+                    if child.node_type == "InitList" {
+                        debug!("ПРЕДУПРЕЖДЕНИЕ: InitList содержит другой InitList как ребенка!");
+                        // Рекурсивно вызываем для вложенного InitList
+                        let nested_values = self.generate_expression_internal(child)?;
+                        // Вложенный InitList вернет строку вида "[10, 20]", нам нужно извлечь значения
+                        // или просто добавить как есть?
+                        values.push(nested_values);
+                    } else {
+                        let value = self.generate_expression_internal(child)?;
+                        debug!(
+                            "  InitList {} ребенок {}: тип={}, значение={}",
+                            node_id, i, child.node_type, value
+                        );
+                        values.push(value);
+                    }
+                }
+
+                // Проверяем, не дублируются ли значения
+                let mut unique_values = Vec::new();
+                for value in &values {
+                    if !unique_values.contains(value) {
+                        unique_values.push(value.clone());
+                    } else {
+                        debug!("Найдено дублирующееся значение: {}", value);
+                    }
+                }
+
+                if unique_values.len() != values.len() {
+                    debug!(
+                        "Обнаружено дублирование! Было {}, стало {}",
+                        values.len(),
+                        unique_values.len()
+                    );
+                    values = unique_values;
+                }
+
+                debug!(
+                    "InitList {} итоговые значения ({} шт): {:?}",
+                    node_id,
+                    values.len(),
+                    values
+                );
+                Ok(format!("[{}]", values.join(", ")))
+            }
             _ => {
                 debug!("Неизвестное выражение: {}", node.node_type);
                 Ok("None".to_string())
@@ -677,6 +759,93 @@ impl PythonGenerator {
             Ok(self.line(&format!("{} {} {}", left, py_op, right)))
         } else {
             Ok(String::new())
+        }
+    }
+
+    /// Генерирует объявление массива как список Python
+    fn generate_array_decl(&mut self, node: &ASTNode) -> Result<String> {
+        let mut output = String::new();
+
+        // Получаем имя массива
+        let name = node
+            .attributes
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown_array");
+
+        debug!("Генерация объявления массива: {}", name);
+        debug!("Детей у узла массива: {}", node.children.len());
+
+        // Выводим всех детей для отладки
+        for (i, child) in node.children.iter().enumerate() {
+            debug!(
+                "  Ребенок {}: тип={}, атрибуты={:?}",
+                i, child.node_type, child.attributes
+            );
+        }
+
+        // Ищем инициализатор в детях
+        let mut init_values = Vec::new();
+        let mut found_init_list = false;
+
+        // Сначала ищем InitList - только из него берем значения
+        for child in &node.children {
+            // В generate_array_decl, когда находим InitList:
+            if child.node_type == "InitList" {
+                debug!(
+                    "Найден InitList (id: {:?}) с {} детьми",
+                    child.coord,
+                    child.children.len()
+                );
+
+                // Выводим детей InitList
+                for (j, val_child) in child.children.iter().enumerate() {
+                    debug!(
+                        "  InitList[{}]: тип={}, атрибуты={:?}",
+                        j, val_child.node_type, val_child.attributes
+                    );
+
+                    let value = self.generate_expression(val_child)?;
+                    debug!("    Значение: {}", value);
+                    init_values.push(value);
+                }
+                found_init_list = true;
+                break; // Берем только первый InitList
+            }
+        }
+
+        // Если нет InitList, тогда ищем прямые значения (для других случаев)
+        if !found_init_list {
+            for child in &node.children {
+                if child.node_type == "Constant" || child.node_type == "ID" {
+                    debug!("Прямое значение в массиве: тип={}", child.node_type);
+                    let value = self.generate_expression(child)?;
+                    init_values.push(value);
+                }
+            }
+        }
+
+        if !init_values.is_empty() {
+            debug!("Инициализация массива значениями: {:?}", init_values);
+            output.push_str(&self.line(&format!("{} = [{}]", name, init_values.join(", "))));
+        } else {
+            debug!("Нет инициализатора, создаем пустой список");
+            output.push_str(&self.line(&format!("{} = []", name)));
+        }
+
+        Ok(output)
+    }
+
+    /// Генерирует обращение к элементу массива
+    fn generate_array_ref(&mut self, node: &ASTNode) -> Result<String> {
+        debug!("Генерация обращения к элементу массива");
+
+        if node.children.len() >= 2 {
+            let array_name = self.generate_expression(&node.children[0])?;
+            let index = self.generate_expression(&node.children[1])?;
+            Ok(format!("{}[{}]", array_name, index))
+        } else {
+            Ok("[]".to_string())
         }
     }
 

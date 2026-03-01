@@ -282,18 +282,77 @@ impl CParser {
                         );
                     }
                     "Decl" => {
+                        debug!("Обработка Decl узла");
+                        debug!("Полное содержимое Decl: {:#?}", obj);
+
                         // Для объявлений переменных
-                        if let Some(name) = obj.get("name").and_then(|n| n.as_str()) {
+                        let decl_name = obj.get("name").and_then(|n| n.as_str()).map(String::from);
+                        debug!("Имя в Decl: {:?}", decl_name);
+
+                        if let Some(ref name) = decl_name {
                             node.attributes
-                                .insert("name".to_string(), Value::String(name.to_string()));
+                                .insert("name".to_string(), Value::String(name.clone()));
                         }
 
-                        // Проверяем инициализатор
+                        // Сначала обрабатываем инициализатор, если есть
+                        let mut init_node = None;
                         if let Some(init) = obj.get("init") {
-                            node.children.push(self.parse_ast_node(init)?);
+                            debug!("Инициализатор в Decl: {:#?}", init);
+                            if let Ok(init_node_val) = self.parse_ast_node(init) {
+                                debug!("Создан инициализатор типа: {}", init_node_val.node_type);
+                                init_node = Some(init_node_val);
+                            }
                         }
-                    }
 
+                        // Проверяем тип объявления
+                        if let Some(type_obj) = obj.get("type") {
+                            debug!("Тип в Decl: {:#?}", type_obj);
+
+                            if let Some(type_obj_map) = type_obj.as_object() {
+                                if let Some(type_node) =
+                                    type_obj_map.get("__node__").and_then(|n| n.as_str())
+                                {
+                                    debug!("Тип узла: {}", type_node);
+
+                                    if type_node == "ArrayDecl" {
+                                        debug!("Найдено объявление массива в Decl");
+
+                                        if let Ok(mut array_node) = self.parse_ast_node(type_obj) {
+                                            if let Some(ref name) = decl_name {
+                                                array_node.attributes.insert(
+                                                    "name".to_string(),
+                                                    Value::String(name.clone()),
+                                                );
+                                                debug!("Добавлено имя массива: {}", name);
+                                            }
+
+                                            // Добавляем инициализатор как ребенка массива, если он есть
+                                            if let Some(init) = init_node {
+                                                debug!("Добавляем инициализатор к узлу массива");
+                                                array_node.children.push(init);
+                                            }
+
+                                            node.children.push(array_node);
+                                        }
+                                    } else {
+                                        // Обычное объявление - добавляем тип и инициализатор как детей Decl
+                                        if let Ok(type_decl_node) = self.parse_ast_node(type_obj) {
+                                            node.children.push(type_decl_node);
+                                        }
+                                        // Для обычных объявлений добавляем инициализатор отдельно
+                                        if let Some(init) = init_node {
+                                            node.children.push(init);
+                                        }
+                                    }
+                                }
+                            }
+                        } else if let Some(init) = init_node {
+                            // Если нет типа, но есть инициализатор
+                            node.children.push(init);
+                        }
+
+                        // ВАЖНО: НЕ добавляем init_node ещё раз здесь!
+                    }
                     "IdentifierType" => {
                         // Для идентификаторов типов
                         if let Some(names) = obj.get("names") {
@@ -538,6 +597,122 @@ impl CParser {
                         }
                     }
 
+                    // В методе parse_ast_node, в секции match node_type, добавьте обработку для "ArrayDecl" и "ArrayRef":
+                    "ArrayDecl" => {
+                        debug!("Обработка объявления массива");
+                        debug!("Содержимое ArrayDecl: {:#?}", obj);
+
+                        // Сохраняем имя массива
+                        if let Some(name) = obj.get("name").and_then(|n| n.as_str()) {
+                            node.attributes
+                                .insert("name".to_string(), Value::String(name.to_string()));
+                            debug!("Имя массива: {}", name);
+                        }
+
+                        // Обрабатываем тип элементов
+                        if let Some(type_obj) = obj.get("type") {
+                            debug!("Тип элементов массива: {:#?}", type_obj);
+                            if let Ok(type_node) = self.parse_ast_node(type_obj) {
+                                node.children.push(type_node);
+                            }
+                        }
+
+                        // Обрабатываем размер массива (если указан)
+                        if let Some(dim) = obj.get("dim") {
+                            debug!("Размер массива: {:#?}", dim);
+                            if let Ok(dim_node) = self.parse_ast_node(dim) {
+                                node.children.push(dim_node);
+                            }
+                        }
+
+                        // Обрабатываем инициализатор
+                        // if let Some(init) = obj.get("init") {
+                        //     debug!("Инициализатор массива: {:#?}", init);
+                        //     if let Ok(init_node) = self.parse_ast_node(init) {
+                        //         node.children.push(init_node);
+                        //     }
+                        // }
+                    }
+
+                    "InitList" => {
+                        debug!("Обработка InitList");
+                        debug!("Содержимое InitList: {:#?}", obj);
+
+                        // В pycparser InitList может иметь поля вида "exprs[0]", "exprs[1]" и т.д.
+                        // Собираем все значения в вектор, чтобы избежать дублирования
+                        let mut values = std::collections::HashMap::new();
+
+                        for (key, value) in obj {
+                            if key.starts_with("exprs[") && key.ends_with(']') {
+                                // Извлекаем индекс из ключа "exprs[0]" -> "0"
+                                if let Some(index_str) =
+                                    key.strip_prefix("exprs[").and_then(|s| s.strip_suffix(']'))
+                                {
+                                    if let Ok(index) = index_str.parse::<usize>() {
+                                        debug!("Найдено поле {} с индексом {}", key, index);
+                                        values.insert(index, value);
+                                    }
+                                }
+                            }
+                        }
+
+                        // Сортируем по индексу и добавляем детей
+                        let mut indices: Vec<_> = values.keys().collect();
+                        indices.sort();
+
+                        for index in indices {
+                            if let Some(value) = values.get(index) {
+                                debug!("Добавляем элемент с индексом {}: {:#?}", index, value);
+                                if let Ok(expr_node) = self.parse_ast_node(value) {
+                                    node.children.push(expr_node);
+                                    debug!("Добавлен элемент инициализации");
+                                }
+                            }
+                        }
+
+                        // Также проверяем наличие поля "exprs" (может быть массивом в других версиях)
+                        if node.children.is_empty() {
+                            if let Some(exprs) = obj.get("exprs") {
+                                debug!("Найдено поле exprs в InitList");
+                                if let Some(exprs_array) = exprs.as_array() {
+                                    debug!(
+                                        "Количество выражений в InitList: {}",
+                                        exprs_array.len()
+                                    );
+                                    for (i, expr) in exprs_array.iter().enumerate() {
+                                        debug!("  InitList[{}]: {:#?}", i, expr);
+                                        if let Ok(expr_node) = self.parse_ast_node(expr) {
+                                            node.children.push(expr_node);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        debug!(
+                            "Итоговое количество детей в InitList: {}",
+                            node.children.len()
+                        );
+                    }
+                    "ArrayRef" => {
+                        debug!("Обработка обращения к элементу массива");
+                        debug!("Содержимое ArrayRef: {:#?}", obj);
+
+                        // Имя массива
+                        if let Some(name_obj) = obj.get("name") {
+                            if let Ok(name_node) = self.parse_ast_node(name_obj) {
+                                node.children.push(name_node);
+                            }
+                        }
+
+                        // Индекс
+                        if let Some(subscript) = obj.get("subscript") {
+                            if let Ok(index_node) = self.parse_ast_node(subscript) {
+                                node.children.push(index_node);
+                            }
+                        }
+                    }
+
                     _ => {
                         // Для остальных узлов просто копируем все атрибуты
                         debug!("Обработка узла типа: {}", node_type);
@@ -554,6 +729,7 @@ impl CParser {
                         || key == "decl"
                         || key == "params"
                         || key == "init"
+                        || key.starts_with("exprs")
                     {
                         continue;
                     }
