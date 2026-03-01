@@ -421,75 +421,101 @@ impl PythonGenerator {
         }
     }
 
-    /// Генерирует if
-    fn generate_if(&mut self, node: &ASTNode) -> Result<String> {
-        let mut output = String::new();
+    /// Генерирует if с поддержкой elif
+fn generate_if(&mut self, node: &ASTNode) -> Result<String> {
+    let mut output = String::new();
+    let mut current_node = node;
+    let mut is_first = true;
 
-        debug!("Генерация IF узла");
-        debug!("Количество детей: {}", node.children.len());
-
-        // Выводим информацию о детях для отладки
-        for (i, child) in node.children.iter().enumerate() {
-            debug!(
-                "  Ребенок {}: тип={}, координаты={:?}",
-                i, child.node_type, child.coord
-            );
+    debug!("Генерация IF/ELIF цепочки");
+    
+    // Функция для проверки, является ли узел "else if" конструкцией
+    fn is_else_if(node: &ASTNode) -> bool {
+        if node.node_type == "If" {
+            return true;
         }
+        // Проверяем, может ли это быть Compound с одним If внутри
+        if node.node_type == "Compound" && node.children.len() == 1 {
+            if let Some(first_child) = node.children.first() {
+                return first_child.node_type == "If";
+            }
+        }
+        false
+    }
 
-        if let Some(cond) = node.children.first() {
+    loop {
+        if let Some(cond) = current_node.children.first() {
             let cond_code = self.generate_expression(cond)?;
-            debug!("Условие: {}", cond_code);
-
-            output.push_str(&self.line(&format!("if {}:", cond_code)));
+            
+            if is_first {
+                output.push_str(&self.line(&format!("if {}:", cond_code)));
+                is_first = false;
+            } else {
+                output.push_str(&self.line(&format!("elif {}:", cond_code)));
+            }
 
             self.indent_level += 1;
-
-            // Ищем тело if - обычно это Compound или другой узел после условия
-            // В AST от pycparser структура может быть: [cond, if_body, else_body]
-            if let Some(if_body) = node.children.get(1) {
+            
+            // Генерируем тело текущего if
+            if let Some(if_body) = current_node.children.get(1) {
                 debug!("Тело IF: тип={}", if_body.node_type);
-
+                
                 if if_body.node_type == "Compound" {
                     for stmt in &if_body.children {
-                        let stmt_code = self.generate_statement(stmt)?;
-                        debug!("  Оператор в IF: {}", stmt_code.trim());
-                        output.push_str(&stmt_code);
+                        output.push_str(&self.generate_statement(stmt)?);
                     }
                 } else {
                     // Если не Compound, возможно это одиночный оператор
-                    let stmt_code = self.generate_statement(if_body)?;
-                    debug!("  Одиночный оператор в IF: {}", stmt_code.trim());
-                    output.push_str(&stmt_code);
+                    output.push_str(&self.generate_statement(if_body)?);
                 }
             }
             self.indent_level -= 1;
 
-            // Проверяем наличие else
-            if node.children.len() > 2 {
-                let else_part = node.children.get(2).unwrap();
-                debug!("Тело ELSE: тип={}", else_part.node_type);
-
-                output.push_str(&self.line("else:"));
-                self.indent_level += 1;
-
-                if else_part.node_type == "Compound" {
-                    for stmt in &else_part.children {
-                        let stmt_code = self.generate_statement(stmt)?;
-                        debug!("  Оператор в ELSE: {}", stmt_code.trim());
-                        output.push_str(&stmt_code);
+            // Проверяем наличие else части
+            if current_node.children.len() > 2 {
+                let else_part = current_node.children.get(2).unwrap();
+                debug!("Часть ELSE: тип={}", else_part.node_type);
+                
+                // Проверяем, является ли else часть "else if"
+                if is_else_if(else_part) {
+                    // Это else if - переходим к следующей итерации для генерации elif
+                    if else_part.node_type == "If" {
+                        current_node = else_part;
+                    } else if else_part.node_type == "Compound" && !else_part.children.is_empty() {
+                        // Извлекаем if из compound
+                        if let Some(inner_if) = else_part.children.first() {
+                            current_node = inner_if;
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break;
                     }
                 } else {
-                    // Если не Compound, возможно это другой if (else if)
-                    let stmt_code = self.generate_statement(else_part)?;
-                    debug!("  Одиночный оператор в ELSE: {}", stmt_code.trim());
-                    output.push_str(&stmt_code);
+                    // Это обычный else
+                    output.push_str(&self.line("else:"));
+                    self.indent_level += 1;
+                    
+                    if else_part.node_type == "Compound" {
+                        for stmt in &else_part.children {
+                            output.push_str(&self.generate_statement(stmt)?);
+                        }
+                    } else {
+                        output.push_str(&self.generate_statement(else_part)?);
+                    }
+                    self.indent_level -= 1;
+                    break; // Завершаем цикл после else
                 }
-                self.indent_level -= 1;
+            } else {
+                break; // Нет else части, завершаем
             }
+        } else {
+            break;
         }
-
-        Ok(output)
     }
+
+    Ok(output)
+}
     /// Генерирует while
     fn generate_while(&mut self, node: &ASTNode) -> Result<String> {
         let mut output = String::new();
