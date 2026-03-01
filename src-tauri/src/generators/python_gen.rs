@@ -269,7 +269,7 @@ impl PythonGenerator {
                         if s.parse::<i32>().is_ok() || s.parse::<f64>().is_ok() {
                             Ok(s.to_string())
                         } else {
-                            // Это строка, возможно с кавычками
+                            // Это строка, оставляем как есть (с кавычками)
                             Ok(s.to_string())
                         }
                     } else if let Some(n) = value.as_i64() {
@@ -318,10 +318,10 @@ impl PythonGenerator {
                     String::new()
                 };
 
+                debug!("Бинарная операция: {} {} {}", left, py_op, right);
                 Ok(format!("{} {} {}", left, py_op, right))
             }
 
-            // В методе generate_expression_internal для "UnaryOp":
             "UnaryOp" => {
                 let op = node
                     .attributes
@@ -329,22 +329,35 @@ impl PythonGenerator {
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown");
 
+                debug!("Унарная операция: {} с {} детьми", op, node.children.len());
+
                 let expr = if let Some(child) = node.children.first() {
                     self.generate_expression_internal(child)?
                 } else {
                     String::new()
                 };
 
+                debug!("  Операнд: '{}'", expr);
+
                 match op {
-                    "++" => Ok(format!("({} + 1)", expr)),
-                    "--" => Ok(format!("({} - 1)", expr)),
-                    "p++" | "post++" => Ok(format!("({} + 1)", expr)),
-                    "p--" | "post--" => Ok(format!("({} - 1)", expr)),
+                    "++" | "p++" | "post++" => {
+                        // Постфиксный или префиксный инкремент как выражение
+                        Ok(format!("({} + 1)", expr))
+                    }
+                    "--" | "p--" | "post--" => {
+                        // Постфиксный или префиксный декремент как выражение
+                        Ok(format!("({} - 1)", expr))
+                    }
                     "-" => {
-                        // Проверяем, является ли выражение константой
+                        // Унарный минус
                         if expr.chars().all(|c| c.is_ascii_digit() || c == '.') {
+                            // Это число
                             Ok(format!("-{}", expr))
+                        } else if expr.starts_with('-') {
+                            // Уже отрицательное число
+                            Ok(expr)
                         } else {
+                            // Выражение в скобках
                             Ok(format!("-({})", expr))
                         }
                     }
@@ -356,6 +369,7 @@ impl PythonGenerator {
                     }
                 }
             }
+
             "FuncCall" => {
                 // Ищем имя функции
                 let mut name = None;
@@ -522,8 +536,11 @@ impl PythonGenerator {
 
     /// Генерирует унарный оператор как оператор
     fn generate_unary_stmt(&mut self, node: &ASTNode) -> Result<String> {
+        debug!("Генерация унарного оператора как стейтмента");
+
         if let Some(op) = node.attributes.get("op").and_then(|v| v.as_str()) {
             if let Some(child) = node.children.first() {
+                // Для префиксных и постфиксных операций с переменными
                 if child.node_type == "ID" {
                     if let Some(var_name) = child.attributes.get("name").and_then(|v| v.as_str()) {
                         match op {
@@ -540,7 +557,7 @@ impl PythonGenerator {
             }
         }
 
-        // Если не удалось обработать как оператор, генерируем как выражение
+        // Если не удалось обработать как оператор с переменной, генерируем как выражение
         let expr = self.generate_expression(node)?;
         Ok(self.line(&expr))
     }
@@ -843,6 +860,9 @@ impl PythonGenerator {
 
     /// Генерирует присваивание
     fn generate_assignment(&mut self, node: &ASTNode) -> Result<String> {
+        debug!("Генерация присваивания");
+        debug!("  Детей у присваивания: {}", node.children.len());
+
         if node.children.len() >= 2 {
             let left = self.generate_expression(&node.children[0])?;
             let right = self.generate_expression(&node.children[1])?;
@@ -862,8 +882,10 @@ impl PythonGenerator {
                 _ => "=",
             };
 
+            debug!("  {} {} {}", left, py_op, right);
             Ok(self.line(&format!("{} {} {}", left, py_op, right)))
         } else {
+            debug!("  Недостаточно детей для присваивания");
             Ok(String::new())
         }
     }

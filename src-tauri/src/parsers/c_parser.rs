@@ -406,6 +406,14 @@ impl CParser {
                         if let Some(op) = obj.get("op") {
                             node.attributes.insert("op".to_string(), op.clone());
                         }
+
+                        // Ищем операнд (expr)
+                        if let Some(expr) = obj.get("expr") {
+                            debug!("Операнд унарной операции: {:#?}", expr);
+                            if let Ok(expr_node) = self.parse_ast_node(expr) {
+                                node.children.push(expr_node);
+                            }
+                        }
                     }
 
                     "ParamList" => {
@@ -908,27 +916,26 @@ impl CParser {
 
                 // Обрабатываем все остальные поля для детей
                 for (key, val) in obj {
-                    // Пропускаем уже обработанные специальные поля
                     if key == "__node__"
-                        || key == "coord"
-                        || key == "name"
-                        || key == "type"
-                        || key == "decl"
-                        || key == "params"
-                        || key == "init"
-                        || key == "args"
-                        || key == "cond"
-                        || key == "iftrue"
-                        || key == "iffalse"
-                        || key == "stmt"
-                        || key == "value"
-                        || key == "stmts"
-                        || key == "expr"
-                        || key == "dim"
-                        || key == "subscript"
-                        || key.starts_with("exprs")
-                        || key.starts_with("block_items")
-                        || key.starts_with("params[")
+        || key == "coord"
+        || key == "name"
+        || key == "type"
+        || key == "decl"
+        || key == "params"
+        || key == "init"
+        || key == "args"
+        || key == "cond"
+        || key == "iftrue"
+        || key == "iffalse"
+        || key == "stmt"
+        || key == "value"
+        || key == "stmts"
+        || key == "expr"        // Уже добавлено!
+        || key == "dim"
+        || key == "subscript"
+        || key.starts_with("exprs")
+        || key.starts_with("block_items")
+        || key.starts_with("params[")
                     {
                         continue;
                     }
