@@ -38,129 +38,137 @@ impl PythonGenerator {
     }
 
     /// Генерирует код функции
-fn generate_function(&mut self, node: &ASTNode) -> Result<String> {
-    let mut output = String::new();
-    
-    // Получаем имя функции из разных мест
-    let name = node.attributes.get("name")
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown");
-    
-    debug!("Генерация функции: {}", name);
-    
-    // ОТЛАДКА: выводим все атрибуты узла
-    debug!("Атрибуты узла {}: {:#?}", name, node.attributes);
-    
-    // ОТЛАДКА: выводим всех детей узла
-    debug!("Дети узла {}:", name);
-    for (i, child) in node.children.iter().enumerate() {
-        debug!("  Дитя {}: type={}, атрибуты={:#?}", i, child.node_type, child.attributes);
-    }
-    
-    // Собираем параметры функции
-    let mut params = Vec::new();
-    
-    // 1. Проверяем атрибут param_names (добавлен в c_parser)
-    if let Some(param_names) = node.attributes.get("param_names") {
-        debug!("Найден атрибут param_names: {:#?}", param_names);
-        if let Some(param_array) = param_names.as_array() {
-            for param in param_array {
-                if let Some(param_name) = param.as_str() {
-                    debug!("Найден параметр в param_names: {}", param_name);
-                    params.push(param_name.to_string());
-                    self.symbols.insert(param_name.to_string());
+    fn generate_function(&mut self, node: &ASTNode) -> Result<String> {
+        let mut output = String::new();
+
+        // Получаем имя функции из разных мест
+        let name = node
+            .attributes
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+
+        debug!("Генерация функции: {}", name);
+
+        // ОТЛАДКА: выводим все атрибуты узла
+        debug!("Атрибуты узла {}: {:#?}", name, node.attributes);
+
+        // ОТЛАДКА: выводим всех детей узла
+        debug!("Дети узла {}:", name);
+        for (i, child) in node.children.iter().enumerate() {
+            debug!(
+                "  Дитя {}: type={}, атрибуты={:#?}",
+                i, child.node_type, child.attributes
+            );
+        }
+
+        // Собираем параметры функции
+        let mut params = Vec::new();
+
+        // 1. Проверяем атрибут param_names (добавлен в c_parser)
+        if let Some(param_names) = node.attributes.get("param_names") {
+            debug!("Найден атрибут param_names: {:#?}", param_names);
+            if let Some(param_array) = param_names.as_array() {
+                for param in param_array {
+                    if let Some(param_name) = param.as_str() {
+                        debug!("Найден параметр в param_names: {}", param_name);
+                        params.push(param_name.to_string());
+                        self.symbols.insert(param_name.to_string());
+                    }
                 }
             }
         }
-    }
-    
-    // 2. Проверяем атрибут params
-    if params.is_empty() {
-        if let Some(params_attr) = node.attributes.get("params") {
-            debug!("Найден атрибут params: {:#?}", params_attr);
-            if let Some(params_array) = params_attr.as_array() {
-                for param in params_array {
-                    if let Some(param_obj) = param.as_object() {
-                        if let Some(param_name) = param_obj.get("name").and_then(|v| v.as_str()) {
-                            debug!("Найден параметр в attributes.params: {}", param_name);
-                            params.push(param_name.to_string());
-                            self.symbols.insert(param_name.to_string());
+
+        // 2. Проверяем атрибут params
+        if params.is_empty() {
+            if let Some(params_attr) = node.attributes.get("params") {
+                debug!("Найден атрибут params: {:#?}", params_attr);
+                if let Some(params_array) = params_attr.as_array() {
+                    for param in params_array {
+                        if let Some(param_obj) = param.as_object() {
+                            if let Some(param_name) = param_obj.get("name").and_then(|v| v.as_str())
+                            {
+                                debug!("Найден параметр в attributes.params: {}", param_name);
+                                params.push(param_name.to_string());
+                                self.symbols.insert(param_name.to_string());
+                            }
                         }
                     }
                 }
             }
         }
-    }
-    
-    // 3. Ищем параметры в детях (для FuncDef)
-    if params.is_empty() {
-        for child in &node.children {
-            if child.node_type == "ParamList" {
-                debug!("Найден ParamList с {} детьми", child.children.len());
-                for param in &child.children {
-                    if let Some(param_name) = self.extract_param_name(param) {
-                        debug!("Найден параметр в ParamList: {}", param_name);
-                        params.push(param_name.clone());
-                        self.symbols.insert(param_name);
+
+        // 3. Ищем параметры в детях (для FuncDef)
+        if params.is_empty() {
+            for child in &node.children {
+                if child.node_type == "ParamList" {
+                    debug!("Найден ParamList с {} детьми", child.children.len());
+                    for param in &child.children {
+                        if let Some(param_name) = self.extract_param_name(param) {
+                            debug!("Найден параметр в ParamList: {}", param_name);
+                            params.push(param_name.clone());
+                            self.symbols.insert(param_name);
+                        }
                     }
                 }
             }
         }
-    }
-    
-    // 4. Ищем параметры в детях типа "Decl" (объявления переменных могут быть параметрами)
-    if params.is_empty() {
+
+        // 4. Ищем параметры в детях типа "Decl" (объявления переменных могут быть параметрами)
+        if params.is_empty() {
+            for child in &node.children {
+                if child.node_type == "Decl" {
+                    if let Some(param_name) = child.attributes.get("name").and_then(|v| v.as_str())
+                    {
+                        debug!("Найден параметр в Decl: {}", param_name);
+                        params.push(param_name.to_string());
+                        self.symbols.insert(param_name.to_string());
+                    }
+                }
+            }
+        }
+
+        debug!("Параметры функции {}: {:?}", name, params);
+
+        // Генерируем определение функции
+        output.push_str(&self.line(&format!("def {}({}):", name, params.join(", "))));
+
+        self.indent_level += 1;
+
+        // Генерируем тело функции
+        let mut has_return = false;
+        let mut has_body = false;
+
         for child in &node.children {
-            if child.node_type == "Decl" {
-                if let Some(param_name) = child.attributes.get("name").and_then(|v| v.as_str()) {
-                    debug!("Найден параметр в Decl: {}", param_name);
-                    params.push(param_name.to_string());
-                    self.symbols.insert(param_name.to_string());
+            if child.node_type == "Compound" {
+                has_body = true;
+                for stmt in &child.children {
+                    let stmt_code = self.generate_statement(stmt)?;
+                    output.push_str(&stmt_code);
+                    if stmt.node_type == "Return" {
+                        has_return = true;
+                    }
                 }
             }
         }
-    }
-    
-    debug!("Параметры функции {}: {:?}", name, params);
-    
-    // Генерируем определение функции
-    output.push_str(&self.line(&format!("def {}({}):", name, params.join(", "))));
-    
-    self.indent_level += 1;
-    
-    // Генерируем тело функции
-    let mut has_return = false;
-    let mut has_body = false;
-    
-    for child in &node.children {
-        if child.node_type == "Compound" {
-            has_body = true;
-            for stmt in &child.children {
-                let stmt_code = self.generate_statement(stmt)?;
-                output.push_str(&stmt_code);
-                if stmt.node_type == "Return" {
-                    has_return = true;
-                }
-            }
-        }
-    }
-    
-    // Если нет тела или нет return, добавляем pass
-    if !has_body {
-        output.push_str(&self.line("    pass"));
-    } else if !has_return {
-        // Для функций без return добавляем pass только если тело пустое
-        let body_lines: Vec<&str> = output.lines().collect();
-        if body_lines.len() <= 2 { // Только def и отступ
+
+        // Если нет тела или нет return, добавляем pass
+        if !has_body {
             output.push_str(&self.line("    pass"));
+        } else if !has_return {
+            // Для функций без return добавляем pass только если тело пустое
+            let body_lines: Vec<&str> = output.lines().collect();
+            if body_lines.len() <= 2 {
+                // Только def и отступ
+                output.push_str(&self.line("    pass"));
+            }
         }
+
+        self.indent_level -= 1;
+        output.push_str(&self.line(""));
+
+        Ok(output)
     }
-    
-    self.indent_level -= 1;
-    output.push_str(&self.line(""));
-    
-    Ok(output)
-}
     // Извлекает имя параметра из узла
     fn extract_param_name(&self, node: &ASTNode) -> Option<String> {
         // Прямой атрибут name
@@ -417,25 +425,64 @@ fn generate_function(&mut self, node: &ASTNode) -> Result<String> {
     fn generate_if(&mut self, node: &ASTNode) -> Result<String> {
         let mut output = String::new();
 
+        debug!("Генерация IF узла");
+        debug!("Количество детей: {}", node.children.len());
+
+        // Выводим информацию о детях для отладки
+        for (i, child) in node.children.iter().enumerate() {
+            debug!(
+                "  Ребенок {}: тип={}, координаты={:?}",
+                i, child.node_type, child.coord
+            );
+        }
+
         if let Some(cond) = node.children.first() {
             let cond_code = self.generate_expression(cond)?;
+            debug!("Условие: {}", cond_code);
+
             output.push_str(&self.line(&format!("if {}:", cond_code)));
 
             self.indent_level += 1;
-            if let Some(body) = node.children.get(1) {
-                for stmt in &body.children {
-                    output.push_str(&self.generate_statement(stmt)?);
+
+            // Ищем тело if - обычно это Compound или другой узел после условия
+            // В AST от pycparser структура может быть: [cond, if_body, else_body]
+            if let Some(if_body) = node.children.get(1) {
+                debug!("Тело IF: тип={}", if_body.node_type);
+
+                if if_body.node_type == "Compound" {
+                    for stmt in &if_body.children {
+                        let stmt_code = self.generate_statement(stmt)?;
+                        debug!("  Оператор в IF: {}", stmt_code.trim());
+                        output.push_str(&stmt_code);
+                    }
+                } else {
+                    // Если не Compound, возможно это одиночный оператор
+                    let stmt_code = self.generate_statement(if_body)?;
+                    debug!("  Одиночный оператор в IF: {}", stmt_code.trim());
+                    output.push_str(&stmt_code);
                 }
             }
             self.indent_level -= 1;
 
+            // Проверяем наличие else
             if node.children.len() > 2 {
+                let else_part = node.children.get(2).unwrap();
+                debug!("Тело ELSE: тип={}", else_part.node_type);
+
                 output.push_str(&self.line("else:"));
                 self.indent_level += 1;
-                if let Some(else_body) = node.children.get(2) {
-                    for stmt in &else_body.children {
-                        output.push_str(&self.generate_statement(stmt)?);
+
+                if else_part.node_type == "Compound" {
+                    for stmt in &else_part.children {
+                        let stmt_code = self.generate_statement(stmt)?;
+                        debug!("  Оператор в ELSE: {}", stmt_code.trim());
+                        output.push_str(&stmt_code);
                     }
+                } else {
+                    // Если не Compound, возможно это другой if (else if)
+                    let stmt_code = self.generate_statement(else_part)?;
+                    debug!("  Одиночный оператор в ELSE: {}", stmt_code.trim());
+                    output.push_str(&stmt_code);
                 }
                 self.indent_level -= 1;
             }
@@ -443,7 +490,6 @@ fn generate_function(&mut self, node: &ASTNode) -> Result<String> {
 
         Ok(output)
     }
-
     /// Генерирует while
     fn generate_while(&mut self, node: &ASTNode) -> Result<String> {
         let mut output = String::new();

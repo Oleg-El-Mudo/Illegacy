@@ -367,8 +367,6 @@ impl CParser {
                         }
                     }
 
-                    // В методе parse_ast_node добавьте обработку для FuncCall:
-
                     // В методе parse_ast_node для "FuncCall":
                     "FuncCall" => {
                         // Для вызова функции
@@ -428,6 +426,48 @@ impl CParser {
                             }
                         }
                     }
+
+                    // В методе parse_ast_node, в секции match node_type
+"If" => {
+    debug!("Обработка IF узла");
+    debug!("Содержимое IF узла: {:#?}", obj);
+    
+    // Сохраняем координаты для отладки
+    if let Some(coord) = obj.get("coord").and_then(|c| c.as_str()) {
+        node.coord = Some(coord.to_string());
+        debug!("IF узел координаты: {}", coord);
+    }
+    
+    // Обрабатываем условие (обычно это первый ребенок)
+    if let Some(cond) = obj.get("cond") {
+        debug!("Условие IF: {:#?}", cond);
+        if let Ok(cond_node) = self.parse_ast_node(cond) {
+            node.children.push(cond_node);
+        }
+    }
+    
+    // Обрабатываем тело if (then)
+    if let Some(iftrue) = obj.get("iftrue") {
+        debug!("Тело THEN (iftrue): {:#?}", iftrue);
+        if let Some(coord) = iftrue.get("coord").and_then(|c| c.as_str()) {
+            debug!("Тело THEN координаты: {}", coord);
+        }
+        if let Ok(body_node) = self.parse_ast_node(iftrue) {
+            node.children.push(body_node);
+        }
+    }
+    
+    // Обрабатываем тело else (iffalse)
+    if let Some(iffalse) = obj.get("iffalse") {
+        debug!("Тело ELSE (iffalse): {:#?}", iffalse);
+        if let Some(coord) = iffalse.get("coord").and_then(|c| c.as_str()) {
+            debug!("Тело ELSE координаты: {}", coord);
+        }
+        if let Ok(body_node) = self.parse_ast_node(iffalse) {
+            node.children.push(body_node);
+        }
+    }
+}
 
                     _ => {
                         // Для остальных узлов просто копируем все атрибуты
