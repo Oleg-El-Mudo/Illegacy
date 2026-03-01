@@ -54,12 +54,15 @@ impl PythonGenerator {
         debug!("Атрибуты узла {}: {:#?}", name, node.attributes);
 
         // ОТЛАДКА: выводим всех детей узла
-        debug!("Дети узла {}:", name);
+        debug!("Дети узла {} в функции:", name);
         for (i, child) in node.children.iter().enumerate() {
-            debug!(
-                "  Дитя {}: type={}, атрибуты={:#?}",
-                i, child.node_type, child.attributes
-            );
+            debug!("  Дитя {}: тип={}", i, child.node_type);
+            if child.node_type == "Compound" {
+                debug!("    Compound дети:");
+                for (j, stmt) in child.children.iter().enumerate() {
+                    debug!("      Оператор {}: тип={}", j, stmt.node_type);
+                }
+            }
         }
 
         // Собираем параметры функции
@@ -135,16 +138,17 @@ impl PythonGenerator {
 
         self.indent_level += 1;
 
-        // Генерируем тело функции
+        // Генерируем тело функции - просто проходим по всем операторам в порядке их следования
         let mut has_return = false;
         let mut has_body = false;
+        let mut body_output = String::new();
 
         for child in &node.children {
             if child.node_type == "Compound" {
                 has_body = true;
                 for stmt in &child.children {
                     let stmt_code = self.generate_statement(stmt)?;
-                    output.push_str(&stmt_code);
+                    body_output.push_str(&stmt_code);
                     if stmt.node_type == "Return" {
                         has_return = true;
                     }
@@ -152,16 +156,14 @@ impl PythonGenerator {
             }
         }
 
-        // Если нет тела или нет return, добавляем pass
+        // Добавляем тело функции
+        output.push_str(&body_output);
+
+        // Если нет тела или тело пустое, добавляем pass
         if !has_body {
             output.push_str(&self.line("    pass"));
-        } else if !has_return {
-            // Для функций без return добавляем pass только если тело пустое
-            let body_lines: Vec<&str> = output.lines().collect();
-            if body_lines.len() <= 2 {
-                // Только def и отступ
-                output.push_str(&self.line("    pass"));
-            }
+        } else if body_output.trim().is_empty() {
+            output.push_str(&self.line("    pass"));
         }
 
         self.indent_level -= 1;
@@ -215,7 +217,7 @@ impl PythonGenerator {
                     }
                     Ok(String::new())
                 } else {
-                    self.generate_declaration(node) // Это вызовет исправленный метод
+                    self.generate_declaration(node)
                 }
             }
             "Switch" => self.generate_switch(node), // Добавить эту строку
@@ -224,13 +226,18 @@ impl PythonGenerator {
                 Ok(self.line(&expr))
             }
             "UnaryOp" => self.generate_unary_stmt(node),
+            // В методе generate_statement для "Compound"
             "Compound" => {
                 let mut output = String::new();
+
+                // Просто генерируем операторы в том порядке, в котором они идут в AST
                 for stmt in &node.children {
                     output.push_str(&self.generate_statement(stmt)?);
                 }
+
                 Ok(output)
             }
+            "Break" => Ok(self.line("break")),
             _ => {
                 // Пытаемся обработать как выражение
                 let expr = self.generate_expression(node)?;
@@ -258,8 +265,16 @@ impl PythonGenerator {
             "Constant" => {
                 if let Some(value) = node.attributes.get("value") {
                     if let Some(s) = value.as_str() {
-                        Ok(s.to_string())
-                    } else if let Some(n) = value.as_number() {
+                        // Проверяем, является ли строка числом
+                        if s.parse::<i32>().is_ok() || s.parse::<f64>().is_ok() {
+                            Ok(s.to_string())
+                        } else {
+                            // Это строка, возможно с кавычками
+                            Ok(s.to_string())
+                        }
+                    } else if let Some(n) = value.as_i64() {
+                        Ok(n.to_string())
+                    } else if let Some(n) = value.as_f64() {
                         Ok(n.to_string())
                     } else {
                         Ok(value.to_string())
@@ -306,6 +321,7 @@ impl PythonGenerator {
                 Ok(format!("{} {} {}", left, py_op, right))
             }
 
+            // В методе generate_expression_internal для "UnaryOp":
             "UnaryOp" => {
                 let op = node
                     .attributes
@@ -324,7 +340,14 @@ impl PythonGenerator {
                     "--" => Ok(format!("({} - 1)", expr)),
                     "p++" | "post++" => Ok(format!("({} + 1)", expr)),
                     "p--" | "post--" => Ok(format!("({} - 1)", expr)),
-                    "-" => Ok(format!("-{}", expr)),
+                    "-" => {
+                        // Проверяем, является ли выражение константой
+                        if expr.chars().all(|c| c.is_ascii_digit() || c == '.') {
+                            Ok(format!("-{}", expr))
+                        } else {
+                            Ok(format!("-({})", expr))
+                        }
+                    }
                     "+" => Ok(format!("+{}", expr)),
                     "!" => Ok(format!("not {}", expr)),
                     _ => {
@@ -333,7 +356,6 @@ impl PythonGenerator {
                     }
                 }
             }
-
             "FuncCall" => {
                 // Ищем имя функции
                 let mut name = None;
@@ -525,10 +547,20 @@ impl PythonGenerator {
 
     /// Генерирует return
     fn generate_return(&mut self, node: &ASTNode) -> Result<String> {
+        debug!("Генерация RETURN узла");
+        debug!("Детей у return: {}", node.children.len());
+
         if let Some(expr) = node.children.first() {
             let expr_code = self.generate_expression(expr)?;
-            Ok(self.line(&format!("return {}", expr_code)))
+            debug!("Возвращаемое значение: {}", expr_code);
+
+            if expr_code.is_empty() || expr_code == "None" {
+                Ok(self.line("return"))
+            } else {
+                Ok(self.line(&format!("return {}", expr_code)))
+            }
         } else {
+            debug!("return без выражения");
             Ok(self.line("return"))
         }
     }
@@ -641,14 +673,21 @@ impl PythonGenerator {
         // Первый ребенок - условие (выражение в switch)
         if let Some(cond) = node.children.first() {
             let cond_code = self.generate_expression(cond)?;
+            debug!("Условие switch: {}", cond_code);
             output.push_str(&self.line(&format!("match {}:", cond_code)));
 
             self.indent_level += 1;
 
             // Второй ребенок - тело switch (содержит case и default)
             if let Some(body) = node.children.get(1) {
+                debug!("Тело switch тип: {}", body.node_type);
                 if body.node_type == "Compound" {
-                    for stmt in &body.children {
+                    debug!(
+                        "Количество операторов в теле switch: {}",
+                        body.children.len()
+                    );
+                    for (i, stmt) in body.children.iter().enumerate() {
+                        debug!("  Оператор {} в switch: тип={}", i, stmt.node_type);
                         match stmt.node_type.as_str() {
                             "Case" => {
                                 output.push_str(&self.generate_case(stmt)?);
@@ -665,6 +704,8 @@ impl PythonGenerator {
             }
 
             self.indent_level -= 1;
+        } else {
+            debug!("Нет условия в switch!");
         }
 
         Ok(output)
@@ -676,27 +717,43 @@ impl PythonGenerator {
 
         debug!("Генерация CASE узла");
         debug!("Детей у case: {}", node.children.len());
+        for (i, child) in node.children.iter().enumerate() {
+            debug!(
+                "  Ребенок {}: тип={}, атрибуты={:?}",
+                i, child.node_type, child.attributes
+            );
+        }
 
         // Первый ребенок - значение case
         if let Some(value_node) = node.children.first() {
             let value = self.generate_expression(value_node)?;
+            debug!("Значение case: '{}'", value);
             output.push_str(&self.line(&format!("case {}:", value)));
 
             self.indent_level += 1;
 
             // Второй ребенок - операторы в case
             if let Some(stmts) = node.children.get(1) {
+                debug!("Операторы case тип: {}", stmts.node_type);
                 if stmts.node_type == "Compound" {
+                    debug!("  Compound с {} детьми", stmts.children.len());
                     for stmt in &stmts.children {
-                        output.push_str(&self.generate_statement(stmt)?);
+                        let stmt_code = self.generate_statement(stmt)?;
+                        output.push_str(&stmt_code);
                     }
                 } else {
                     // Одиночный оператор без {}
-                    output.push_str(&self.generate_statement(stmts)?);
+                    debug!("  Одиночный оператор");
+                    let stmt_code = self.generate_statement(stmts)?;
+                    output.push_str(&stmt_code);
                 }
+            } else {
+                debug!("Нет операторов в case!");
             }
 
             self.indent_level -= 1;
+        } else {
+            debug!("Нет значения в case!");
         }
 
         Ok(output)
@@ -708,6 +765,12 @@ impl PythonGenerator {
 
         debug!("Генерация DEFAULT узла");
         debug!("Детей у default: {}", node.children.len());
+        for (i, child) in node.children.iter().enumerate() {
+            debug!(
+                "  Ребенок {}: тип={}, атрибуты={:?}",
+                i, child.node_type, child.attributes
+            );
+        }
 
         output.push_str(&self.line("case _:"));
 
@@ -715,13 +778,18 @@ impl PythonGenerator {
 
         // Операторы в default
         if let Some(stmts) = node.children.first() {
+            debug!("Операторы default тип: {}", stmts.node_type);
             if stmts.node_type == "Compound" {
+                debug!("  Compound с {} детьми", stmts.children.len());
                 for stmt in &stmts.children {
                     output.push_str(&self.generate_statement(stmt)?);
                 }
             } else {
+                debug!("  Одиночный оператор");
                 output.push_str(&self.generate_statement(stmts)?);
             }
+        } else {
+            debug!("Нет операторов в default!");
         }
 
         self.indent_level -= 1;
@@ -822,13 +890,16 @@ impl PythonGenerator {
             );
         }
 
+        // Проверяем, является ли это строкой (char массив с одним строковым литералом)
+        let mut is_string = false;
+        let mut string_value = None;
+
         // Ищем инициализатор в детях
         let mut init_values = Vec::new();
         let mut found_init_list = false;
 
         // Сначала ищем InitList - только из него берем значения
         for child in &node.children {
-            // В generate_array_decl, когда находим InitList:
             if child.node_type == "InitList" {
                 debug!(
                     "Найден InitList (id: {:?}) с {} детьми",
@@ -843,6 +914,24 @@ impl PythonGenerator {
                         j, val_child.node_type, val_child.attributes
                     );
 
+                    // Проверяем, является ли это строкой
+                    if val_child.node_type == "Constant" {
+                        if let Some(type_attr) = val_child.attributes.get("type") {
+                            if let Some(type_str) = type_attr.as_str() {
+                                if type_str == "string" {
+                                    is_string = true;
+                                    if let Some(val) = val_child.attributes.get("value") {
+                                        if let Some(s) = val.as_str() {
+                                            // Убираем внешние кавычки если они есть
+                                            let clean_str = s.trim_matches('"');
+                                            string_value = Some(clean_str.to_string());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     let value = self.generate_expression(val_child)?;
                     debug!("    Значение: {}", value);
                     init_values.push(value);
@@ -852,14 +941,65 @@ impl PythonGenerator {
             }
         }
 
-        // Если нет InitList, тогда ищем прямые значения (для других случаев)
+        // Если это строковый массив с одним элементом, преобразуем в строку Python
+        if is_string && init_values.len() == 1 {
+            if let Some(s) = string_value {
+                debug!("Преобразуем char массив в строку: {}", s);
+                output.push_str(&self.line(&format!("{} = \"{}\"", name, s)));
+                return Ok(output);
+            }
+        }
+
+        // Если нет InitList, тогда ищем прямые значения
         if !found_init_list {
             for child in &node.children {
+                // Пропускаем узлы, которые являются размером массива
+                if child.node_type == "Constant" {
+                    if let Some(type_attr) = child.attributes.get("type") {
+                        if let Some(type_str) = type_attr.as_str() {
+                            if type_str == "int" && init_values.is_empty() {
+                                debug!(
+                                    "Пропускаем возможный размер массива: {:?}",
+                                    child.attributes
+                                );
+                                continue;
+                            }
+                        }
+                    }
+                }
+
                 if child.node_type == "Constant" || child.node_type == "ID" {
                     debug!("Прямое значение в массиве: тип={}", child.node_type);
+
+                    // Проверяем, является ли это строкой
+                    if child.node_type == "Constant" {
+                        if let Some(type_attr) = child.attributes.get("type") {
+                            if let Some(type_str) = type_attr.as_str() {
+                                if type_str == "string" {
+                                    is_string = true;
+                                    if let Some(val) = child.attributes.get("value") {
+                                        if let Some(s) = val.as_str() {
+                                            let clean_str = s.trim_matches('"');
+                                            string_value = Some(clean_str.to_string());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     let value = self.generate_expression(child)?;
                     init_values.push(value);
                 }
+            }
+        }
+
+        // Если это строковый массив с одним элементом, преобразуем в строку Python
+        if is_string && init_values.len() == 1 {
+            if let Some(s) = string_value {
+                debug!("Преобразуем char массив в строку: {}", s);
+                output.push_str(&self.line(&format!("{} = \"{}\"", name, s)));
+                return Ok(output);
             }
         }
 
@@ -873,7 +1013,6 @@ impl PythonGenerator {
 
         Ok(output)
     }
-
     /// Генерирует обращение к элементу массива
     fn generate_array_ref(&mut self, node: &ASTNode) -> Result<String> {
         debug!("Генерация обращения к элементу массива");

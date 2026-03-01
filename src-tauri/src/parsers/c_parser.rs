@@ -603,6 +603,7 @@ impl CParser {
                         }
                     }
 
+                    // В методе parse_ast_node, для "Case":
                     "Case" => {
                         debug!("Обработка CASE узла");
                         debug!("Содержимое CASE: {:#?}", obj);
@@ -611,23 +612,47 @@ impl CParser {
                             node.coord = Some(coord.to_string());
                         }
 
-                        // Обрабатываем значение case
-                        if let Some(value) = obj.get("value") {
-                            debug!("Значение CASE: {:#?}", value);
-                            if let Ok(value_node) = self.parse_ast_node(value) {
-                                node.children.push(value_node);
+                        // Обрабатываем значение case (expr)
+                        if let Some(expr) = obj.get("expr") {
+                            debug!("Значение CASE: {:#?}", expr);
+                            if let Ok(expr_node) = self.parse_ast_node(expr) {
+                                node.children.push(expr_node);
                             }
                         }
 
-                        // Обрабатываем операторы в case
+                        // Обрабатываем операторы в case (stmts)
+                        // В pycparser stmts может быть массивом или отдельными полями stmts[0], stmts[1] и т.д.
                         if let Some(stmts) = obj.get("stmts") {
                             debug!("Операторы CASE: {:#?}", stmts);
-                            if let Ok(stmts_node) = self.parse_ast_node(stmts) {
-                                node.children.push(stmts_node);
+
+                            // Создаем Compound узел для операторов
+                            let mut compound_node = ASTNode::new("Compound");
+
+                            if let Some(stmts_array) = stmts.as_array() {
+                                for stmt in stmts_array {
+                                    if let Ok(stmt_node) = self.parse_ast_node(stmt) {
+                                        compound_node.children.push(stmt_node);
+                                    }
+                                }
+                            } else {
+                                // Может быть объект с полями stmts[0], stmts[1] и т.д.
+                                let mut i = 0;
+                                loop {
+                                    let key = format!("stmts[{}]", i);
+                                    if let Some(stmt) = obj.get(&key) {
+                                        if let Ok(stmt_node) = self.parse_ast_node(stmt) {
+                                            compound_node.children.push(stmt_node);
+                                        }
+                                        i += 1;
+                                    } else {
+                                        break;
+                                    }
+                                }
                             }
+
+                            node.children.push(compound_node);
                         }
                     }
-
                     "Default" => {
                         debug!("Обработка DEFAULT узла");
                         debug!("Содержимое DEFAULT: {:#?}", obj);
@@ -636,12 +661,36 @@ impl CParser {
                             node.coord = Some(coord.to_string());
                         }
 
-                        // Обрабатываем операторы в default
+                        // Обрабатываем операторы в default (stmts)
                         if let Some(stmts) = obj.get("stmts") {
                             debug!("Операторы DEFAULT: {:#?}", stmts);
-                            if let Ok(stmts_node) = self.parse_ast_node(stmts) {
-                                node.children.push(stmts_node);
+
+                            // Создаем Compound узел для операторов
+                            let mut compound_node = ASTNode::new("Compound");
+
+                            if let Some(stmts_array) = stmts.as_array() {
+                                for stmt in stmts_array {
+                                    if let Ok(stmt_node) = self.parse_ast_node(stmt) {
+                                        compound_node.children.push(stmt_node);
+                                    }
+                                }
+                            } else {
+                                // Может быть объект с полями stmts[0], stmts[1] и т.д.
+                                let mut i = 0;
+                                loop {
+                                    let key = format!("stmts[{}]", i);
+                                    if let Some(stmt) = obj.get(&key) {
+                                        if let Ok(stmt_node) = self.parse_ast_node(stmt) {
+                                            compound_node.children.push(stmt_node);
+                                        }
+                                        i += 1;
+                                    } else {
+                                        break;
+                                    }
+                                }
                             }
+
+                            node.children.push(compound_node);
                         }
                     }
 
@@ -794,6 +843,62 @@ impl CParser {
                             }
                         }
                     }
+                    // В методе parse_ast_node, в секции match node_type, добавьте:
+                    "Return" => {
+                        debug!("Обработка RETURN узла");
+                        debug!("Содержимое Return: {:#?}", obj);
+
+                        if let Some(coord) = obj.get("coord").and_then(|c| c.as_str()) {
+                            node.coord = Some(coord.to_string());
+                        }
+
+                        // Ищем выражение для возврата (может быть в поле "expr")
+                        if let Some(expr) = obj.get("expr") {
+                            debug!("Выражение return: {:#?}", expr);
+                            if let Ok(expr_node) = self.parse_ast_node(expr) {
+                                node.children.push(expr_node);
+                            }
+                        }
+                    }
+
+                    "Compound" => {
+                        debug!("Обработка Compound");
+
+                        // В pycparser Compound может иметь поле "block_items" с массивом операторов
+                        if let Some(block_items) = obj.get("block_items") {
+                            debug!("Найдены block_items в Compound");
+                            if let Some(items_array) = block_items.as_array() {
+                                debug!("Количество операторов в Compound: {}", items_array.len());
+                                for (i, item) in items_array.iter().enumerate() {
+                                    debug!("  Оператор {} в Compound: {:#?}", i, item);
+                                    if let Ok(stmt_node) = self.parse_ast_node(item) {
+                                        node.children.push(stmt_node);
+                                    }
+                                }
+                            }
+                        } else {
+                            // Альтернативный формат: могут быть отдельные поля
+                            debug!("Ищем отдельные поля в Compound");
+                            let mut i = 0;
+                            loop {
+                                let key = format!("block_items[{}]", i);
+                                if let Some(item) = obj.get(&key) {
+                                    debug!("Найдено поле {} в Compound", key);
+                                    if let Ok(stmt_node) = self.parse_ast_node(item) {
+                                        node.children.push(stmt_node);
+                                    }
+                                    i += 1;
+                                } else {
+                                    break;
+                                }
+                            }
+                        }
+
+                        debug!(
+                            "Compound обработан, добавлено {} детей",
+                            node.children.len()
+                        );
+                    }
 
                     _ => {
                         // Для остальных узлов просто копируем все атрибуты
@@ -805,14 +910,25 @@ impl CParser {
                 for (key, val) in obj {
                     // Пропускаем уже обработанные специальные поля
                     if key == "__node__"
-        || key == "coord"
-        || key == "name"
-        || key == "type"
-        || key == "decl"
-        || key == "params"
-        || key == "init"
-        || key == "args"           // Добавить эту строку!
-        || key.starts_with("exprs")
+                        || key == "coord"
+                        || key == "name"
+                        || key == "type"
+                        || key == "decl"
+                        || key == "params"
+                        || key == "init"
+                        || key == "args"
+                        || key == "cond"
+                        || key == "iftrue"
+                        || key == "iffalse"
+                        || key == "stmt"
+                        || key == "value"
+                        || key == "stmts"
+                        || key == "expr"
+                        || key == "dim"
+                        || key == "subscript"
+                        || key.starts_with("exprs")
+                        || key.starts_with("block_items")
+                        || key.starts_with("params[")
                     {
                         continue;
                     }
@@ -820,7 +936,25 @@ impl CParser {
                     // Если значение - объект с __node__, это дочерний узел
                     if val.is_object() {
                         if val.get("__node__").is_some() {
-                            node.children.push(self.parse_ast_node(val)?);
+                            // Добавляем проверку, чтобы не добавлять уже существующие узлы
+                            let new_node = self.parse_ast_node(val)?;
+
+                            // Проверяем, не добавлен ли уже такой узел
+                            let mut already_exists = false;
+                            for child in &node.children {
+                                if child.node_type == new_node.node_type
+                                    && child.coord == new_node.coord
+                                {
+                                    already_exists = true;
+                                    debug!("Предотвращено дублирование узла типа {} с координатами {:?}", 
+                           child.node_type, child.coord);
+                                    break;
+                                }
+                            }
+
+                            if !already_exists {
+                                node.children.push(new_node);
+                            }
                         }
                     }
                     // Если значение - массив, проверяем элементы
@@ -828,7 +962,22 @@ impl CParser {
                         if let Some(arr) = val.as_array() {
                             for item in arr {
                                 if item.is_object() && item.get("__node__").is_some() {
-                                    node.children.push(self.parse_ast_node(item)?);
+                                    let new_node = self.parse_ast_node(item)?;
+
+                                    // Проверяем, не добавлен ли уже такой узел
+                                    let mut already_exists = false;
+                                    for child in &node.children {
+                                        if child.node_type == new_node.node_type
+                                            && child.coord == new_node.coord
+                                        {
+                                            already_exists = true;
+                                            break;
+                                        }
+                                    }
+
+                                    if !already_exists {
+                                        node.children.push(new_node);
+                                    }
                                 }
                             }
                         }
