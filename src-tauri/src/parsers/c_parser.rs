@@ -428,46 +428,115 @@ impl CParser {
                     }
 
                     // В методе parse_ast_node, в секции match node_type
-"If" => {
-    debug!("Обработка IF узла");
-    debug!("Содержимое IF узла: {:#?}", obj);
-    
-    // Сохраняем координаты для отладки
-    if let Some(coord) = obj.get("coord").and_then(|c| c.as_str()) {
-        node.coord = Some(coord.to_string());
-        debug!("IF узел координаты: {}", coord);
-    }
-    
-    // Обрабатываем условие (обычно это первый ребенок)
-    if let Some(cond) = obj.get("cond") {
-        debug!("Условие IF: {:#?}", cond);
-        if let Ok(cond_node) = self.parse_ast_node(cond) {
-            node.children.push(cond_node);
-        }
-    }
-    
-    // Обрабатываем тело if (then)
-    if let Some(iftrue) = obj.get("iftrue") {
-        debug!("Тело THEN (iftrue): {:#?}", iftrue);
-        if let Some(coord) = iftrue.get("coord").and_then(|c| c.as_str()) {
-            debug!("Тело THEN координаты: {}", coord);
-        }
-        if let Ok(body_node) = self.parse_ast_node(iftrue) {
-            node.children.push(body_node);
-        }
-    }
-    
-    // Обрабатываем тело else (iffalse)
-    if let Some(iffalse) = obj.get("iffalse") {
-        debug!("Тело ELSE (iffalse): {:#?}", iffalse);
-        if let Some(coord) = iffalse.get("coord").and_then(|c| c.as_str()) {
-            debug!("Тело ELSE координаты: {}", coord);
-        }
-        if let Ok(body_node) = self.parse_ast_node(iffalse) {
-            node.children.push(body_node);
-        }
-    }
-}
+                    "If" => {
+                        debug!("Обработка IF узла");
+                        debug!("Содержимое IF узла: {:#?}", obj);
+
+                        // Сохраняем координаты для отладки
+                        if let Some(coord) = obj.get("coord").and_then(|c| c.as_str()) {
+                            node.coord = Some(coord.to_string());
+                            debug!("IF узел координаты: {}", coord);
+                        }
+
+                        // Обрабатываем условие (обычно это первый ребенок)
+                        if let Some(cond) = obj.get("cond") {
+                            debug!("Условие IF: {:#?}", cond);
+                            if let Ok(cond_node) = self.parse_ast_node(cond) {
+                                node.children.push(cond_node);
+                            }
+                        }
+
+                        // Обрабатываем тело if (then)
+                        if let Some(iftrue) = obj.get("iftrue") {
+                            debug!("Тело THEN (iftrue): {:#?}", iftrue);
+                            if let Some(coord) = iftrue.get("coord").and_then(|c| c.as_str()) {
+                                debug!("Тело THEN координаты: {}", coord);
+                            }
+                            if let Ok(body_node) = self.parse_ast_node(iftrue) {
+                                node.children.push(body_node);
+                            }
+                        }
+
+                        // Обрабатываем тело else (iffalse)
+                        if let Some(iffalse) = obj.get("iffalse") {
+                            debug!("Тело ELSE (iffalse): {:#?}", iffalse);
+                            if let Some(coord) = iffalse.get("coord").and_then(|c| c.as_str()) {
+                                debug!("Тело ELSE координаты: {}", coord);
+                            }
+                            if let Ok(body_node) = self.parse_ast_node(iffalse) {
+                                node.children.push(body_node);
+                            }
+                        }
+                    }
+
+                    // В методе parse_ast_node, в секции match node_type добавьте:
+                    "Switch" => {
+                        debug!("Обработка SWITCH узла");
+                        debug!("Содержимое SWITCH: {:#?}", obj);
+
+                        // Сохраняем координаты
+                        if let Some(coord) = obj.get("coord").and_then(|c| c.as_str()) {
+                            node.coord = Some(coord.to_string());
+                        }
+
+                        // Обрабатываем выражение switch (условие)
+                        if let Some(cond) = obj.get("cond") {
+                            debug!("Условие SWITCH: {:#?}", cond);
+                            if let Ok(cond_node) = self.parse_ast_node(cond) {
+                                node.children.push(cond_node);
+                            }
+                        }
+
+                        // Обрабатываем тело switch (список case/default)
+                        if let Some(stmt) = obj.get("stmt") {
+                            debug!("Тело SWITCH: {:#?}", stmt);
+                            if let Ok(body_node) = self.parse_ast_node(stmt) {
+                                node.children.push(body_node);
+                            }
+                        }
+                    }
+
+                    "Case" => {
+                        debug!("Обработка CASE узла");
+                        debug!("Содержимое CASE: {:#?}", obj);
+
+                        if let Some(coord) = obj.get("coord").and_then(|c| c.as_str()) {
+                            node.coord = Some(coord.to_string());
+                        }
+
+                        // Обрабатываем значение case
+                        if let Some(value) = obj.get("value") {
+                            debug!("Значение CASE: {:#?}", value);
+                            if let Ok(value_node) = self.parse_ast_node(value) {
+                                node.children.push(value_node);
+                            }
+                        }
+
+                        // Обрабатываем операторы в case
+                        if let Some(stmts) = obj.get("stmts") {
+                            debug!("Операторы CASE: {:#?}", stmts);
+                            if let Ok(stmts_node) = self.parse_ast_node(stmts) {
+                                node.children.push(stmts_node);
+                            }
+                        }
+                    }
+
+                    "Default" => {
+                        debug!("Обработка DEFAULT узла");
+                        debug!("Содержимое DEFAULT: {:#?}", obj);
+
+                        if let Some(coord) = obj.get("coord").and_then(|c| c.as_str()) {
+                            node.coord = Some(coord.to_string());
+                        }
+
+                        // Обрабатываем операторы в default
+                        if let Some(stmts) = obj.get("stmts") {
+                            debug!("Операторы DEFAULT: {:#?}", stmts);
+                            if let Ok(stmts_node) = self.parse_ast_node(stmts) {
+                                node.children.push(stmts_node);
+                            }
+                        }
+                    }
 
                     _ => {
                         // Для остальных узлов просто копируем все атрибуты
@@ -528,48 +597,50 @@ impl CParser {
     }
 
     /// Извлекает параметры из узла ParamList и добавляет их в узел функции
-fn extract_params_from_paramlist(&self, paramlist_obj: &serde_json::Map<String, Value>, node: &mut ASTNode) -> Result<()> {
-    let mut param_names = Vec::new();
-    let mut param_nodes = Vec::new();
-    
-    // Собираем все параметры (они могут быть с ключами params[0], params[1] и т.д.)
-    for (key, value) in paramlist_obj {
-        if key.starts_with("params[") || key == "params" {
-            debug!("Обработка параметра с ключом {}: {:#?}", key, value);
-            
-            if let Some(param_obj) = value.as_object() {
-                // Сохраняем узел параметра
-                if let Ok(param_node) = self.parse_ast_node(value) {
-                    // Извлекаем имя параметра перед добавлением в param_nodes
-                    if let Some(param_name) = param_obj.get("name").and_then(|n| n.as_str()) {
-                        param_names.push(Value::String(param_name.to_string()));
-                        debug!("Найдено имя параметра: {}", param_name);
+    fn extract_params_from_paramlist(
+        &self,
+        paramlist_obj: &serde_json::Map<String, Value>,
+        node: &mut ASTNode,
+    ) -> Result<()> {
+        let mut param_names = Vec::new();
+        let mut param_nodes = Vec::new();
+
+        // Собираем все параметры (они могут быть с ключами params[0], params[1] и т.д.)
+        for (key, value) in paramlist_obj {
+            if key.starts_with("params[") || key == "params" {
+                debug!("Обработка параметра с ключом {}: {:#?}", key, value);
+
+                if let Some(param_obj) = value.as_object() {
+                    // Сохраняем узел параметра
+                    if let Ok(param_node) = self.parse_ast_node(value) {
+                        // Извлекаем имя параметра перед добавлением в param_nodes
+                        if let Some(param_name) = param_obj.get("name").and_then(|n| n.as_str()) {
+                            param_names.push(Value::String(param_name.to_string()));
+                            debug!("Найдено имя параметра: {}", param_name);
+                        }
+                        param_nodes.push(param_node);
                     }
-                    param_nodes.push(param_node);
                 }
             }
         }
+
+        // Сохраняем параметры как атрибуты
+        if !param_names.is_empty() {
+            node.attributes
+                .insert("param_names".to_string(), Value::Array(param_names));
+            debug!("Добавлен атрибут param_names");
+        }
+
+        if !param_nodes.is_empty() {
+            let mut param_list_node = ASTNode::new("ParamList");
+            // Клонируем param_nodes для использования здесь
+            param_list_node.children = param_nodes.clone();
+            node.children.push(param_list_node);
+            debug!("Добавлен ParamList с {} параметрами", param_nodes.len());
+        }
+
+        Ok(())
     }
-    
-    // Сохраняем параметры как атрибуты
-    if !param_names.is_empty() {
-        node.attributes.insert(
-            "param_names".to_string(),
-            Value::Array(param_names),
-        );
-        debug!("Добавлен атрибут param_names");
-    }
-    
-    if !param_nodes.is_empty() {
-        let mut param_list_node = ASTNode::new("ParamList");
-        // Клонируем param_nodes для использования здесь
-        param_list_node.children = param_nodes.clone();
-        node.children.push(param_list_node);
-        debug!("Добавлен ParamList с {} параметрами", param_nodes.len());
-    }
-    
-    Ok(())
-}
 
     /// Асинхронный метод парсинга
     pub async fn parse_async(code: &str) -> Result<ASTNode> {

@@ -197,6 +197,7 @@ impl PythonGenerator {
             "For" => self.generate_for(node),
             "Assignment" => self.generate_assignment(node),
             "Decl" => self.generate_declaration(node),
+            "Switch" => self.generate_switch(node), // Добавить эту строку
             "FuncCall" => {
                 let expr = self.generate_expression(node)?;
                 Ok(self.line(&expr))
@@ -422,100 +423,200 @@ impl PythonGenerator {
     }
 
     /// Генерирует if с поддержкой elif
-fn generate_if(&mut self, node: &ASTNode) -> Result<String> {
-    let mut output = String::new();
-    let mut current_node = node;
-    let mut is_first = true;
+    fn generate_if(&mut self, node: &ASTNode) -> Result<String> {
+        let mut output = String::new();
+        let mut current_node = node;
+        let mut is_first = true;
 
-    debug!("Генерация IF/ELIF цепочки");
-    
-    // Функция для проверки, является ли узел "else if" конструкцией
-    fn is_else_if(node: &ASTNode) -> bool {
-        if node.node_type == "If" {
-            return true;
-        }
-        // Проверяем, может ли это быть Compound с одним If внутри
-        if node.node_type == "Compound" && node.children.len() == 1 {
-            if let Some(first_child) = node.children.first() {
-                return first_child.node_type == "If";
+        debug!("Генерация IF/ELIF цепочки");
+
+        // Функция для проверки, является ли узел "else if" конструкцией
+        fn is_else_if(node: &ASTNode) -> bool {
+            if node.node_type == "If" {
+                return true;
             }
-        }
-        false
-    }
-
-    loop {
-        if let Some(cond) = current_node.children.first() {
-            let cond_code = self.generate_expression(cond)?;
-            
-            if is_first {
-                output.push_str(&self.line(&format!("if {}:", cond_code)));
-                is_first = false;
-            } else {
-                output.push_str(&self.line(&format!("elif {}:", cond_code)));
-            }
-
-            self.indent_level += 1;
-            
-            // Генерируем тело текущего if
-            if let Some(if_body) = current_node.children.get(1) {
-                debug!("Тело IF: тип={}", if_body.node_type);
-                
-                if if_body.node_type == "Compound" {
-                    for stmt in &if_body.children {
-                        output.push_str(&self.generate_statement(stmt)?);
-                    }
-                } else {
-                    // Если не Compound, возможно это одиночный оператор
-                    output.push_str(&self.generate_statement(if_body)?);
+            // Проверяем, может ли это быть Compound с одним If внутри
+            if node.node_type == "Compound" && node.children.len() == 1 {
+                if let Some(first_child) = node.children.first() {
+                    return first_child.node_type == "If";
                 }
             }
-            self.indent_level -= 1;
+            false
+        }
 
-            // Проверяем наличие else части
-            if current_node.children.len() > 2 {
-                let else_part = current_node.children.get(2).unwrap();
-                debug!("Часть ELSE: тип={}", else_part.node_type);
-                
-                // Проверяем, является ли else часть "else if"
-                if is_else_if(else_part) {
-                    // Это else if - переходим к следующей итерации для генерации elif
-                    if else_part.node_type == "If" {
-                        current_node = else_part;
-                    } else if else_part.node_type == "Compound" && !else_part.children.is_empty() {
-                        // Извлекаем if из compound
-                        if let Some(inner_if) = else_part.children.first() {
-                            current_node = inner_if;
+        loop {
+            if let Some(cond) = current_node.children.first() {
+                let cond_code = self.generate_expression(cond)?;
+
+                if is_first {
+                    output.push_str(&self.line(&format!("if {}:", cond_code)));
+                    is_first = false;
+                } else {
+                    output.push_str(&self.line(&format!("elif {}:", cond_code)));
+                }
+
+                self.indent_level += 1;
+
+                // Генерируем тело текущего if
+                if let Some(if_body) = current_node.children.get(1) {
+                    debug!("Тело IF: тип={}", if_body.node_type);
+
+                    if if_body.node_type == "Compound" {
+                        for stmt in &if_body.children {
+                            output.push_str(&self.generate_statement(stmt)?);
+                        }
+                    } else {
+                        // Если не Compound, возможно это одиночный оператор
+                        output.push_str(&self.generate_statement(if_body)?);
+                    }
+                }
+                self.indent_level -= 1;
+
+                // Проверяем наличие else части
+                if current_node.children.len() > 2 {
+                    let else_part = current_node.children.get(2).unwrap();
+                    debug!("Часть ELSE: тип={}", else_part.node_type);
+
+                    // Проверяем, является ли else часть "else if"
+                    if is_else_if(else_part) {
+                        // Это else if - переходим к следующей итерации для генерации elif
+                        if else_part.node_type == "If" {
+                            current_node = else_part;
+                        } else if else_part.node_type == "Compound"
+                            && !else_part.children.is_empty()
+                        {
+                            // Извлекаем if из compound
+                            if let Some(inner_if) = else_part.children.first() {
+                                current_node = inner_if;
+                            } else {
+                                break;
+                            }
                         } else {
                             break;
                         }
                     } else {
-                        break;
+                        // Это обычный else
+                        output.push_str(&self.line("else:"));
+                        self.indent_level += 1;
+
+                        if else_part.node_type == "Compound" {
+                            for stmt in &else_part.children {
+                                output.push_str(&self.generate_statement(stmt)?);
+                            }
+                        } else {
+                            output.push_str(&self.generate_statement(else_part)?);
+                        }
+                        self.indent_level -= 1;
+                        break; // Завершаем цикл после else
                     }
                 } else {
-                    // Это обычный else
-                    output.push_str(&self.line("else:"));
-                    self.indent_level += 1;
-                    
-                    if else_part.node_type == "Compound" {
-                        for stmt in &else_part.children {
-                            output.push_str(&self.generate_statement(stmt)?);
-                        }
-                    } else {
-                        output.push_str(&self.generate_statement(else_part)?);
-                    }
-                    self.indent_level -= 1;
-                    break; // Завершаем цикл после else
+                    break; // Нет else части, завершаем
                 }
             } else {
-                break; // Нет else части, завершаем
+                break;
             }
-        } else {
-            break;
         }
+
+        Ok(output)
     }
 
-    Ok(output)
-}
+    /// Генерирует switch как match в Python
+    fn generate_switch(&mut self, node: &ASTNode) -> Result<String> {
+        let mut output = String::new();
+
+        debug!("Генерация SWITCH узла");
+        debug!("Детей у switch: {}", node.children.len());
+
+        // Первый ребенок - условие (выражение в switch)
+        if let Some(cond) = node.children.first() {
+            let cond_code = self.generate_expression(cond)?;
+            output.push_str(&self.line(&format!("match {}:", cond_code)));
+
+            self.indent_level += 1;
+
+            // Второй ребенок - тело switch (содержит case и default)
+            if let Some(body) = node.children.get(1) {
+                if body.node_type == "Compound" {
+                    for stmt in &body.children {
+                        match stmt.node_type.as_str() {
+                            "Case" => {
+                                output.push_str(&self.generate_case(stmt)?);
+                            }
+                            "Default" => {
+                                output.push_str(&self.generate_default(stmt)?);
+                            }
+                            _ => {
+                                debug!("Неизвестный оператор в теле switch: {}", stmt.node_type);
+                            }
+                        }
+                    }
+                }
+            }
+
+            self.indent_level -= 1;
+        }
+
+        Ok(output)
+    }
+
+    /// Генерирует case как паттерн в match
+    fn generate_case(&mut self, node: &ASTNode) -> Result<String> {
+        let mut output = String::new();
+
+        debug!("Генерация CASE узла");
+        debug!("Детей у case: {}", node.children.len());
+
+        // Первый ребенок - значение case
+        if let Some(value_node) = node.children.first() {
+            let value = self.generate_expression(value_node)?;
+            output.push_str(&self.line(&format!("case {}:", value)));
+
+            self.indent_level += 1;
+
+            // Второй ребенок - операторы в case
+            if let Some(stmts) = node.children.get(1) {
+                if stmts.node_type == "Compound" {
+                    for stmt in &stmts.children {
+                        output.push_str(&self.generate_statement(stmt)?);
+                    }
+                } else {
+                    // Одиночный оператор без {}
+                    output.push_str(&self.generate_statement(stmts)?);
+                }
+            }
+
+            self.indent_level -= 1;
+        }
+
+        Ok(output)
+    }
+
+    /// Генерирует default в match
+    fn generate_default(&mut self, node: &ASTNode) -> Result<String> {
+        let mut output = String::new();
+
+        debug!("Генерация DEFAULT узла");
+        debug!("Детей у default: {}", node.children.len());
+
+        output.push_str(&self.line("case _:"));
+
+        self.indent_level += 1;
+
+        // Операторы в default
+        if let Some(stmts) = node.children.first() {
+            if stmts.node_type == "Compound" {
+                for stmt in &stmts.children {
+                    output.push_str(&self.generate_statement(stmt)?);
+                }
+            } else {
+                output.push_str(&self.generate_statement(stmts)?);
+            }
+        }
+
+        self.indent_level -= 1;
+
+        Ok(output)
+    }
     /// Генерирует while
     fn generate_while(&mut self, node: &ASTNode) -> Result<String> {
         let mut output = String::new();
@@ -626,6 +727,8 @@ impl Generator for PythonGenerator {
         output.push_str("import sys\n");
         output.push_str("import os\n\n");
 
+        // В методе generate, в цикле по корневым узлам:
+
         for node in &ast.children {
             match node.node_type.as_str() {
                 "FuncDef" | "FuncDecl" => {
@@ -633,6 +736,9 @@ impl Generator for PythonGenerator {
                 }
                 "Decl" => {
                     output.push_str(&generator.generate_declaration(node)?);
+                }
+                "Switch" => {
+                    output.push_str(&generator.generate_switch(node)?); // добавить эту строку
                 }
                 _ => {
                     debug!("Пропуск корневого узла: {}", node.node_type);
