@@ -56,6 +56,11 @@ int main(){
             result = 0;
     }
     float post = (result == 0) ? 0.5 : 1.3;
+
+    int val = 0;
+    while (val < 10){
+        val ++;
+    }
     return 0;
 }
 
@@ -106,6 +111,9 @@ def main():
         case _:
             result = 0
     post = 0.5 if result == 0 else 1.3
+    val = 0
+    while val < 10:
+        val += 1
     return 0
 
 def foo(x, y):
