@@ -1,8 +1,10 @@
+// main.js
 import { getDOMElements, setElements, elements } from './modules/dom-elements.js';
 import { initResizer, setInitialWidths } from './modules/resizer.js';
 import { initSyntaxHighlighting, updateSyntaxHighlighting } from './modules/syntax-highlight.js';
 import { initFileHandlers } from './modules/file-handlers.js';
 import { initTranslation, checkDockerStatus } from './modules/translation.js';
+import { initZoom } from './modules/zoom.js'; // Импортируем новый модуль
 
 // Инициализация DOM-элементов
 const domElements = getDOMElements();
@@ -14,6 +16,7 @@ function initApp() {
     initSyntaxHighlighting();
     initFileHandlers();
     initTranslation();
+    initZoom(); // Добавляем инициализацию масштабирования
     
     // Проверяем статус Docker при загрузке
     checkDockerStatus();
