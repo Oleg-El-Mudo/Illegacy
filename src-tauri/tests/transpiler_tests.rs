@@ -50,10 +50,13 @@ int main(){
             break;
         case 2:
             result += 2;
+            break;
         case 3:
             result += 3;
+            break;
         default:
             result = 0;
+            break;
     }
     float post = (result == 0) ? 0.5 : 1.3;
 
