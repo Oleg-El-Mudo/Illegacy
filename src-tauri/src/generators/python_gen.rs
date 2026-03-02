@@ -146,7 +146,9 @@ impl PythonGenerator {
         for child in &node.children {
             if child.node_type == "Compound" {
                 has_body = true;
-                for stmt in &child.children {
+                debug!("Обработка Compound с {} детьми", child.children.len());
+                for (i, stmt) in child.children.iter().enumerate() {
+                    debug!("  Оператор {} в Compound: тип={}", i, stmt.node_type);
                     let stmt_code = self.generate_statement(stmt)?;
                     body_output.push_str(&stmt_code);
                     if stmt.node_type == "Return" {
@@ -192,6 +194,7 @@ impl PythonGenerator {
 
     /// Генерирует оператор
     fn generate_statement(&mut self, node: &ASTNode) -> Result<String> {
+        debug!("Генерация оператора типа: {}", node.node_type);
         match node.node_type.as_str() {
             "Return" => self.generate_return(node),
             "If" => self.generate_if(node),
@@ -813,21 +816,46 @@ impl PythonGenerator {
 
         Ok(output)
     }
+
     /// Генерирует while
     fn generate_while(&mut self, node: &ASTNode) -> Result<String> {
         let mut output = String::new();
 
+        debug!("Генерация WHILE узла");
+        debug!("Детей у while: {}", node.children.len());
+
         if let Some(cond) = node.children.first() {
             let cond_code = self.generate_expression(cond)?;
+            debug!("Условие while: {}", cond_code);
             output.push_str(&self.line(&format!("while {}:", cond_code)));
 
             self.indent_level += 1;
             if let Some(body) = node.children.get(1) {
-                for stmt in &body.children {
-                    output.push_str(&self.generate_statement(stmt)?);
+                debug!("Тело while тип: {}", body.node_type);
+                debug!("Количество операторов в теле: {}", body.children.len());
+
+                if body.node_type == "Compound" {
+                    for stmt in &body.children {
+                        let stmt_code = self.generate_statement(stmt)?;
+                        debug!("Оператор в теле: {}", stmt_code.trim());
+                        output.push_str(&stmt_code);
+                    }
+                } else {
+                    // Одиночный оператор без {}
+                    let stmt_code = self.generate_statement(body)?;
+                    debug!("Одиночный оператор: {}", stmt_code.trim());
+                    output.push_str(&stmt_code);
                 }
+            } else {
+                debug!("НЕТ ТЕЛА У WHILE!");
             }
             self.indent_level -= 1;
+        } else {
+            debug!("НЕТ УСЛОВИЯ У WHILE!");
+        }
+
+        if output.is_empty() {
+            debug!("ВНИМАНИЕ: while цикл не сгенерирован!");
         }
 
         Ok(output)

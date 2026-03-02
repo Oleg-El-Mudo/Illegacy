@@ -908,6 +908,33 @@ impl CParser {
                         );
                     }
 
+                    // В методе parse_ast_node, в секции match node_type добавьте:
+                    "While" => {
+                        debug!("Обработка WHILE узла");
+                        debug!("Содержимое WHILE: {:#?}", obj);
+
+                        // Сохраняем координаты
+                        if let Some(coord) = obj.get("coord").and_then(|c| c.as_str()) {
+                            node.coord = Some(coord.to_string());
+                        }
+
+                        // Обрабатываем условие (cond)
+                        if let Some(cond) = obj.get("cond") {
+                            debug!("Условие WHILE: {:#?}", cond);
+                            if let Ok(cond_node) = self.parse_ast_node(cond) {
+                                node.children.push(cond_node);
+                            }
+                        }
+
+                        // Обрабатываем тело (stmt)
+                        if let Some(stmt) = obj.get("stmt") {
+                            debug!("Тело WHILE: {:#?}", stmt);
+                            if let Ok(body_node) = self.parse_ast_node(stmt) {
+                                node.children.push(body_node);
+                            }
+                        }
+                    }
+
                     _ => {
                         // Для остальных узлов просто копируем все атрибуты
                         debug!("Обработка узла типа: {}", node_type);
@@ -924,13 +951,13 @@ impl CParser {
         || key == "params"
         || key == "init"
         || key == "args"
-        || key == "cond"
+        || key == "cond"        // Добавлено для While и If
         || key == "iftrue"
         || key == "iffalse"
-        || key == "stmt"
+        || key == "stmt"        // Добавлено для While
         || key == "value"
         || key == "stmts"
-        || key == "expr"        // Уже добавлено!
+        || key == "expr"
         || key == "dim"
         || key == "subscript"
         || key.starts_with("exprs")
