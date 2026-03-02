@@ -61,12 +61,17 @@ int main(){
     while (val < 10){
         val ++;
     }
+
+    do{
+        val--;
+    }while(val<10);
     return 0;
 }
 
 int foo(int x, int y){
     return x+y;
 }
+
 "#;
 
     // Ожидаемый Python код
@@ -114,6 +119,10 @@ def main():
     val = 0
     while val < 10:
         val += 1
+    while True:
+        val -= 1
+        if not (val < 10):
+            break
     return 0
 
 def foo(x, y):
