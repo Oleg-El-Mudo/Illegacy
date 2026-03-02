@@ -199,6 +199,7 @@ impl PythonGenerator {
             "Return" => self.generate_return(node),
             "If" => self.generate_if(node),
             "While" => self.generate_while(node),
+            "DoWhile" => self.generate_dowhile(node),
             "For" => self.generate_for(node),
             "Assignment" => self.generate_assignment(node),
             "Decl" => {
@@ -241,6 +242,7 @@ impl PythonGenerator {
                 Ok(output)
             }
             "Break" => Ok(self.line("break")),
+            "Dowhile" | "DoWhile" => self.generate_dowhile(node),
             _ => {
                 // Пытаемся обработать как выражение
                 let expr = self.generate_expression(node)?;
@@ -252,6 +254,52 @@ impl PythonGenerator {
                 }
             }
         }
+    }
+
+    /// Генерирует do-while цикл
+    fn generate_dowhile(&mut self, node: &ASTNode) -> Result<String> {
+        let mut output = String::new();
+
+        debug!("Генерация DO-WHILE цикла");
+        debug!("Детей у do-while: {}", node.children.len());
+
+        if node.children.len() >= 2 {
+            // Первый ребенок - тело цикла
+            let body = &node.children[0];
+            // Второй ребенок - условие
+            let condition = &node.children[1];
+
+            // Генерируем условие
+            let cond_code = self.generate_expression(condition)?;
+            debug!("Условие do-while: {}", cond_code);
+
+            // Генерируем Python код: while True: тело; if not условие: break
+            output.push_str(&self.line("while True:"));
+
+            self.indent_level += 1;
+
+            // Генерируем тело цикла
+            if body.node_type == "Compound" {
+                for stmt in &body.children {
+                    output.push_str(&self.generate_statement(stmt)?);
+                }
+            } else {
+                output.push_str(&self.generate_statement(body)?);
+            }
+
+            // Добавляем проверку условия для выхода
+            output.push_str(&self.line(&format!("if not ({}):", cond_code)));
+
+            self.indent_level += 1;
+            output.push_str(&self.line("break"));
+            self.indent_level -= 1;
+
+            self.indent_level -= 1;
+        } else {
+            debug!("do-while имеет недостаточно детей: {}", node.children.len());
+        }
+
+        Ok(output)
     }
 
     /// Генерирует выражение

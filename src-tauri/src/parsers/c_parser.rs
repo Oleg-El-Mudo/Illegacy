@@ -935,6 +935,32 @@ impl CParser {
                         }
                     }
 
+                    // В методе parse_ast_node, в секции match node_type добавьте:
+                    "DoWhile" => {
+                        debug!("Обработка DO-WHILE узла");
+                        debug!("Содержимое DO-WHILE: {:#?}", obj);
+
+                        if let Some(coord) = obj.get("coord").and_then(|c| c.as_str()) {
+                            node.coord = Some(coord.to_string());
+                        }
+
+                        // Тело цикла (stmt)
+                        if let Some(stmt) = obj.get("stmt") {
+                            debug!("Тело DO-WHILE: {:#?}", stmt);
+                            if let Ok(body_node) = self.parse_ast_node(stmt) {
+                                node.children.push(body_node);
+                            }
+                        }
+
+                        // Условие (cond)
+                        if let Some(cond) = obj.get("cond") {
+                            debug!("Условие DO-WHILE: {:#?}", cond);
+                            if let Ok(cond_node) = self.parse_ast_node(cond) {
+                                node.children.push(cond_node);
+                            }
+                        }
+                    }
+
                     _ => {
                         // Для остальных узлов просто копируем все атрибуты
                         debug!("Обработка узла типа: {}", node_type);
