@@ -68,6 +68,12 @@ int main(){
     do{
         val--;
     }while(val<10);
+    
+    for (int j = 0; j < 5; j++){
+    	for (int i = 0; i < 5; i++){
+    		i *= j;
+    	}
+    }
     return 0;
 }
 
@@ -126,6 +132,15 @@ def main():
         val -= 1
         if not (val < 10):
             break
+    # Преобразование for цикла из C в while
+    j = 0
+    while j < 5:
+        # Преобразование for цикла из C в while
+        i = 0
+        while i < 5:
+            i *= j
+            i += 1
+        j += 1
     return 0
 
 def foo(x, y):
