@@ -59,3 +59,69 @@ export function initFileHandlers() {
         }
     });
 }
+
+// modules/file-handlers.js - добавьте в существующий файл
+
+// При загрузке файла:
+export async function openFile() {
+    try {
+        const result = await window.__TAURI__.dialog.open({
+            multiple: false,
+            filters: [{
+                name: 'Source Code',
+                extensions: ['c', 'h', 'php', 'f90', 'f', 'cob', 'cbl']
+            }]
+        });
+        
+        if (result) {
+            const content = await window.__TAURI__.fs.readTextFile(result);
+            elements.inputCode.value = content;
+            updateSyntaxHighlighting();
+            
+            // Генерируем событие о загрузке файла
+            const event = new CustomEvent('file-loaded', {
+                detail: {
+                    content: content,
+                    filename: result.split('/').pop() || result.split('\\').pop()
+                }
+            });
+            document.dispatchEvent(event);
+        }
+    } catch (error) {
+        console.error('Error opening file:', error);
+    }
+}
+
+// При очистке ввода:
+export function clearInput() {
+    elements.inputCode.value = '';
+    updateSyntaxHighlighting();
+    
+    // Генерируем событие об очистке
+    const event = new CustomEvent('input-cleared');
+    document.dispatchEvent(event);
+}
+
+// При экспорте файла:
+export async function exportFile() {
+    const content = elements.outputCode.value;
+    if (!content.trim()) {
+        alert('Нет данных для экспорта');
+        return;
+    }
+    
+    try {
+        const result = await window.__TAURI__.dialog.save({
+            filters: [{
+                name: 'Python Code',
+                extensions: ['py']
+            }]
+        });
+        
+        if (result) {
+            await window.__TAURI__.fs.writeTextFile(result, content);
+        }
+    } catch (error) {
+        console.error('Error exporting file:', error);
+    }
+}

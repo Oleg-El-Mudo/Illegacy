@@ -5,7 +5,9 @@ import { initSyntaxHighlighting, updateSyntaxHighlighting } from './modules/synt
 import { initFileHandlers } from './modules/file-handlers.js';
 import { initTranslation, checkDockerStatus } from './modules/translation.js';
 import { initZoom } from './modules/zoom.js';
-import { initIndentation } from './modules/indentation.js'; // Импортируем новый модуль
+import { initIndentation } from './modules/indentation.js';
+import { initHistory } from './modules/history.js';
+import { initKeyboardShortcuts } from './modules/keyboard-shortcuts.js';
 
 // Инициализация DOM-элементов
 const domElements = getDOMElements();
@@ -18,7 +20,9 @@ function initApp() {
     initFileHandlers();
     initTranslation();
     initZoom();
-    initIndentation(); // Добавляем инициализацию выравнивания
+    initIndentation();
+    initHistory(); // Инициализируем историю
+    initKeyboardShortcuts(); // Инициализируем горячие клавиши
     
     // Проверяем статус Docker при загрузке
     checkDockerStatus();
