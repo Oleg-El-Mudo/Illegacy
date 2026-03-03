@@ -15,6 +15,8 @@ pub struct PythonGenerator {
     symbols: HashSet<String>,
     /// Режим генерации (выражение или оператор)
     in_expression: bool,
+    /// Текущий тип структуры при инициализации
+    current_struct_type: Option<String>,
 }
 
 impl PythonGenerator {
@@ -24,6 +26,7 @@ impl PythonGenerator {
             indent_size: 4,
             symbols: HashSet::new(),
             in_expression: false,
+            current_struct_type: None,
         }
     }
 
@@ -250,6 +253,8 @@ impl PythonGenerator {
                 }
                 Ok(output)
             }
+            "Struct" => self.generate_struct(node),
+            "StructDecl" => self.generate_struct_decl(node),
             _ => {
                 // Пытаемся обработать как выражение
                 let expr = self.generate_expression(node)?;
@@ -377,9 +382,16 @@ impl PythonGenerator {
                 };
 
                 debug!("Бинарная операция: {} {} {}", left, py_op, right);
-                Ok(format!("{} {} {}", left, py_op, right))
-            }
 
+                // Проверяем, нужно ли обернуть левую и правую части в скобки
+                let left_with_parens = self.wrap_if_needed(&left, node.children.get(0));
+                let right_with_parens = self.wrap_if_needed(&right, node.children.get(1));
+
+                Ok(format!(
+                    "{} {} {}",
+                    left_with_parens, py_op, right_with_parens
+                ))
+            }
             "UnaryOp" => {
                 let op = node
                     .attributes
@@ -500,26 +512,20 @@ impl PythonGenerator {
             "ArrayRef" => self.generate_array_ref(node),
 
             "InitList" => {
-                // InitList как выражение (может использоваться в других контекстах)
                 let mut values = Vec::new();
                 let node_id = node.coord.as_deref().unwrap_or("unknown");
 
                 debug!(
-                    "Генерация InitList (id: {}) с {} детьми",
+                    "Генерация InitList (id: {}) с {} детьми, контекст структуры: {:?}",
                     node_id,
-                    node.children.len()
+                    node.children.len(),
+                    self.current_struct_type
                 );
 
-                // Важно: не вызываем generate_expression_internal для всего InitList снова!
-                // Проходим по детям и генерируем каждое значение
                 for (i, child) in node.children.iter().enumerate() {
-                    // Убедимся, что это не сам InitList (предотвращаем рекурсию)
                     if child.node_type == "InitList" {
-                        debug!("ПРЕДУПРЕЖДЕНИЕ: InitList содержит другой InitList как ребенка!");
-                        // Рекурсивно вызываем для вложенного InitList
+                        debug!("InitList содержит другой InitList как ребенка!");
                         let nested_values = self.generate_expression_internal(child)?;
-                        // Вложенный InitList вернет строку вида "[10, 20]", нам нужно извлечь значения
-                        // или просто добавить как есть?
                         values.push(nested_values);
                     } else {
                         let value = self.generate_expression_internal(child)?;
@@ -556,9 +562,17 @@ impl PythonGenerator {
                     values.len(),
                     values
                 );
-                Ok(format!("[{}]", values.join(", ")))
-            }
 
+                // Если это инициализация структуры, создаем вызов конструктора класса
+                if let Some(struct_name) = &self.current_struct_type {
+                    // Для структур возвращаем вызов конструктора с параметрами
+                    // Например: Point(30, 40)
+                    Ok(format!("{}({})", struct_name, values.join(", ")))
+                } else {
+                    // Иначе возвращаем как список (для массивов)
+                    Ok(format!("[{}]", values.join(", ")))
+                }
+            }
             // В методе generate_expression_internal, добавьте обработку "TernaryOp":
             "TernaryOp" => {
                 debug!("Генерация TernaryOp");
@@ -584,6 +598,12 @@ impl PythonGenerator {
                     );
                     Ok("None".to_string())
                 }
+            }
+
+            "StructRef" => self.generate_struct_ref(node),
+            "StructDecl" => {
+                // Если StructDecl используется как выражение (например, в инициализации)
+                self.generate_struct_decl(node)
             }
             _ => {
                 debug!("Неизвестное выражение: {}", node.node_type);
@@ -638,6 +658,55 @@ impl PythonGenerator {
             debug!("return без выражения");
             Ok(self.line("return"))
         }
+    }
+
+    fn wrap_if_needed(&self, expr: &str, child: Option<&ASTNode>) -> String {
+        if let Some(child_node) = child {
+            // Если ребенок - бинарная операция, оборачиваем в скобки
+            if child_node.node_type == "BinaryOp" {
+                return format!("({})", expr);
+            }
+        }
+        expr.to_string()
+    }
+
+    fn needs_parentheses(&self, op: &str, left: &str, right: &str) -> bool {
+        // Проверяем, содержит ли левое или правое выражение операторы
+        let left_has_ops = left.contains("+")
+            || left.contains("-")
+            || left.contains("*")
+            || left.contains("/")
+            || left.contains("and")
+            || left.contains("or");
+        let right_has_ops = right.contains("+")
+            || right.contains("-")
+            || right.contains("*")
+            || right.contains("/")
+            || right.contains("and")
+            || right.contains("or");
+
+        // Для умножения и деления - если внутри есть сложение/вычитание, нужны скобки
+        if op == "*" || op == "/" {
+            if left_has_ops || right_has_ops {
+                return true;
+            }
+        }
+
+        // Для сложения и вычитания - если внутри есть операторы с более высоким приоритетом
+        if op == "+" || op == "-" {
+            // Не нужны скобки, если внутри только умножение/деление (они имеют higher precedence)
+            // Но если есть другие операторы сложения/вычитания, то скобки не нужны
+            return false;
+        }
+
+        // Для логических операций
+        if op == "&&" || op == "||" {
+            if left_has_ops || right_has_ops {
+                return true;
+            }
+        }
+
+        false
     }
 
     /// Генерирует if с поддержкой elif
@@ -916,26 +985,174 @@ impl PythonGenerator {
         Ok(output)
     }
 
-    /// Генерирует объявление переменной
     fn generate_declaration(&mut self, node: &ASTNode) -> Result<String> {
+        let mut output = String::new();
+
         if let Some(name) = node.attributes.get("name").and_then(|v| v.as_str()) {
             self.symbols.insert(name.to_string());
 
-            // Ищем инициализатор среди детей
-            let mut init_code = None;
-            for child in &node.children {
-                // Пропускаем TypeDecl, ищем выражение инициализации
-                if child.node_type != "TypeDecl" {
-                    init_code = Some(self.generate_expression(child)?);
-                    break;
+            debug!("Анализ объявления переменной: {}", name);
+            debug!("  Тип узла: {}", node.node_type);
+            debug!("  Атрибуты: {:#?}", node.attributes);
+            debug!("  Количество детей: {}", node.children.len());
+
+            // Определяем, является ли это структурной переменной
+            let mut is_struct_var = false;
+            let mut struct_type = None;
+
+            // 1. Проверяем атрибут type самого узла Decl
+            if let Some(type_attr) = node.attributes.get("type") {
+                debug!("  Атрибут type узла: {:#?}", type_attr);
+                if let Some(type_obj) = type_attr.as_object() {
+                    if type_obj.get("__node__").and_then(|v| v.as_str()) == Some("Struct") {
+                        is_struct_var = true;
+                        if let Some(name) = type_obj.get("name").and_then(|v| v.as_str()) {
+                            struct_type = Some(name.to_string());
+                            debug!("  Найдена структура в атрибуте type узла: {}", name);
+                        }
+                    }
                 }
             }
 
-            if let Some(code) = init_code {
-                Ok(self.line(&format!("{} = {}", name, code)))
-            } else {
-                Ok(self.line(&format!("{} = None", name)))
+            // 2. Проверяем детей
+            if !is_struct_var {
+                for child in &node.children {
+                    debug!("    Проверка ребенка с типом: {}", child.node_type);
+                    debug!("      Атрибуты ребенка: {:#?}", child.attributes);
+
+                    // Проверяем, не является ли сам ребенок структурой
+                    if child.node_type == "Struct" {
+                        is_struct_var = true;
+                        if let Some(name) = child.attributes.get("name").and_then(|v| v.as_str()) {
+                            struct_type = Some(name.to_string());
+                            debug!("      НАЙДЕНА СТРУКТУРА как прямой ребенок: {}", name);
+                            break;
+                        }
+                    }
+
+                    // Проверяем атрибут type ребенка (это самое важное!)
+                    if let Some(type_attr) = child.attributes.get("type") {
+                        debug!("      Атрибут type ребенка: {:#?}", type_attr);
+                        if let Some(type_obj) = type_attr.as_object() {
+                            if type_obj.get("__node__").and_then(|v| v.as_str()) == Some("Struct") {
+                                is_struct_var = true;
+                                if let Some(name) = type_obj.get("name").and_then(|v| v.as_str()) {
+                                    struct_type = Some(name.to_string());
+                                    debug!(
+                                        "      НАЙДЕНА СТРУКТУРА в атрибуте type ребенка {}: {}",
+                                        child.node_type, name
+                                    );
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // Также проверяем детей ребенка (на случай если структура еще глубже)
+                    for grandchild in &child.children {
+                        if grandchild.node_type == "Struct" {
+                            is_struct_var = true;
+                            if let Some(name) =
+                                grandchild.attributes.get("name").and_then(|v| v.as_str())
+                            {
+                                struct_type = Some(name.to_string());
+                                debug!("      НАЙДЕНА СТРУКТУРА как внук: {}", name);
+                                break;
+                            }
+                        }
+
+                        if let Some(type_attr) = grandchild.attributes.get("type") {
+                            if let Some(type_obj) = type_attr.as_object() {
+                                if type_obj.get("__node__").and_then(|v| v.as_str())
+                                    == Some("Struct")
+                                {
+                                    is_struct_var = true;
+                                    if let Some(name) =
+                                        type_obj.get("name").and_then(|v| v.as_str())
+                                    {
+                                        struct_type = Some(name.to_string());
+                                        debug!(
+                                            "      НАЙДЕНА СТРУКТУРА в атрибуте type внука {}: {}",
+                                            grandchild.node_type, name
+                                        );
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if is_struct_var {
+                        break;
+                    }
+                }
             }
+
+            debug!(
+                "  Результат анализа - is_struct_var: {}, struct_type: {:?}",
+                is_struct_var, struct_type
+            );
+
+            // Ищем инициализатор среди детей
+            let mut init_node = None;
+            for child in &node.children {
+                match child.node_type.as_str() {
+                    "InitList" | "Constant" | "FuncCall" | "TernaryOp" | "ID" | "BinaryOp"
+                    | "UnaryOp" => {
+                        init_node = Some(child);
+                        debug!(
+                            "  Найден инициализатор типа {} для переменной {}",
+                            child.node_type, name
+                        );
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+
+            if is_struct_var {
+                debug!(
+                    "Обработка структурной переменной: {} типа {:?}",
+                    name, struct_type
+                );
+
+                if let Some(init) = init_node {
+                    // Для структур с инициализатором
+                    if init.node_type == "InitList" {
+                        // Устанавливаем контекст структуры для правильной обработки InitList
+                        self.current_struct_type = struct_type.clone();
+                        debug!(
+                            "Установлен контекст структуры {:?} для InitList переменной {}",
+                            struct_type, name
+                        );
+                        let init_code = self.generate_expression(init)?;
+                        self.current_struct_type = None;
+                        output.push_str(&self.line(&format!("{} = {}", name, init_code)));
+                    } else {
+                        let init_code = self.generate_expression(init)?;
+                        output.push_str(&self.line(&format!("{} = {}", name, init_code)));
+                    }
+                } else {
+                    // Для структур без инициализатора создаем экземпляр класса
+                    if let Some(struct_name) = struct_type {
+                        output.push_str(&self.line(&format!("{} = {}()", name, struct_name)));
+                        debug!("Создан экземпляр структуры: {} = {}()", name, struct_name);
+                    } else {
+                        warn!("Неизвестный тип структуры для переменной {}", name);
+                        output.push_str(&self.line(&format!("{} = None", name)));
+                    }
+                }
+            } else {
+                debug!("Обычная переменная (не структура): {}", name);
+                // Обычное объявление переменной
+                if let Some(init) = init_node {
+                    let init_code = self.generate_expression(init)?;
+                    output.push_str(&self.line(&format!("{} = {}", name, init_code)));
+                } else {
+                    output.push_str(&self.line(&format!("{} = None", name)));
+                }
+            }
+
+            Ok(output)
         } else {
             Ok(String::new())
         }
@@ -1219,6 +1436,132 @@ impl PythonGenerator {
 
         Ok(output)
     }
+
+    /// Генерирует класс Python из структуры C
+    fn generate_struct(&mut self, node: &ASTNode) -> Result<String> {
+        let mut output = String::new();
+
+        let name = node
+            .attributes
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("UnknownStruct");
+
+        debug!("Генерация класса из структуры: {}", name);
+        debug!("Детей у структуры: {}", node.children.len());
+
+        // Генерируем определение класса
+        output.push_str(&self.line(&format!("class {}:", name)));
+        self.indent_level += 1;
+
+        // Генерируем метод __init__
+        output.push_str(&self.line("def __init__(self):"));
+        self.indent_level += 1;
+
+        // Собираем поля структуры
+        for child in &node.children {
+            if child.node_type == "Decl" {
+                if let Some(field_name) = child.attributes.get("name").and_then(|v| v.as_str()) {
+                    output.push_str(&self.line(&format!("self.{} = None", field_name)));
+                }
+            }
+        }
+
+        self.indent_level -= 1; // Выходим из __init__
+        self.indent_level -= 1; // Выходим из класса
+        output.push_str(&self.line(""));
+
+        Ok(output)
+    }
+    fn extract_field_type(&self, node: &ASTNode) -> String {
+        for child in &node.children {
+            if child.node_type == "TypeDecl" {
+                for grandchild in &child.children {
+                    match grandchild.node_type.as_str() {
+                        "IdentifierType" => {
+                            if let Some(type_name) =
+                                grandchild.attributes.get("name").and_then(|v| v.as_str())
+                            {
+                                return match type_name {
+                                    "int" => "int".to_string(),
+                                    "char" => "str".to_string(),
+                                    "float" => "float".to_string(),
+                                    "double" => "float".to_string(),
+                                    _ => type_name.to_string(),
+                                };
+                            }
+                        }
+                        "Struct" => {
+                            if let Some(struct_name) =
+                                grandchild.attributes.get("name").and_then(|v| v.as_str())
+                            {
+                                return format!("struct {}", struct_name);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        "Any".to_string()
+    }
+
+    /// Генерирует объявление переменной типа структуры
+    fn generate_struct_decl(&mut self, node: &ASTNode) -> Result<String> {
+        let mut output = String::new();
+
+        let var_name = node
+            .attributes
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+
+        debug!("Генерация объявления переменной структуры: {}", var_name);
+
+        // Ищем тип структуры среди детей
+        let mut struct_type = None;
+        for child in &node.children {
+            if child.node_type == "StructRef" || child.node_type == "Struct" {
+                if let Some(name) = child.attributes.get("name").and_then(|v| v.as_str()) {
+                    struct_type = Some(name.to_string());
+                }
+            }
+        }
+
+        let struct_type = struct_type.unwrap_or_else(|| "UnknownStruct".to_string());
+
+        // Проверяем наличие инициализатора
+        let mut init_code = None;
+        for child in &node.children {
+            if child.node_type != "StructRef" && child.node_type != "Struct" {
+                init_code = Some(self.generate_expression(child)?);
+                break;
+            }
+        }
+
+        if let Some(code) = init_code {
+            output.push_str(&self.line(&format!("{} = {}", var_name, code)));
+        } else {
+            output.push_str(&self.line(&format!("{} = {}()", var_name, struct_type)));
+        }
+
+        Ok(output)
+    }
+
+    /// Генерирует доступ к полю структуры
+    fn generate_struct_ref(&mut self, node: &ASTNode) -> Result<String> {
+        debug!("Генерация доступа к полю структуры");
+        debug!("Детей у StructRef: {}", node.children.len());
+
+        if node.children.len() >= 2 {
+            let struct_expr = self.generate_expression(&node.children[0])?;
+            let field_expr = self.generate_expression(&node.children[1])?;
+
+            Ok(format!("{}.{}", struct_expr, field_expr))
+        } else {
+            Ok("None".to_string())
+        }
+    }
 }
 
 impl Generator for PythonGenerator {
@@ -1233,28 +1576,38 @@ impl Generator for PythonGenerator {
         output.push_str("import sys\n");
         output.push_str("import os\n\n");
 
-        // В методе generate, в цикле по корневым узлам:
+        // ОТЛАДКА: выводим все корневые узлы
+        debug!("Корневые узлы AST:");
+        for (i, node) in ast.children.iter().enumerate() {
+            debug!("  Корневой узел {}: тип={}", i, node.node_type);
+        }
 
+        // Сначала обрабатываем все определения структур (они могут быть в Decl узлах)
+        for node in &ast.children {
+            if node.node_type == "Decl" {
+                // Проверяем, не является ли этот Decl определением структуры
+                for child in &node.children {
+                    if child.node_type == "Struct" {
+                        debug!("Найден Struct внутри Decl на верхнем уровне");
+                        output.push_str(&generator.generate_struct(child)?);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Затем обрабатываем все функции
         for node in &ast.children {
             match node.node_type.as_str() {
                 "FuncDef" | "FuncDecl" => {
                     output.push_str(&generator.generate_function(node)?);
                 }
-                "Decl" => {
-                    output.push_str(&generator.generate_declaration(node)?);
-                }
-                "Switch" => {
-                    output.push_str(&generator.generate_switch(node)?); // добавить эту строку
-                }
-                _ => {
-                    debug!("Пропуск корневого узла: {}", node.node_type);
-                }
+                _ => {}
             }
         }
 
         Ok(output)
     }
-
     fn language_name() -> &'static str {
         "Python"
     }

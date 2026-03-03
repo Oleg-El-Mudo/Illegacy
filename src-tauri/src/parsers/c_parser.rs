@@ -1001,6 +1001,119 @@ impl CParser {
                         }
                     }
 
+                    "Struct" => {
+                        debug!("Обработка STRUCT узла");
+                        debug!("ПОЛНОЕ содержимое STRUCT: {:#?}", obj);
+
+                        // Сохраняем имя структуры
+                        if let Some(name) = obj.get("name").and_then(|n| n.as_str()) {
+                            node.attributes
+                                .insert("name".to_string(), Value::String(name.to_string()));
+                            debug!("Имя структуры: {}", name);
+                        }
+
+                        // Сохраняем всё JSON представление для дальнейшего использования
+                        node.attributes
+                            .insert("_json".to_string(), Value::Object(obj.clone()));
+
+                        // Обрабатываем поля структуры (decls)
+                        if let Some(decls) = obj.get("decls") {
+                            debug!("Поля структуры: {:#?}", decls);
+
+                            if let Some(decls_array) = decls.as_array() {
+                                for decl in decls_array {
+                                    if let Ok(decl_node) = self.parse_ast_node(decl) {
+                                        node.children.push(decl_node);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    "StructDecl" => {
+                        debug!("Обработка STRUCT DECL (объявление переменной типа структуры)");
+
+                        if let Some(name) = obj.get("name").and_then(|n| n.as_str()) {
+                            node.attributes
+                                .insert("name".to_string(), Value::String(name.to_string()));
+                        }
+
+                        if let Some(type_obj) = obj.get("type") {
+                            if let Ok(type_node) = self.parse_ast_node(type_obj) {
+                                node.children.push(type_node);
+                            }
+                        }
+                    }
+
+                    "StructRef" => {
+                        debug!("Обработка доступа к полю структуры");
+
+                        // Имя структуры (обычно ID)
+                        if let Some(name_obj) = obj.get("name") {
+                            if let Ok(name_node) = self.parse_ast_node(name_obj) {
+                                node.children.push(name_node);
+                            }
+                        }
+
+                        // Имя поля
+                        if let Some(field) = obj.get("field") {
+                            if let Ok(field_node) = self.parse_ast_node(field) {
+                                node.children.push(field_node);
+                            }
+                        }
+                    }
+
+                    // Добавьте этот блок в match после обработки "Decl" или перед "_"
+                    "TypeDecl" => {
+                        debug!("Обработка TypeDecl узла");
+                        debug!("Содержимое TypeDecl: {:#?}", obj);
+
+                        // Сохраняем имя объявления (имя переменной/параметра)
+                        if let Some(declname) = obj.get("declname").and_then(|v| v.as_str()) {
+                            node.attributes
+                                .insert("name".to_string(), Value::String(declname.to_string()));
+                            debug!("Имя в TypeDecl: {}", declname);
+                        }
+
+                        // ВАЖНО: Сохраняем информацию о типе из вложенного узла
+                        if let Some(type_obj) = obj.get("type") {
+                            debug!("Тип в TypeDecl: {:#?}", type_obj);
+
+                            // Парсим вложенный тип как отдельный узел и добавляем как ребенка
+                            if let Ok(type_node) = self.parse_ast_node(type_obj) {
+                                node.children.push(type_node);
+                            }
+
+                            // Также сохраняем JSON представление типа как атрибут
+                            // Это критически важно для определения структурных переменных!
+                            node.attributes.insert("type".to_string(), type_obj.clone());
+
+                            // Проверяем, является ли тип структурой
+                            if let Some(type_obj_map) = type_obj.as_object() {
+                                if let Some(node_type) =
+                                    type_obj_map.get("__node__").and_then(|n| n.as_str())
+                                {
+                                    if node_type == "Struct" {
+                                        debug!("TypeDecl указывает на структуру!");
+                                        if let Some(struct_name) =
+                                            type_obj_map.get("name").and_then(|n| n.as_str())
+                                        {
+                                            node.attributes.insert(
+                                                "struct_type".to_string(),
+                                                Value::String(struct_name.to_string()),
+                                            );
+                                            debug!("Имя структуры: {}", struct_name);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Сохраняем квалификаторы типа (const, volatile и т.д.)
+                        if let Some(quals) = obj.get("quals") {
+                            node.attributes.insert("quals".to_string(), quals.clone());
+                        }
+                    }
+
                     _ => {
                         // Для остальных узлов просто копируем все атрибуты
                         debug!("Обработка узла типа: {}", node_type);
@@ -1188,7 +1301,7 @@ impl CParser {
 }
 
 impl Parser for CParser {
-    fn parse(code: &str) -> Result<ASTNode> {
+    fn parse(_code: &str) -> Result<ASTNode> {
         Err(anyhow!("Используйте parse_async в асинхронном контексте"))
     }
 
