@@ -961,6 +961,46 @@ impl CParser {
                         }
                     }
 
+                    // В методе parse_ast_node, в секции match node_type добавьте:
+                    "For" => {
+                        debug!("Обработка FOR узла");
+                        debug!("ПОЛНОЕ содержимое FOR узла: {:#?}", obj);
+
+                        // Сохраняем все атрибуты для отладки
+                        for (key, value) in obj {
+                            debug!("  FOR атрибут {}: {:#?}", key, value);
+                        }
+
+                        // Обрабатываем все поля как детей
+                        if let Some(init) = obj.get("init") {
+                            debug!("FOR init: {:#?}", init);
+                            if let Ok(init_node) = self.parse_ast_node(init) {
+                                node.children.push(init_node);
+                            }
+                        }
+
+                        if let Some(cond) = obj.get("cond") {
+                            debug!("FOR cond: {:#?}", cond);
+                            if let Ok(cond_node) = self.parse_ast_node(cond) {
+                                node.children.push(cond_node);
+                            }
+                        }
+
+                        if let Some(next) = obj.get("next") {
+                            debug!("FOR next: {:#?}", next);
+                            if let Ok(next_node) = self.parse_ast_node(next) {
+                                node.children.push(next_node);
+                            }
+                        }
+
+                        if let Some(stmt) = obj.get("stmt") {
+                            debug!("FOR stmt: {:#?}", stmt);
+                            if let Ok(stmt_node) = self.parse_ast_node(stmt) {
+                                node.children.push(stmt_node);
+                            }
+                        }
+                    }
+
                     _ => {
                         // Для остальных узлов просто копируем все атрибуты
                         debug!("Обработка узла типа: {}", node_type);

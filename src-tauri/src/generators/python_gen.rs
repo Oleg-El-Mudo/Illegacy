@@ -243,6 +243,13 @@ impl PythonGenerator {
             }
             "Break" => Ok(self.line("break")),
             "Dowhile" | "DoWhile" => self.generate_dowhile(node),
+            "DeclList" => {
+                let mut output = String::new();
+                for decl in &node.children {
+                    output.push_str(&self.generate_statement(decl)?);
+                }
+                Ok(output)
+            }
             _ => {
                 // Пытаемся обработать как выражение
                 let expr = self.generate_expression(node)?;
@@ -392,13 +399,16 @@ impl PythonGenerator {
 
                 match op {
                     "++" | "p++" | "post++" => {
-                        // Постфиксный или префиксный инкремент как выражение
+                        // Для постфиксного инкремента как выражения
                         Ok(format!("({} + 1)", expr))
                     }
                     "--" | "p--" | "post--" => {
-                        // Постфиксный или префиксный декремент как выражение
+                        // Для постфиксного декремента как выражения
                         Ok(format!("({} - 1)", expr))
                     }
+                    // Добавьте обработку префиксных операторов, если нужно
+                    "++" | "pre++" => Ok(format!("({} + 1)", expr)),
+                    "--" | "pre--" => Ok(format!("({} - 1)", expr)),
                     "-" => {
                         // Унарный минус
                         if expr.chars().all(|c| c.is_ascii_digit() || c == '.') {
@@ -1124,35 +1134,90 @@ impl PythonGenerator {
         }
     }
 
-    /// Генерирует for (упрощенно)
+    /// Генерирует for цикл
     fn generate_for(&mut self, node: &ASTNode) -> Result<String> {
         let mut output = String::new();
 
-        if node.children.len() >= 3 {
-            output.push_str(&self.line("# Примечание: for цикл из C конвертирован в while"));
+        debug!("Генерация FOR цикла");
+        debug!("Детей у for: {}", node.children.len());
 
+        if node.children.len() >= 4 {
+            output.push_str(&self.line("# Преобразование for цикла из C в while"));
+
+            // Инициализация (индекс 0)
             if let Some(init) = node.children.get(0) {
-                output.push_str(&self.generate_statement(init)?);
+                debug!("Инициализация for: тип={}", init.node_type);
+
+                // DeclList может содержать несколько объявлений
+                if init.node_type == "DeclList" {
+                    for decl in &init.children {
+                        output.push_str(&self.generate_statement(decl)?);
+                    }
+                } else {
+                    output.push_str(&self.generate_statement(init)?);
+                }
             }
 
+            // Условие (индекс 1)
             if let Some(cond) = node.children.get(1) {
                 let cond_code = self.generate_expression(cond)?;
+                debug!("Условие for: {}", cond_code);
                 output.push_str(&self.line(&format!("while {}:", cond_code)));
 
                 self.indent_level += 1;
 
-                if let Some(body) = node.children.get(2) {
-                    for stmt in &body.children {
-                        output.push_str(&self.generate_statement(stmt)?);
+                // Тело цикла (индекс 3 - stmt)
+                if let Some(body) = node.children.get(3) {
+                    debug!("Тело for: тип={}", body.node_type);
+                    if body.node_type == "Compound" {
+                        for stmt in &body.children {
+                            output.push_str(&self.generate_statement(stmt)?);
+                        }
+                    } else {
+                        output.push_str(&self.generate_statement(body)?);
                     }
                 }
 
-                if let Some(inc) = node.children.get(3) {
-                    output.push_str(&self.generate_statement(inc)?);
+                // Инкремент (индекс 2 - next) - добавляем в конец тела цикла
+                if let Some(next) = node.children.get(2) {
+                    debug!("Инкремент for: тип={}", next.node_type);
+
+                    // Для унарных операций (i++) преобразуем в оператор присваивания
+                    if next.node_type == "UnaryOp" {
+                        if let Some(op) = next.attributes.get("op").and_then(|v| v.as_str()) {
+                            if let Some(expr) = next.children.first() {
+                                if expr.node_type == "ID" {
+                                    if let Some(var_name) =
+                                        expr.attributes.get("name").and_then(|v| v.as_str())
+                                    {
+                                        match op {
+                                            "p++" | "post++" | "++" => {
+                                                output.push_str(
+                                                    &self.line(&format!("{} += 1", var_name)),
+                                                );
+                                            }
+                                            "p--" | "post--" | "--" => {
+                                                output.push_str(
+                                                    &self.line(&format!("{} -= 1", var_name)),
+                                                );
+                                            }
+                                            _ => {
+                                                output.push_str(&self.generate_statement(next)?);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        output.push_str(&self.generate_statement(next)?);
+                    }
                 }
 
                 self.indent_level -= 1;
             }
+        } else {
+            debug!("For имеет недостаточно детей: {}", node.children.len());
         }
 
         Ok(output)
