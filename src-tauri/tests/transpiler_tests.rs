@@ -19,6 +19,7 @@ async fn test_complete_example() {
     let c_code = r#"
 int main(){
     int arr = {1, 2, 3, 4, 5};
+    int table = { {1, 2, 3}, {4, 5, 6} };
     int sec[] = {1,2,3};
     int th[3]={3,2,1};
     char str[255] = "name";
@@ -68,11 +69,11 @@ int main(){
     do{
         val--;
     }while(val<10);
-    
+
     for (int j = 0; j < 5; j++){
-    	for (int i = 0; i < 5; i++){
-    		i *= j;
-    	}
+        for (int i = 0; i < 5; i++){
+            i *= j;
+        }
     }
     return 0;
 }
@@ -93,6 +94,7 @@ import os
 
 def main():
     arr = [1, 2, 3, 4, 5]
+    table = [[1, 2, 3], [4, 5, 6]]
     sec = [1, 2, 3]
     th = [3, 2, 1]
     str = "name"
