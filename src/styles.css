@@ -194,3 +194,18 @@ body {
 .zoom-indicator.show {
     opacity: 1;
 }
+
+/* Делаем табуляции видимыми (опционально) */
+.code-textarea,
+.code-preview {
+    tab-size: 4;
+    -moz-tab-size: 4;
+    -o-tab-size: 4;
+    -webkit-tab-size: 4;
+}
+
+/* Можно добавить подсветку для отладки отступов */
+.code-textarea::selection,
+.code-preview::selection {
+    background: rgba(255, 255, 255, 0.2);
+}

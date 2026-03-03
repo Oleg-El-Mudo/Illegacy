@@ -4,7 +4,8 @@ import { initResizer, setInitialWidths } from './modules/resizer.js';
 import { initSyntaxHighlighting, updateSyntaxHighlighting } from './modules/syntax-highlight.js';
 import { initFileHandlers } from './modules/file-handlers.js';
 import { initTranslation, checkDockerStatus } from './modules/translation.js';
-import { initZoom } from './modules/zoom.js'; // Импортируем новый модуль
+import { initZoom } from './modules/zoom.js';
+import { initIndentation } from './modules/indentation.js'; // Импортируем новый модуль
 
 // Инициализация DOM-элементов
 const domElements = getDOMElements();
@@ -16,7 +17,8 @@ function initApp() {
     initSyntaxHighlighting();
     initFileHandlers();
     initTranslation();
-    initZoom(); // Добавляем инициализацию масштабирования
+    initZoom();
+    initIndentation(); // Добавляем инициализацию выравнивания
     
     // Проверяем статус Docker при загрузке
     checkDockerStatus();
