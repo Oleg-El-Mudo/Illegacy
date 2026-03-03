@@ -139,7 +139,7 @@ impl PythonGenerator {
         self.indent_level += 1;
 
         // Генерируем тело функции - просто проходим по всем операторам в порядке их следования
-        let mut has_return = false;
+        let mut _has_return = false;
         let mut has_body = false;
         let mut body_output = String::new();
 
@@ -152,7 +152,7 @@ impl PythonGenerator {
                     let stmt_code = self.generate_statement(stmt)?;
                     body_output.push_str(&stmt_code);
                     if stmt.node_type == "Return" {
-                        has_return = true;
+                        _has_return = true;
                     }
                 }
             }
@@ -242,7 +242,7 @@ impl PythonGenerator {
                 Ok(output)
             }
             "Break" => Ok(self.line("break")),
-            "Dowhile" | "DoWhile" => self.generate_dowhile(node),
+            "Dowhile" => self.generate_dowhile(node),
             "DeclList" => {
                 let mut output = String::new();
                 for decl in &node.children {
@@ -406,9 +406,6 @@ impl PythonGenerator {
                         // Для постфиксного декремента как выражения
                         Ok(format!("({} - 1)", expr))
                     }
-                    // Добавьте обработку префиксных операторов, если нужно
-                    "++" | "pre++" => Ok(format!("({} + 1)", expr)),
-                    "--" | "pre--" => Ok(format!("({} - 1)", expr)),
                     "-" => {
                         // Унарный минус
                         if expr.chars().all(|c| c.is_ascii_digit() || c == '.') {
