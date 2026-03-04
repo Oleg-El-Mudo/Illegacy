@@ -1,6 +1,6 @@
+use illegacy_lib::parsers::c_parser::CParser;
 use illegacy_lib::generators::python_gen::PythonGenerator;
-use illegacy_lib::generators::Generator;
-use illegacy_lib::parsers::c_parser::CParser; // <-- ВАЖНО: импорт трейта!
+use illegacy_lib::generators::Generator;  // <-- ВАЖНО: импорт трейта!
 
 // Вспомогательная функция для нормализации кода
 fn normalize_code(code: &str) -> String {
@@ -27,8 +27,33 @@ struct Rectangle {
     struct Point bottom_right;
     int area;
 };
+union IntOrChar {
+    int integer;
+    char character;
+};
+
+union Coordinate {
+    struct {
+        int x;
+        int y;
+    } point;
+    float single_value;
+};
 
 int main(){
+
+    union IntOrChar data1;
+    data1.integer = 42;         
+
+    union IntOrChar data2;
+    data2.character = 'A';        
+
+    union Coordinate coord1;
+    coord1.point.x = 10;       
+    coord1.point.y = 20;
+
+    union Coordinate coord2;
+    coord2.single_value = 15.5f;
 
     struct Point p1;
     p1.x = 10;
@@ -42,8 +67,8 @@ int main(){
     rect.area = (rect.bottom_right.x - rect.top_left.x) *
     (rect.bottom_right.y - rect.top_left.y);
 
-    int arr = {1, 2, 3, 4, 5};
-    int table = { {1, 2, 3}, {4, 5, 6} };
+    int arr[5] = {1, 2, 3, 4, 5};  
+    int table[2][3] = {{1, 2, 3}, {4, 5, 6}};  
     int sec[] = {1,2,3};
     int th[3]={3,2,1};
     char str[255] = "name";
@@ -117,22 +142,65 @@ import sys
 import os
 
 class Point:
-    def __init__(self):
-        self.x = None
-        self.y = None
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
 
 class Rectangle:
+    def __init__(self, top_left, bottom_right, area):
+        self.top_left = top_left
+        self.bottom_right = bottom_right
+        self.area = area
+
+class IntOrChar:
     def __init__(self):
-        self.top_left = None
-        self.bottom_right = None
-        self.area = None
+        self.integer = None
+        self.character = None
+    
+    def set_value(self, field_name, value):
+        if field_name not in self.__dict__:
+            raise ValueError(f"Unknown field: {field_name}")
+        for field in self.__dict__:
+            self.__dict__[field] = None
+        self.__dict__[field_name] = value
+    
+    def get_value(self, field_name):
+        if field_name not in self.__dict__:
+            raise ValueError(f"Unknown field: {field_name}")
+        return self.__dict__[field_name]
+
+class Coordinate:
+    def __init__(self):
+        self.point = Point(None, None)
+        self.single_value = None
+    
+    def set_value(self, field_name, value):
+        if field_name not in self.__dict__:
+            raise ValueError(f"Unknown field: {field_name}")
+        for field in self.__dict__:
+            self.__dict__[field] = None
+        self.__dict__[field_name] = value
+    
+    def get_value(self, field_name):
+        if field_name not in self.__dict__:
+            raise ValueError(f"Unknown field: {field_name}")
+        return self.__dict__[field_name]
 
 def main():
-    p1 = Point()
+    data1 = IntOrChar()
+    data1.integer = 42
+    data2 = IntOrChar()
+    data2.character = 'A'
+    coord1 = Coordinate()
+    coord1.point.x = 10
+    coord1.point.y = 20
+    coord2 = Coordinate()
+    coord2.single_value = 15.5
+    p1 = Point(None, None)
     p1.x = 10
     p1.y = 20
     p2 = Point(30, 40)
-    rect = Rectangle()
+    rect = Rectangle(None, None, None)
     rect.top_left = p1
     rect.bottom_right = p2
     rect.area = (rect.bottom_right.x - rect.top_left.x) * (rect.bottom_right.y - rect.top_left.y)
@@ -195,7 +263,7 @@ def foo(x, y):
 "#;
 
     println!("Запуск комплексного теста...");
-
+    
     // Парсинг C кода
     println!("Парсинг C кода...");
     let ast = match CParser::parse_async(c_code).await {
@@ -207,7 +275,7 @@ def foo(x, y):
             panic!("Ошибка парсинга: {}", e);
         }
     };
-
+    
     // Генерация Python кода
     println!("Генерация Python кода...");
     let python_code = match PythonGenerator::generate(&ast) {
@@ -219,19 +287,20 @@ def foo(x, y):
             panic!("Ошибка генерации: {}", e);
         }
     };
-
+    
     // Вывод полученного кода для отладки
     println!("\n=== СГЕНЕРИРОВАННЫЙ КОД ===\n{}", python_code);
-
+    
     // Нормализация для сравнения
     let normalized_expected = normalize_code(expected_python);
     let normalized_actual = normalize_code(&python_code);
-
+    
     assert_eq!(
-        normalized_actual, normalized_expected,
+        normalized_actual, 
+        normalized_expected,
         "\nКомплексный тест не пройден!\n\nОЖИДАЛОСЬ:\n{}\n\nПОЛУЧЕНО:\n{}\n",
         normalized_expected, normalized_actual
     );
-
+    
     println!("Комплексный тест успешно пройден!");
 }
