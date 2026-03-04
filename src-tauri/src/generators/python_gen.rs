@@ -1275,18 +1275,6 @@ impl PythonGenerator {
         Ok(())
     }
 
-    fn get_struct_field_count(&self, struct_name: &str) -> usize {
-        if let Some(fields) = self.struct_info.get(struct_name) {
-            fields.len()
-        } else {
-            // Если структура не найдена, возвращаем 0
-            warn!(
-                "Структура {} не найдена в информации о структурах",
-                struct_name
-            );
-            0
-        }
-    }
 
     /// Генерирует присваивание
     fn generate_assignment(&mut self, node: &ASTNode) -> Result<String> {
@@ -1776,28 +1764,6 @@ impl PythonGenerator {
         output.push_str(&self.line(""));
 
         Ok(output)
-    }
-
-    /// Подсчитывает количество полей в структуре по узлу Decl
-    fn count_struct_fields(&self, node: &ASTNode) -> usize {
-        // Ищем в детях узла TypeDecl
-        for child in &node.children {
-            if child.node_type == "TypeDecl" {
-                for grandchild in &child.children {
-                    if grandchild.node_type == "Struct" {
-                        // Считаем количество Decl детей в структуре
-                        let mut count = 0;
-                        for struct_child in &grandchild.children {
-                            if struct_child.node_type == "Decl" {
-                                count += 1;
-                            }
-                        }
-                        return count;
-                    }
-                }
-            }
-        }
-        0
     }
 
     /// Проверяет, является ли поле вложенной структурой
