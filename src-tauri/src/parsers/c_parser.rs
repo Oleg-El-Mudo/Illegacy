@@ -2,7 +2,7 @@ use anyhow::{anyhow, Context, Result};
 use log::{debug, error, info, warn};
 use reqwest::Client;
 use serde_json::Value;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 use tokio::process::Command;
 
 use super::Parser;
@@ -369,10 +369,24 @@ impl CParser {
                         }
                     }
 
+                    // В c_parser.rs, в обработке "Constant":
                     "Constant" => {
                         // Для констант
                         if let Some(value) = obj.get("value") {
-                            node.attributes.insert("value".to_string(), value.clone());
+                            // Если это строковое представление числа с суффиксом 'f', убираем суффикс
+                            if let Some(value_str) = value.as_str() {
+                                if value_str.ends_with('f')
+                                    && value_str[..value_str.len() - 1].parse::<f64>().is_ok()
+                                {
+                                    let clean_value = value_str[..value_str.len() - 1].to_string();
+                                    node.attributes
+                                        .insert("value".to_string(), Value::String(clean_value));
+                                } else {
+                                    node.attributes.insert("value".to_string(), value.clone());
+                                }
+                            } else {
+                                node.attributes.insert("value".to_string(), value.clone());
+                            }
                         }
                         if let Some(type_name) = obj.get("type") {
                             node.attributes
@@ -1103,6 +1117,16 @@ impl CParser {
                                             );
                                             debug!("Имя структуры: {}", struct_name);
                                         }
+                                    } else if node_type == "Union" {
+                                        if let Some(union_name) =
+                                            type_obj_map.get("name").and_then(|n| n.as_str())
+                                        {
+                                            node.attributes.insert(
+                                                "union_type".to_string(),
+                                                Value::String(union_name.to_string()),
+                                            );
+                                            debug!("Имя объединения: {}", union_name);
+                                        }
                                     }
                                 }
                             }
@@ -1111,6 +1135,79 @@ impl CParser {
                         // Сохраняем квалификаторы типа (const, volatile и т.д.)
                         if let Some(quals) = obj.get("quals") {
                             node.attributes.insert("quals".to_string(), quals.clone());
+                        }
+                    }
+
+                    // В методе parse_ast_node, в секции обработки "Union":
+                    "Union" => {
+                        debug!("Обработка UNION узла");
+                        debug!("ПОЛНОЕ содержимое UNION: {:#?}", obj);
+
+                        // Сохраняем имя объединения
+                        if let Some(name) = obj.get("name").and_then(|n| n.as_str()) {
+                            node.attributes
+                                .insert("name".to_string(), Value::String(name.to_string()));
+                            debug!("Имя объединения: {}", name);
+                        }
+
+                        // Сохраняем всё JSON представление для дальнейшего использования
+                        node.attributes
+                            .insert("_json".to_string(), Value::Object(obj.clone()));
+
+                        // Обрабатываем поля объединения (decls)
+                        if let Some(decls) = obj.get("decls") {
+                            debug!("Поля объединения: {:#?}", decls);
+
+                            if let Some(decls_array) = decls.as_array() {
+                                for decl in decls_array {
+                                    if let Ok(decl_node) = self.parse_ast_node(decl) {
+                                        // Сохраняем информацию о том, что это поле объединения
+                                        if decl_node.node_type == "Decl" {
+                                            // Проверяем, является ли поле вложенной структурой
+                                            if let Some(type_attr) =
+                                                decl_node.attributes.get("type")
+                                            {
+                                                if let Some(type_obj) = type_attr.as_object() {
+                                                    if type_obj
+                                                        .get("__node__")
+                                                        .and_then(|v| v.as_str())
+                                                        == Some("Struct")
+                                                    {
+                                                        debug!("Найдена вложенная структура в объединении");
+                                                        // Сохраняем JSON структуры для последующей обработки
+                                                        node.attributes.insert(
+                                                            format!(
+                                                                "field_{}_struct",
+                                                                decl_node
+                                                                    .attributes
+                                                                    .get("name")
+                                                                    .and_then(|v| v.as_str())
+                                                                    .unwrap_or("unknown")
+                                                            ),
+                                                            type_attr.clone(),
+                                                        );
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        node.children.push(decl_node);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    "UnionDecl" => {
+                        debug!("Обработка UNION DECL (объявление переменной типа объединения)");
+
+                        if let Some(name) = obj.get("name").and_then(|n| n.as_str()) {
+                            node.attributes
+                                .insert("name".to_string(), Value::String(name.to_string()));
+                        }
+
+                        if let Some(type_obj) = obj.get("type") {
+                            if let Ok(type_node) = self.parse_ast_node(type_obj) {
+                                node.children.push(type_node);
+                            }
                         }
                     }
 
