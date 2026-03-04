@@ -178,9 +178,7 @@ export async function translateCode() {
         const result = await invoke('transpile_c_to_python', { code });
         
         if (result.success) {
-            // Добавляем комментарий о том, что комментарии были удалены
-            const header = `# Транспилировано с C на Python\n# Комментарии из оригинального кода были удалены\n\n`;
-            elements.outputCode.value = header + result.output;
+            elements.outputCode.value = result.output;
             updateSyntaxHighlighting();
             
             console.log('Транспиляция успешна');
