@@ -1,6 +1,6 @@
-use illegacy_lib::parsers::c_parser::CParser;
 use illegacy_lib::generators::python_gen::PythonGenerator;
-use illegacy_lib::generators::Generator;  // <-- ВАЖНО: импорт трейта!
+use illegacy_lib::generators::Generator;
+use illegacy_lib::parsers::c_parser::CParser; // <-- ВАЖНО: импорт трейта!
 
 // Вспомогательная функция для нормализации кода
 fn normalize_code(code: &str) -> String {
@@ -14,10 +14,34 @@ fn normalize_code(code: &str) -> String {
 }
 
 #[tokio::test]
-async fn test_complete_example() {
+async fn test_c_to_python() {
     // Входной C код - используем &str, а не String
     let c_code = r#"
+struct Point {
+    int x;
+    int y;
+};
+
+struct Rectangle {
+    struct Point top_left;
+    struct Point bottom_right;
+    int area;
+};
+
 int main(){
+
+    struct Point p1;
+    p1.x = 10;
+    p1.y = 20;
+
+    struct Point p2 = {30, 40};
+
+    struct Rectangle rect;
+    rect.top_left = p1;
+    rect.bottom_right = p2;
+    rect.area = (rect.bottom_right.x - rect.top_left.x) *
+    (rect.bottom_right.y - rect.top_left.y);
+
     int arr = {1, 2, 3, 4, 5};
     int table = { {1, 2, 3}, {4, 5, 6} };
     int sec[] = {1,2,3};
@@ -92,7 +116,26 @@ int foo(int x, int y){
 import sys
 import os
 
+class Point:
+    def __init__(self):
+        self.x = None
+        self.y = None
+
+class Rectangle:
+    def __init__(self):
+        self.top_left = None
+        self.bottom_right = None
+        self.area = None
+
 def main():
+    p1 = Point()
+    p1.x = 10
+    p1.y = 20
+    p2 = Point(30, 40)
+    rect = Rectangle()
+    rect.top_left = p1
+    rect.bottom_right = p2
+    rect.area = (rect.bottom_right.x - rect.top_left.x) * (rect.bottom_right.y - rect.top_left.y)
     arr = [1, 2, 3, 4, 5]
     table = [[1, 2, 3], [4, 5, 6]]
     sec = [1, 2, 3]
@@ -152,7 +195,7 @@ def foo(x, y):
 "#;
 
     println!("Запуск комплексного теста...");
-    
+
     // Парсинг C кода
     println!("Парсинг C кода...");
     let ast = match CParser::parse_async(c_code).await {
@@ -164,7 +207,7 @@ def foo(x, y):
             panic!("Ошибка парсинга: {}", e);
         }
     };
-    
+
     // Генерация Python кода
     println!("Генерация Python кода...");
     let python_code = match PythonGenerator::generate(&ast) {
@@ -176,20 +219,19 @@ def foo(x, y):
             panic!("Ошибка генерации: {}", e);
         }
     };
-    
+
     // Вывод полученного кода для отладки
     println!("\n=== СГЕНЕРИРОВАННЫЙ КОД ===\n{}", python_code);
-    
+
     // Нормализация для сравнения
     let normalized_expected = normalize_code(expected_python);
     let normalized_actual = normalize_code(&python_code);
-    
+
     assert_eq!(
-        normalized_actual, 
-        normalized_expected,
+        normalized_actual, normalized_expected,
         "\nКомплексный тест не пройден!\n\nОЖИДАЛОСЬ:\n{}\n\nПОЛУЧЕНО:\n{}\n",
         normalized_expected, normalized_actual
     );
-    
+
     println!("Комплексный тест успешно пройден!");
 }
