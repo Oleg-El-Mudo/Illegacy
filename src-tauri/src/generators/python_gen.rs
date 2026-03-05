@@ -2312,13 +2312,6 @@ impl PythonGenerator {
         output
     }
 
-    fn generate_pointer_arithmetic(&mut self, ptr_name: &str, index: &str) -> String {
-        format!("{}[{}]", ptr_name, index)
-    }
-
-    fn is_pointer(&self, expr: &str) -> bool {
-        self.pointer_vars.contains(expr)
-    }
 }
 
 // В методе generate, после импорта sys и os, добавьте:
