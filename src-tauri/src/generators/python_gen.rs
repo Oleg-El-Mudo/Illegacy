@@ -1,11 +1,10 @@
 use anyhow::Result;
 use log::{debug, warn};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use super::Generator;
 use crate::ast::ASTNode;
 
-/// Генератор Python кода из AST
 pub struct PythonGenerator {
     /// Текущий уровень отступа
     indent_level: usize,
@@ -19,6 +18,8 @@ pub struct PythonGenerator {
     current_struct_type: Option<String>,
     /// Информация о структурах (имя -> список полей)
     struct_info: std::collections::HashMap<String, Vec<String>>,
+    /// Информация о enum (имя enum -> список значений)
+    enum_info: std::collections::HashMap<String, Vec<String>>, // <-- ДОБАВИТЬ
 }
 
 impl PythonGenerator {
@@ -30,6 +31,7 @@ impl PythonGenerator {
             in_expression: false,
             current_struct_type: None,
             struct_info: std::collections::HashMap::new(),
+            enum_info: std::collections::HashMap::new(),
         }
     }
 
@@ -362,7 +364,14 @@ impl PythonGenerator {
             }
             "ID" => {
                 if let Some(name) = node.attributes.get("name").and_then(|v| v.as_str()) {
-                    Ok(name.to_string())
+                    // ПРОВЕРЯЕМ, НЕ ЯВЛЯЕТСЯ ЛИ ЭТО ЗНАЧЕНИЕМ ENUM
+                    if let Some(enum_name) = self.is_enum_value(name) {
+                        // Если это enum значение, квалифицируем его именем класса
+                        Ok(format!("{}.{}", enum_name, name))
+                    } else {
+                        // Обычный идентификатор
+                        Ok(name.to_string())
+                    }
                 } else {
                     Ok("unknown".to_string())
                 }
@@ -597,6 +606,21 @@ impl PythonGenerator {
             "StructDecl" => {
                 // Если StructDecl используется как выражение (например, в инициализации)
                 self.generate_struct_decl(node)
+            }
+
+            "ID" => {
+                if let Some(name) = node.attributes.get("name").and_then(|v| v.as_str()) {
+                    // Проверяем, не является ли это значением enum
+                    if let Some(enum_name) = self.is_enum_value(name) {
+                        // Если это enum значение, квалифицируем его именем класса
+                        Ok(format!("{}.{}", enum_name, name))
+                    } else {
+                        // Обычный идентификатор
+                        Ok(name.to_string())
+                    }
+                } else {
+                    Ok("unknown".to_string())
+                }
             }
             _ => {
                 debug!("Неизвестное выражение: {}", node.node_type);
@@ -950,11 +974,22 @@ impl PythonGenerator {
             debug!("  Атрибуты: {:#?}", node.attributes);
             debug!("  Количество детей: {}", node.children.len());
 
-            // Определяем, является ли это структурной переменной или переменной объединения
+            // Сначала проверяем, не является ли это определением enum (Decl с Enum внутри)
+            for child in &node.children {
+                if child.node_type == "Enum" {
+                    debug!("  Найдено определение ENUM внутри Decl");
+                    // Генерируем класс enum и возвращаем, не обрабатывая как переменную
+                    return self.generate_enum(child);
+                }
+            }
+
+            // Определяем тип объявления
             let mut is_struct_var = false;
             let mut is_union_var = false;
+            let mut is_enum_var = false;
             let mut struct_type = None;
             let mut union_type = None;
+            let mut enum_type = None;
 
             // 1. Проверяем атрибут type самого узла Decl
             if let Some(type_attr) = node.attributes.get("type") {
@@ -975,18 +1010,24 @@ impl PythonGenerator {
                                 debug!("  Найдено объединение в атрибуте type узла: {}", name);
                             }
                         }
+                        Some("Enum") => {
+                            is_enum_var = true;
+                            if let Some(name) = type_obj.get("name").and_then(|v| v.as_str()) {
+                                enum_type = Some(name.to_string());
+                                debug!("  Найдено перечисление в атрибуте type узла: {}", name);
+                            }
+                        }
                         _ => {}
                     }
                 }
             }
 
-            // 2. Проверяем детей
-            if !is_struct_var && !is_union_var {
+            // 2. Проверяем детей, если еще не определили тип
+            if !is_struct_var && !is_union_var && !is_enum_var {
                 for child in &node.children {
                     debug!("    Проверка ребенка с типом: {}", child.node_type);
                     debug!("      Атрибуты ребенка: {:#?}", child.attributes);
 
-                    // Проверяем, не является ли сам ребенок структурой или объединением
                     match child.node_type.as_str() {
                         "Struct" => {
                             is_struct_var = true;
@@ -1008,6 +1049,16 @@ impl PythonGenerator {
                                 break;
                             }
                         }
+                        "Enum" => {
+                            is_enum_var = true;
+                            if let Some(name) =
+                                child.attributes.get("name").and_then(|v| v.as_str())
+                            {
+                                enum_type = Some(name.to_string());
+                                debug!("      НАЙДЕНО ПЕРЕЧИСЛЕНИЕ как прямой ребенок: {}", name);
+                                break;
+                            }
+                        }
                         _ => {}
                     }
 
@@ -1023,7 +1074,7 @@ impl PythonGenerator {
                                     {
                                         struct_type = Some(name.to_string());
                                         debug!("      НАЙДЕНА СТРУКТУРА в атрибуте type ребенка {}: {}", 
-                                           child.node_type, name);
+                                       child.node_type, name);
                                         break;
                                     }
                                 }
@@ -1034,7 +1085,18 @@ impl PythonGenerator {
                                     {
                                         union_type = Some(name.to_string());
                                         debug!("      НАЙДЕНО ОБЪЕДИНЕНИЕ в атрибуте type ребенка {}: {}", 
-                                           child.node_type, name);
+                                       child.node_type, name);
+                                        break;
+                                    }
+                                }
+                                Some("Enum") => {
+                                    is_enum_var = true;
+                                    if let Some(name) =
+                                        type_obj.get("name").and_then(|v| v.as_str())
+                                    {
+                                        enum_type = Some(name.to_string());
+                                        debug!("      НАЙДЕНО ПЕРЕЧИСЛЕНИЕ в атрибуте type ребенка {}: {}", 
+                                       child.node_type, name);
                                         break;
                                     }
                                 }
@@ -1043,7 +1105,7 @@ impl PythonGenerator {
                         }
                     }
 
-                    // Также проверяем детей ребенка
+                    // Проверяем детей ребенка
                     for grandchild in &child.children {
                         match grandchild.node_type.as_str() {
                             "Struct" => {
@@ -1066,6 +1128,16 @@ impl PythonGenerator {
                                     break;
                                 }
                             }
+                            "Enum" => {
+                                is_enum_var = true;
+                                if let Some(name) =
+                                    grandchild.attributes.get("name").and_then(|v| v.as_str())
+                                {
+                                    enum_type = Some(name.to_string());
+                                    debug!("      НАЙДЕНО ПЕРЕЧИСЛЕНИЕ как внук: {}", name);
+                                    break;
+                                }
+                            }
                             _ => {}
                         }
 
@@ -1079,7 +1151,7 @@ impl PythonGenerator {
                                         {
                                             struct_type = Some(name.to_string());
                                             debug!("      НАЙДЕНА СТРУКТУРА в атрибуте type внука {}: {}", 
-                                               grandchild.node_type, name);
+                                           grandchild.node_type, name);
                                             break;
                                         }
                                     }
@@ -1090,7 +1162,18 @@ impl PythonGenerator {
                                         {
                                             union_type = Some(name.to_string());
                                             debug!("      НАЙДЕНО ОБЪЕДИНЕНИЕ в атрибуте type внука {}: {}", 
-                                               grandchild.node_type, name);
+                                           grandchild.node_type, name);
+                                            break;
+                                        }
+                                    }
+                                    Some("Enum") => {
+                                        is_enum_var = true;
+                                        if let Some(name) =
+                                            type_obj.get("name").and_then(|v| v.as_str())
+                                        {
+                                            enum_type = Some(name.to_string());
+                                            debug!("      НАЙДЕНО ПЕРЕЧИСЛЕНИЕ в атрибуте type внука {}: {}", 
+                                           grandchild.node_type, name);
                                             break;
                                         }
                                     }
@@ -1099,16 +1182,16 @@ impl PythonGenerator {
                             }
                         }
                     }
-                    if is_struct_var || is_union_var {
+                    if is_struct_var || is_union_var || is_enum_var {
                         break;
                     }
                 }
             }
 
             debug!(
-                "  Результат анализа - is_struct_var: {}, struct_type: {:?}, is_union_var: {}, union_type: {:?}",
-                is_struct_var, struct_type, is_union_var, union_type
-            );
+            "  Результат анализа - is_struct_var: {}, struct_type: {:?}, is_union_var: {}, union_type: {:?}, is_enum_var: {}, enum_type: {:?}",
+            is_struct_var, struct_type, is_union_var, union_type, is_enum_var, enum_type
+        );
 
             // Ищем инициализатор среди детей
             let mut init_node = None;
@@ -1127,19 +1210,84 @@ impl PythonGenerator {
                 }
             }
 
-            // Используем отдельные методы для обработки разных типов объявлений
+            // Обрабатываем объявления в зависимости от типа
             if is_union_var {
                 self.handle_union_declaration(name, union_type, init_node, &mut output)?;
             } else if is_struct_var {
                 self.handle_struct_declaration(name, struct_type, init_node, &mut output)?;
+            } else if is_enum_var {
+                self.handle_enum_declaration(name, enum_type, init_node, &mut output)?;
             } else {
                 self.handle_regular_declaration(name, init_node, &mut output)?;
             }
 
             Ok(output)
         } else {
+            // Если нет имени, проверяем, может это определение enum без переменной
+            for child in &node.children {
+                if child.node_type == "Enum" {
+                    debug!("Найдено определение ENUM без имени переменной");
+                    return self.generate_enum(child);
+                }
+            }
             Ok(String::new())
         }
+    }
+
+    /// Обработка объявления переменной типа enum
+    fn handle_enum_declaration(
+        &mut self,
+        name: &str,
+        enum_type: Option<String>,
+        init_node: Option<&ASTNode>,
+        output: &mut String,
+    ) -> Result<()> {
+        debug!(
+            "handle_enum_declaration: name={}, enum_type={:?}, has_init={}",
+            name,
+            enum_type,
+            init_node.is_some()
+        );
+
+        if let Some(init) = init_node {
+            // Есть инициализатор
+            let init_code = self.generate_expression(init)?;
+
+            // Проверяем, является ли инициализатор простым идентификатором (например, RED)
+            // и нужно ли его преобразовать в enum_type.RED
+            if init.node_type == "ID" {
+                if let Some(enum_name) = &enum_type {
+                    // Проверяем, не является ли это уже полным именем с точкой
+                    if !init_code.contains('.') {
+                        // Преобразуем RED в Color.RED
+                        debug!(
+                            "Преобразуем enum значение {} в {}.{}",
+                            init_code, enum_name, init_code
+                        );
+                        output.push_str(
+                            &self.line(&format!("{} = {}.{}", name, enum_name, init_code)),
+                        );
+                        return Ok(());
+                    }
+                }
+            }
+
+            output.push_str(&self.line(&format!("{} = {}", name, init_code)));
+        } else {
+            // Нет инициализатора
+            if let Some(enum_name) = enum_type {
+                // Для enum переменных без инициализатора используем первое значение по умолчанию
+                // Но мы не знаем первое значение, поэтому оставляем комментарий
+                output.push_str(&self.line(&format!(
+                    "{} = None  # TODO: Укажите значение enum {}.VALUE",
+                    name, enum_name
+                )));
+            } else {
+                output.push_str(&self.line(&format!("{} = None", name)));
+            }
+        }
+
+        Ok(())
     }
 
     /// Обработка объявления структурной переменной
@@ -1274,7 +1422,6 @@ impl PythonGenerator {
 
         Ok(())
     }
-
 
     /// Генерирует присваивание
     fn generate_assignment(&mut self, node: &ASTNode) -> Result<String> {
@@ -1890,8 +2037,115 @@ impl PythonGenerator {
 
         Ok(output)
     }
+
+    fn generate_enum(&mut self, node: &ASTNode) -> Result<String> {
+        let mut output = String::new();
+        let mut enum_values = Vec::new();
+
+        let name = node
+            .attributes
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("UnknownEnum");
+
+        debug!("Генерация класса Enum из перечисления: {}", name);
+        debug!("Детей у enum: {}", node.children.len());
+
+        // Генерируем определение класса
+        output.push_str(&self.line(&format!("class {}(enum.Enum):", name)));
+        self.indent_level += 1;
+
+        // Обрабатываем элементы перечисления
+        let mut has_explicit_values = false;
+        let mut enum_items_found = false;
+
+        for child in &node.children {
+            debug!("  Ребенок enum: тип={}", child.node_type);
+
+            if child.node_type == "EnumeratorList" {
+                debug!("  Найден EnumeratorList с {} детьми", child.children.len());
+
+                for enumerator in &child.children {
+                    if enumerator.node_type == "Enumerator" {
+                        if let Some(item_name) =
+                            enumerator.attributes.get("name").and_then(|v| v.as_str())
+                        {
+                            enum_items_found = true;
+                            enum_values.push(item_name.to_string()); // <-- СОХРАНЯЕМ ЗНАЧЕНИЕ
+
+                            if let Some(value) = enumerator.attributes.get("value") {
+                                has_explicit_values = true;
+
+                                if let Some(value_str) = value.as_str() {
+                                    output.push_str(
+                                        &self.line(&format!("{} = {}", item_name, value_str)),
+                                    );
+                                } else if let Some(value_num) = value.as_i64() {
+                                    output.push_str(
+                                        &self.line(&format!("{} = {}", item_name, value_num)),
+                                    );
+                                } else {
+                                    output.push_str(&self.line(&format!("{} = auto()", item_name)));
+                                }
+                            } else {
+                                output.push_str(&self.line(&format!("{} = auto()", item_name)));
+                            }
+                        }
+                    }
+                }
+            } else if child.node_type == "Enumerator" {
+                if let Some(item_name) = child.attributes.get("name").and_then(|v| v.as_str()) {
+                    enum_items_found = true;
+                    enum_values.push(item_name.to_string()); // <-- СОХРАНЯЕМ ЗНАЧЕНИЕ
+
+                    if let Some(value) = child.attributes.get("value") {
+                        has_explicit_values = true;
+
+                        if let Some(value_str) = value.as_str() {
+                            output.push_str(&self.line(&format!("{} = {}", item_name, value_str)));
+                        } else if let Some(value_num) = value.as_i64() {
+                            output.push_str(&self.line(&format!("{} = {}", item_name, value_num)));
+                        } else {
+                            output.push_str(&self.line(&format!("{} = auto()", item_name)));
+                        }
+                    } else {
+                        output.push_str(&self.line(&format!("{} = auto()", item_name)));
+                    }
+                }
+            }
+        }
+
+        // Сохраняем информацию о enum для последующего использования  // <-- ДОБАВЛЕНО
+        self.enum_info.insert(name.to_string(), enum_values);
+
+        if !enum_items_found {
+            debug!("  ВНИМАНИЕ: Не найдены элементы enum!");
+            output.push_str(&self.line("# TODO: Добавьте элементы enum"));
+        }
+
+        if has_explicit_values {
+            output.push_str(&self.line(""));
+            output.push_str(&self.line("# Примечание: некоторые значения заданы явно, как в C"));
+        }
+
+        self.indent_level -= 1;
+        output.push_str(&self.line(""));
+
+        Ok(output)
+    }
+
+    /// Проверяет, является ли идентификатор значением enum
+    fn is_enum_value(&self, name: &str) -> Option<String> {
+        for (enum_name, values) in &self.enum_info {
+            if values.contains(&name.to_string()) {
+                return Some(enum_name.clone());
+            }
+        }
+        None
+    }
 }
 
+// В методе generate, после импорта sys и os, добавьте:
 impl Generator for PythonGenerator {
     type Output = String;
 
@@ -1902,7 +2156,9 @@ impl Generator for PythonGenerator {
         output.push_str("# Generated by C to Python transpiler\n");
         output.push_str("# This is an approximate conversion\n\n");
         output.push_str("import sys\n");
-        output.push_str("import os\n\n");
+        output.push_str("import os\n");
+        output.push_str("import enum\n"); // <-- ДОБАВЬТЕ ЭТУ СТРОКУ
+        output.push_str("from enum import auto\n\n"); // <-- ДОБАВЬТЕ ЭТУ СТРОКУ
 
         // ОТЛАДКА: выводим все корневые узлы
         debug!("Корневые узлы AST:");
@@ -1910,10 +2166,12 @@ impl Generator for PythonGenerator {
             debug!("  Корневой узел {}: тип={}", i, node.node_type);
         }
 
-        // Сначала обрабатываем все определения структур и объединений
+        // В методе generate, в цикле обработки корневых узлов:
+
+        // Сначала обрабатываем все определения структур, объединений и перечислений
         for node in &ast.children {
             if node.node_type == "Decl" {
-                // Проверяем, не является ли этот Decl определением структуры
+                // Проверяем, не является ли этот Decl определением структуры, объединения или перечисления
                 for child in &node.children {
                     if child.node_type == "Struct" {
                         debug!("Найден Struct внутри Decl на верхнем уровне");
@@ -1921,8 +2179,15 @@ impl Generator for PythonGenerator {
                     } else if child.node_type == "Union" {
                         debug!("Найден Union внутри Decl на верхнем уровне");
                         output.push_str(&generator.generate_union(child)?);
+                    } else if child.node_type == "Enum" {
+                        debug!("Найден Enum внутри Decl на верхнем уровне");
+                        output.push_str(&generator.generate_enum(child)?);
                     }
                 }
+            } else if node.node_type == "Enum" {
+                // Прямое определение enum без Decl
+                debug!("Найден Enum на верхнем уровне");
+                output.push_str(&generator.generate_enum(node)?);
             }
         }
 
@@ -1938,7 +2203,6 @@ impl Generator for PythonGenerator {
 
         Ok(output)
     }
-
     fn language_name() -> &'static str {
         "Python"
     }

@@ -1211,6 +1211,54 @@ impl CParser {
                         }
                     }
 
+                    "Enum" => {
+                        debug!("Обработка ENUM узла");
+                        debug!("ПОЛНОЕ содержимое ENUM: {:#?}", obj);
+
+                        // Сохраняем имя перечисления
+                        if let Some(name) = obj.get("name").and_then(|n| n.as_str()) {
+                            node.attributes
+                                .insert("name".to_string(), Value::String(name.to_string()));
+                            debug!("Имя перечисления: {}", name);
+                        }
+
+                        // Сохраняем всё JSON представление для дальнейшего использования
+                        node.attributes
+                            .insert("_json".to_string(), Value::Object(obj.clone()));
+
+                        // Обрабатываем значения перечисления (values)
+                        // В pycparser это может быть массив или объект с полями
+                        if let Some(values) = obj.get("values") {
+                            debug!("Значения enum: {:#?}", values);
+
+                            if let Some(values_array) = values.as_array() {
+                                for value in values_array {
+                                    if let Ok(enumerator_node) = self.parse_ast_node(value) {
+                                        node.children.push(enumerator_node);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    "Enumerator" => {
+                        debug!("Обработка ENUMERATOR узла");
+                        debug!("Содержимое ENUMERATOR: {:#?}", obj);
+
+                        // Сохраняем имя элемента перечисления
+                        if let Some(name) = obj.get("name").and_then(|n| n.as_str()) {
+                            node.attributes
+                                .insert("name".to_string(), Value::String(name.to_string()));
+                            debug!("Имя элемента enum: {}", name);
+                        }
+
+                        // Сохраняем значение, если указано явно (например, RED=5)
+                        if let Some(value) = obj.get("value") {
+                            node.attributes.insert("value".to_string(), value.clone());
+                            debug!("Значение элемента enum: {:?}", value);
+                        }
+                    }
+
                     _ => {
                         // Для остальных узлов просто копируем все атрибуты
                         debug!("Обработка узла типа: {}", node_type);
