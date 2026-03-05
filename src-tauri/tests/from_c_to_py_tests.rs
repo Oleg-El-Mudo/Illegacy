@@ -519,7 +519,7 @@ def main():
 }
 
 // ==================== ТЕСТЫ ДЛЯ ФУНКЦИЙ ====================
-
+// функции
 #[tokio::test]
 async fn test_function_simple() {
     let c_code = r#"
