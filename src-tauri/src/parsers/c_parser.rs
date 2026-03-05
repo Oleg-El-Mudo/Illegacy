@@ -430,6 +430,24 @@ impl CParser {
                         }
                     }
 
+                    "Cast" => {
+                        debug!("Обработка приведения типа (cast)");
+                        debug!("Содержимое Cast: {:#?}", obj);
+
+                        // Сохраняем тип, к которому приводим
+                        if let Some(to_type) = obj.get("to_type") {
+                            node.attributes
+                                .insert("to_type".to_string(), to_type.clone());
+                        }
+
+                        // Обрабатываем выражение, которое приводится
+                        if let Some(expr) = obj.get("expr") {
+                            if let Ok(expr_node) = self.parse_ast_node(expr) {
+                                node.children.push(expr_node);
+                            }
+                        }
+                    }
+
                     "ParamList" => {
                         debug!("Обработка ParamList");
 
@@ -743,14 +761,25 @@ impl CParser {
                                 node.children.push(dim_node);
                             }
                         }
+                    }
 
-                        // Обрабатываем инициализатор
-                        // if let Some(init) = obj.get("init") {
-                        //     debug!("Инициализатор массива: {:#?}", init);
-                        //     if let Ok(init_node) = self.parse_ast_node(init) {
-                        //         node.children.push(init_node);
-                        //     }
-                        // }
+                    // указатель
+                    "PtrDecl" => {
+                        debug!("Обработка объявления указателя");
+                        debug!("Содержимое PtrDecl: {:#?}", obj);
+
+                        // Сохраняем квалификаторы (const и т.д.)
+                        if let Some(quals) = obj.get("quals") {
+                            node.attributes.insert("quals".to_string(), quals.clone());
+                        }
+
+                        // Обрабатываем тип, на который указывает указатель
+                        if let Some(type_obj) = obj.get("type") {
+                            debug!("Тип, на который указывает указатель: {:#?}", type_obj);
+                            if let Ok(type_node) = self.parse_ast_node(type_obj) {
+                                node.children.push(type_node);
+                            }
+                        }
                     }
 
                     "InitList" => {

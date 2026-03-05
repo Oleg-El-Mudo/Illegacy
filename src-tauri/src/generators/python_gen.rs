@@ -1,25 +1,24 @@
 use anyhow::Result;
 use log::{debug, warn};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use super::Generator;
 use crate::ast::ASTNode;
 
 pub struct PythonGenerator {
-    /// Текущий уровень отступа
     indent_level: usize,
-    /// Размер отступа (пробелы)
     indent_size: usize,
-    /// Таблица символов для отслеживания объявленных переменных
     symbols: HashSet<String>,
-    /// Режим генерации (выражение или оператор)
     in_expression: bool,
-    /// Текущий тип структуры при инициализации
     current_struct_type: Option<String>,
-    /// Информация о структурах (имя -> список полей)
     struct_info: std::collections::HashMap<String, Vec<String>>,
-    /// Информация о enum (имя enum -> список значений)
-    enum_info: std::collections::HashMap<String, Vec<String>>, // <-- ДОБАВИТЬ
+    enum_info: std::collections::HashMap<String, Vec<String>>,
+    // Новое: отслеживание переменных-указателей
+    pointer_vars: HashSet<String>,
+    // Новое: отслеживание типов указателей (имя -> тип элемента)
+    pointer_types: std::collections::HashMap<String, String>,
+    // Новое: отслеживание адресов переменных
+    address_taken: HashSet<String>,
 }
 
 impl PythonGenerator {
@@ -32,6 +31,9 @@ impl PythonGenerator {
             current_struct_type: None,
             struct_info: std::collections::HashMap::new(),
             enum_info: std::collections::HashMap::new(),
+            pointer_vars: HashSet::new(),
+            pointer_types: std::collections::HashMap::new(),
+            address_taken: HashSet::new(),
         }
     }
 
@@ -238,7 +240,17 @@ impl PythonGenerator {
                 let expr = self.generate_expression(node)?;
                 Ok(self.line(&expr))
             }
-            "UnaryOp" => self.generate_unary_stmt(node),
+            "UnaryOp" => {
+                // Для унарных операторов как операторов (например, *ptr = 5)
+                if let Some(op) = node.attributes.get("op").and_then(|v| v.as_str()) {
+                    if op == "*" && node.children.len() == 1 {
+                        // Это разыменование указателя как левая часть присваивания
+                        // Будет обработано в Assignment
+                        return self.generate_unary_stmt(node);
+                    }
+                }
+                self.generate_unary_stmt(node)
+            }
             "Compound" => {
                 let mut output = String::new();
 
@@ -429,27 +441,46 @@ impl PythonGenerator {
                     String::new()
                 };
 
-                debug!("  Операнд: '{}'", expr);
-
                 match op {
-                    "++" | "p++" | "post++" => {
-                        // Для постфиксного инкремента как выражения
-                        Ok(format!("({} + 1)", expr))
+                    "&" => {
+                        // Взятие адреса в C
+                        debug!("Операция взятия адреса: &{}", expr);
+
+                        // Помечаем, что у этой переменной берется адрес
+                        if let Some(child) = node.children.first() {
+                            if child.node_type == "ID" {
+                                if let Some(var_name) =
+                                    child.attributes.get("name").and_then(|v| v.as_str())
+                                {
+                                    self.address_taken.insert(var_name.to_string());
+                                }
+                            }
+                        }
+
+                        // В Python возвращаем специальный объект-ссылку
+                        Ok(format!("Reference({})", expr))
                     }
-                    "--" | "p--" | "post--" => {
-                        // Для постфиксного декремента как выражения
-                        Ok(format!("({} - 1)", expr))
+                    "*" => {
+                        // Разыменование указателя в C
+                        debug!("Разыменование указателя: *{}", expr);
+
+                        // Проверяем, не является ли expr указателем, который мы отслеживаем
+                        if self.pointer_vars.contains(&expr) {
+                            // Если это известный указатель, используем его значение
+                            Ok(format!("{}.value", expr))
+                        } else {
+                            // Иначе предполагаем, что это объект с атрибутом value
+                            Ok(format!("{}.value", expr))
+                        }
                     }
+                    "++" | "p++" | "post++" => Ok(format!("({} + 1)", expr)),
+                    "--" | "p--" | "post--" => Ok(format!("({} - 1)", expr)),
                     "-" => {
-                        // Унарный минус
                         if expr.chars().all(|c| c.is_ascii_digit() || c == '.') {
-                            // Это число
                             Ok(format!("-{}", expr))
                         } else if expr.starts_with('-') {
-                            // Уже отрицательное число
                             Ok(expr)
                         } else {
-                            // Выражение в скобках
                             Ok(format!("-({})", expr))
                         }
                     }
@@ -461,7 +492,6 @@ impl PythonGenerator {
                     }
                 }
             }
-
             "FuncCall" => {
                 // Ищем имя функции
                 let mut name = None;
@@ -608,19 +638,42 @@ impl PythonGenerator {
                 self.generate_struct_decl(node)
             }
 
-            "ID" => {
-                if let Some(name) = node.attributes.get("name").and_then(|v| v.as_str()) {
-                    // Проверяем, не является ли это значением enum
-                    if let Some(enum_name) = self.is_enum_value(name) {
-                        // Если это enum значение, квалифицируем его именем класса
-                        Ok(format!("{}.{}", enum_name, name))
+            "Cast" => {
+                debug!("Обработка приведения типа");
+
+                let expr = if let Some(child) = node.children.first() {
+                    self.generate_expression_internal(child)?
+                } else {
+                    String::new()
+                };
+
+                // В Python приведение типов обычно не нужно, но можно добавить
+                // аннотации или преобразования для特定ных случаев
+                if let Some(to_type) = node.attributes.get("to_type") {
+                    if let Some(type_str) = to_type.as_str() {
+                        // Для числовых типов используем соответствующие функции
+                        match type_str {
+                            "int" => Ok(format!("int({})", expr)),
+                            "float" => Ok(format!("float({})", expr)),
+                            "double" => Ok(format!("float({})", expr)),
+                            "char" => Ok(format!(
+                                "chr({}) if isinstance({}, int) else {}",
+                                expr, expr, expr
+                            )),
+                            _ => Ok(expr),
+                        }
                     } else {
-                        // Обычный идентификатор
-                        Ok(name.to_string())
+                        Ok(expr)
                     }
                 } else {
-                    Ok("unknown".to_string())
+                    Ok(expr)
                 }
+            }
+
+            "PtrDecl" => {
+                // Обработка объявления указателя в выражении
+                // Обычно это не используется напрямую в выражениях
+                Ok("None".to_string())
             }
             _ => {
                 debug!("Неизвестное выражение: {}", node.node_type);
@@ -635,15 +688,26 @@ impl PythonGenerator {
 
         if let Some(op) = node.attributes.get("op").and_then(|v| v.as_str()) {
             if let Some(child) = node.children.first() {
-                // Для префиксных и постфиксных операций с переменными
+                // Для операций с переменными
                 if child.node_type == "ID" {
                     if let Some(var_name) = child.attributes.get("name").and_then(|v| v.as_str()) {
                         match op {
                             "++" | "p++" | "post++" => {
-                                return Ok(self.line(&format!("{} += 1", var_name)));
+                                if self.pointer_vars.contains(var_name) {
+                                    // Для указателей: ptr = ptr + 1 (арифметика указателей)
+                                    return Ok(self
+                                        .line(&format!("{} = {}.value + 1", var_name, var_name)));
+                                } else {
+                                    return Ok(self.line(&format!("{} += 1", var_name)));
+                                }
                             }
                             "--" | "p--" | "post--" => {
-                                return Ok(self.line(&format!("{} -= 1", var_name)));
+                                if self.pointer_vars.contains(var_name) {
+                                    return Ok(self
+                                        .line(&format!("{} = {}.value - 1", var_name, var_name)));
+                                } else {
+                                    return Ok(self.line(&format!("{} -= 1", var_name)));
+                                }
                             }
                             _ => {}
                         }
@@ -652,11 +716,9 @@ impl PythonGenerator {
             }
         }
 
-        // Если не удалось обработать как оператор с переменной, генерируем как выражение
         let expr = self.generate_expression(node)?;
         Ok(self.line(&expr))
     }
-
     /// Генерирует return
     fn generate_return(&mut self, node: &ASTNode) -> Result<String> {
         debug!("Генерация RETURN узла");
@@ -974,6 +1036,37 @@ impl PythonGenerator {
             debug!("  Атрибуты: {:#?}", node.attributes);
             debug!("  Количество детей: {}", node.children.len());
 
+            // Проверяем, является ли это указателем
+            let mut is_pointer = false;
+            let mut pointed_type = String::new();
+
+            // Проверяем детей на наличие PtrDecl
+            for child in &node.children {
+                if child.node_type == "PtrDecl" {
+                    is_pointer = true;
+                    debug!("  Найден указатель: {}", name);
+
+                    // Пытаемся определить тип, на который указывает
+                    for grandchild in &child.children {
+                        if grandchild.node_type == "TypeDecl"
+                            || grandchild.node_type == "IdentifierType"
+                        {
+                            if let Some(type_name) = self.extract_type_name(grandchild) {
+                                pointed_type = type_name;
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+
+            if is_pointer {
+                self.pointer_vars.insert(name.to_string());
+                if !pointed_type.is_empty() {
+                    self.pointer_types.insert(name.to_string(), pointed_type);
+                }
+                debug!("  Переменная {} помечена как указатель", name);
+            }
             // Сначала проверяем, не является ли это определением enum (Decl с Enum внутри)
             for child in &node.children {
                 if child.node_type == "Enum" {
@@ -1234,6 +1327,25 @@ impl PythonGenerator {
         }
     }
 
+    fn extract_type_name(&self, node: &ASTNode) -> Option<String> {
+        match node.node_type.as_str() {
+            "IdentifierType" => node
+                .attributes
+                .get("name")
+                .and_then(|v| v.as_str())
+                .map(String::from),
+            "TypeDecl" => {
+                for child in &node.children {
+                    if let Some(name) = self.extract_type_name(child) {
+                        return Some(name);
+                    }
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
     /// Обработка объявления переменной типа enum
     fn handle_enum_declaration(
         &mut self,
@@ -1429,8 +1541,31 @@ impl PythonGenerator {
         debug!("  Детей у присваивания: {}", node.children.len());
 
         if node.children.len() >= 2 {
-            let left = self.generate_expression(&node.children[0])?;
-            let right = self.generate_expression(&node.children[1])?;
+            let left_node = &node.children[0];
+            let right_node = &node.children[1];
+
+            // Проверяем, является ли левая часть разыменованием указателя
+            if left_node.node_type == "UnaryOp" {
+                if let Some(op) = left_node.attributes.get("op").and_then(|v| v.as_str()) {
+                    if op == "*" && left_node.children.len() == 1 {
+                        // Это *ptr = value
+                        let ptr_expr = self.generate_expression(&left_node.children[0])?;
+                        let right_expr = self.generate_expression(right_node)?;
+
+                        debug!(
+                            "  Присваивание через указатель: *{} = {}",
+                            ptr_expr, right_expr
+                        );
+
+                        // В Python: ptr.value = value
+                        return Ok(self.line(&format!("{}.value = {}", ptr_expr, right_expr)));
+                    }
+                }
+            }
+
+            // Обычное присваивание
+            let left = self.generate_expression(left_node)?;
+            let right = self.generate_expression(right_node)?;
 
             let op = node
                 .attributes
@@ -2143,6 +2278,47 @@ impl PythonGenerator {
         }
         None
     }
+
+    fn generate_reference_class(&self) -> String {
+        let mut output = String::new();
+
+        output.push_str("\n# Класс для имитации ссылок и указателей C\n");
+        output.push_str("class Reference:\n");
+        output.push_str("    def __init__(self, value):\n");
+        output.push_str("        self.value = value\n");
+        output.push_str("    \n");
+        output.push_str("    def __repr__(self):\n");
+        output.push_str("        return f\"Reference({self.value})\"\n");
+        output.push_str("    \n");
+        output.push_str("    # Поддержка арифметики указателей\n");
+        output.push_str("    def __add__(self, other):\n");
+        output.push_str("        return Reference(self.value + other)\n");
+        output.push_str("    \n");
+        output.push_str("    def __sub__(self, other):\n");
+        output.push_str("        return Reference(self.value - other)\n");
+        output.push_str("    \n");
+        output.push_str("    # Поддержка индексации (для pointer[index])\n");
+        output.push_str("    def __getitem__(self, index):\n");
+        output.push_str("        return self.value[index] if hasattr(self.value, '__getitem__') else self.value + index\n");
+        output.push_str("    \n");
+        output.push_str("    def __setitem__(self, index, value):\n");
+        output.push_str("        if hasattr(self.value, '__setitem__'):\n");
+        output.push_str("            self.value[index] = value\n");
+        output.push_str("        else:\n");
+        output.push_str("            # Для арифметики указателей\n");
+        output.push_str("            self.value = value - index\n");
+        output.push_str("\n");
+
+        output
+    }
+
+    fn generate_pointer_arithmetic(&mut self, ptr_name: &str, index: &str) -> String {
+        format!("{}[{}]", ptr_name, index)
+    }
+
+    fn is_pointer(&self, expr: &str) -> bool {
+        self.pointer_vars.contains(expr)
+    }
 }
 
 // В методе generate, после импорта sys и os, добавьте:
@@ -2157,41 +2333,32 @@ impl Generator for PythonGenerator {
         output.push_str("# This is an approximate conversion\n\n");
         output.push_str("import sys\n");
         output.push_str("import os\n");
-        output.push_str("import enum\n"); // <-- ДОБАВЬТЕ ЭТУ СТРОКУ
-        output.push_str("from enum import auto\n\n"); // <-- ДОБАВЬТЕ ЭТУ СТРОКУ
+        output.push_str("import enum\n");
+        output.push_str("from enum import auto\n");
 
-        // ОТЛАДКА: выводим все корневые узлы
-        debug!("Корневые узлы AST:");
-        for (i, node) in ast.children.iter().enumerate() {
-            debug!("  Корневой узел {}: тип={}", i, node.node_type);
-        }
+        // Добавляем класс Reference для поддержки указателей
+        output.push_str(&generator.generate_reference_class());
 
-        // В методе generate, в цикле обработки корневых узлов:
-
-        // Сначала обрабатываем все определения структур, объединений и перечислений
+        // Обрабатываем определения структур, объединений и перечислений
         for node in &ast.children {
             if node.node_type == "Decl" {
-                // Проверяем, не является ли этот Decl определением структуры, объединения или перечисления
                 for child in &node.children {
-                    if child.node_type == "Struct" {
-                        debug!("Найден Struct внутри Decl на верхнем уровне");
-                        output.push_str(&generator.generate_struct(child)?);
-                    } else if child.node_type == "Union" {
-                        debug!("Найден Union внутри Decl на верхнем уровне");
-                        output.push_str(&generator.generate_union(child)?);
-                    } else if child.node_type == "Enum" {
-                        debug!("Найден Enum внутри Decl на верхнем уровне");
-                        output.push_str(&generator.generate_enum(child)?);
+                    match child.node_type.as_str() {
+                        "Struct" => output.push_str(&generator.generate_struct(child)?),
+                        "Union" => output.push_str(&generator.generate_union(child)?),
+                        "Enum" => output.push_str(&generator.generate_enum(child)?),
+                        _ => {}
                     }
                 }
-            } else if node.node_type == "Enum" {
-                // Прямое определение enum без Decl
-                debug!("Найден Enum на верхнем уровне");
-                output.push_str(&generator.generate_enum(node)?);
+            } else {
+                match node.node_type.as_str() {
+                    "Enum" => output.push_str(&generator.generate_enum(node)?),
+                    _ => {}
+                }
             }
         }
 
-        // Затем обрабатываем все функции
+        // Обрабатываем функции
         for node in &ast.children {
             match node.node_type.as_str() {
                 "FuncDef" | "FuncDecl" => {
@@ -2203,6 +2370,7 @@ impl Generator for PythonGenerator {
 
         Ok(output)
     }
+
     fn language_name() -> &'static str {
         "Python"
     }
