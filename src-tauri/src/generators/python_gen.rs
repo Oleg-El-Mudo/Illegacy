@@ -262,6 +262,7 @@ impl PythonGenerator {
                 Ok(output)
             }
             "Break" => Ok(self.line("break")),
+            "Continue" => Ok(self.line("continue")),
             "Dowhile" => self.generate_dowhile(node),
             "DeclList" => {
                 let mut output = String::new();
@@ -396,6 +397,25 @@ impl PythonGenerator {
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown");
 
+                // Проверяем, является ли это арифметикой указателей (ptr + i)
+                if op == "+" && node.children.len() == 2 {
+                    let left = &node.children[0];
+                    let right = &node.children[1];
+
+                    // Если левая часть - указатель, а правая - индекс
+                    if left.node_type == "ID" {
+                        if let Some(var_name) = left.attributes.get("name").and_then(|v| v.as_str())
+                        {
+                            if self.pointer_vars.contains(var_name) {
+                                // Это ptr + i - нужно преобразовать в ptr[i] в контексте разыменования
+                                let index = self.generate_expression_internal(right)?;
+                                return Ok(format!("{}[{}]", var_name, index));
+                            }
+                        }
+                    }
+                }
+
+                // Обычная бинарная операция
                 let py_op = match op {
                     "==" | "!=" | "<" | ">" | "<=" | ">=" | "+" | "-" | "*" | "/" | "%" => op,
                     "&&" => "and",
@@ -417,7 +437,6 @@ impl PythonGenerator {
 
                 debug!("Бинарная операция: {} {} {}", left, py_op, right);
 
-                // Проверяем, нужно ли обернуть левую и правую части в скобки
                 let left_with_parens = self.wrap_if_needed(&left, node.children.get(0));
                 let right_with_parens = self.wrap_if_needed(&right, node.children.get(1));
 
@@ -464,14 +483,13 @@ impl PythonGenerator {
                         // Разыменование указателя в C
                         debug!("Разыменование указателя: *{}", expr);
 
-                        // Проверяем, не является ли expr указателем, который мы отслеживаем
-                        if self.pointer_vars.contains(&expr) {
-                            // Если это известный указатель, используем его значение
-                            Ok(format!("{}.value", expr))
-                        } else {
-                            // Иначе предполагаем, что это объект с атрибутом value
-                            Ok(format!("{}.value", expr))
+                        // Если это разыменование для присваивания (будет обработано в generate_assignment)
+                        if !self.in_expression {
+                            return Ok(format!("{}", expr));
                         }
+
+                        // В выражении возвращаем значение
+                        Ok(format!("{}.value", expr))
                     }
                     "++" | "p++" | "post++" => Ok(format!("({} + 1)", expr)),
                     "--" | "p--" | "post--" => Ok(format!("({} - 1)", expr)),
@@ -579,6 +597,21 @@ impl PythonGenerator {
                         debug!("InitList содержит другой InitList как ребенка!");
                         let nested_values = self.generate_expression_internal(child)?;
                         values.push(nested_values);
+                    } else if child.node_type == "NamedInitializer" {
+                        // Обрабатываем именованные инициализаторы (C99 designated initializers)
+                        if let Some(expr) = child.attributes.get("expr") {
+                            if let Some(_expr_value) = expr.as_object() {
+                                // Парсим выражение из атрибута
+                                let temp_node =
+                                    ASTNode::new("Value").with_attr("value", expr.clone());
+                                let value = self.generate_expression_internal(&temp_node)?;
+                                values.push(value);
+                            } else {
+                                values.push("None".to_string());
+                            }
+                        } else {
+                            values.push("None".to_string());
+                        }
                     } else {
                         let value = self.generate_expression_internal(child)?;
                         debug!(
@@ -916,23 +949,14 @@ impl PythonGenerator {
 
             self.indent_level += 1;
 
-            // Второй ребенок - операторы в case
-            if let Some(stmts) = node.children.get(1) {
-                debug!("Операторы case тип: {}", stmts.node_type);
-                if stmts.node_type == "Compound" {
-                    debug!("  Compound с {} детьми", stmts.children.len());
-                    for stmt in &stmts.children {
-                        let stmt_code = self.generate_statement(stmt)?;
-                        output.push_str(&stmt_code);
-                    }
-                } else {
-                    // Одиночный оператор без {}
-                    debug!("  Одиночный оператор");
-                    let stmt_code = self.generate_statement(stmts)?;
-                    output.push_str(&stmt_code);
+            // Остальные дети - операторы в case (может быть несколько)
+            for stmt in node.children.iter().skip(1) {
+                if stmt.node_type == "Break" {
+                    // В Python match не требует break, просто пропускаем
+                    continue;
                 }
-            } else {
-                debug!("Нет операторов в case!");
+                let stmt_code = self.generate_statement(stmt)?;
+                output.push_str(&stmt_code);
             }
 
             self.indent_level -= 1;
@@ -960,20 +984,13 @@ impl PythonGenerator {
 
         self.indent_level += 1;
 
-        // Операторы в default
-        if let Some(stmts) = node.children.first() {
-            debug!("Операторы default тип: {}", stmts.node_type);
-            if stmts.node_type == "Compound" {
-                debug!("  Compound с {} детьми", stmts.children.len());
-                for stmt in &stmts.children {
-                    output.push_str(&self.generate_statement(stmt)?);
-                }
-            } else {
-                debug!("  Одиночный оператор");
-                output.push_str(&self.generate_statement(stmts)?);
+        // Операторы в default (все дети)
+        for stmt in node.children.iter() {
+            if stmt.node_type == "Break" {
+                continue;
             }
-        } else {
-            debug!("Нет операторов в default!");
+            let stmt_code = self.generate_statement(stmt)?;
+            output.push_str(&stmt_code);
         }
 
         self.indent_level -= 1;
@@ -1291,7 +1308,7 @@ impl PythonGenerator {
             for child in &node.children {
                 match child.node_type.as_str() {
                     "InitList" | "Constant" | "FuncCall" | "TernaryOp" | "ID" | "BinaryOp"
-                    | "UnaryOp" => {
+                    | "UnaryOp" | "NamedInitializer" => {
                         init_node = Some(child);
                         debug!(
                             "  Найден инициализатор типа {} для переменной {}",
@@ -1423,43 +1440,76 @@ impl PythonGenerator {
         if let Some(init) = init_node {
             // Есть инициализатор
             if init.node_type == "InitList" {
-                // Инициализация списком значений как в C: Point p = {10, 20};
-                self.current_struct_type = struct_type.clone();
-                debug!(
-                    "Установлен контекст структуры {:?} для InitList переменной {}",
-                    struct_type, name
-                );
-                let init_code = self.generate_expression(init)?;
-                self.current_struct_type = None;
+                // Проверяем, есть ли среди детей NamedInitializer (C99 designated initializers)
+                let mut has_named = false;
+                for child in &init.children {
+                    if child.node_type == "NamedInitializer" {
+                        has_named = true;
+                        break;
+                    }
+                }
 
-                // InitList должен сгенерировать что-то вроде "Point(10, 20)"
-                output.push_str(&self.line(&format!("{} = {}", name, init_code)));
+                if has_named {
+                    // Для designated initializers создаем объект и потом устанавливаем поля
+                    if let Some(struct_name) = struct_type {
+                        output.push_str(&self.line(&format!("{} = {}()", name, struct_name)));
+
+                        // Обрабатываем каждый NamedInitializer
+                        for child in &init.children {
+                            if child.node_type == "NamedInitializer" {
+                                if let Some(expr) = child.attributes.get("expr") {
+                                    // Парсим выражение
+                                    let temp_node =
+                                        ASTNode::new("Value").with_attr("value", expr.clone());
+                                    let value = self.generate_expression(&temp_node)?;
+
+                                    // Получаем имя поля из name[0]
+                                    if let Some(name_array) = child.attributes.get("name[0]") {
+                                        if let Some(name_obj) = name_array.as_object() {
+                                            if let Some(field_name) =
+                                                name_obj.get("name").and_then(|v| v.as_str())
+                                            {
+                                                output.push_str(&self.line(&format!(
+                                                    "{}.{} = {}",
+                                                    name, field_name, value
+                                                )));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Обычная инициализация списком
+                    self.current_struct_type = struct_type.clone();
+                    debug!(
+                        "Установлен контекст структуры {:?} для InitList переменной {}",
+                        struct_type, name
+                    );
+                    let init_code = self.generate_expression(init)?;
+                    self.current_struct_type = None;
+
+                    output.push_str(&self.line(&format!("{} = {}", name, init_code)));
+                }
             } else {
-                // Инициализация другим выражением (например, другой переменной)
+                // Инициализация другим выражением
                 let init_code = self.generate_expression(init)?;
                 output.push_str(&self.line(&format!("{} = {}", name, init_code)));
             }
         } else {
-            // Нет инициализатора - нужно проверить, будут ли сразу присваивания
-            // В данном случае мы не можем предсказать будущие присваивания,
-            // поэтому оставляем как есть, но с пометкой в отладке
+            // Нет инициализатора
             if let Some(struct_name) = struct_type {
                 if let Some(fields) = self.struct_info.get(&struct_name) {
                     if !fields.is_empty() {
-                        // Создаем список из None для каждого поля
                         let default_params = vec!["None".to_string(); fields.len()].join(", ");
                         output.push_str(
                             &self.line(&format!("{} = {}({})", name, struct_name, default_params)),
-                        );
-                        debug!(
-                            "Создан экземпляр структуры: {} = {}({})",
-                            name, struct_name, default_params
                         );
                     } else {
                         output.push_str(&self.line(&format!("{} = {}()", name, struct_name)));
                     }
                 } else {
-                    // Если информация о структуре не найдена, создаем с одним None
                     output.push_str(&self.line(&format!("{} = {}(None)", name, struct_name)));
                 }
             } else {
@@ -1563,6 +1613,14 @@ impl PythonGenerator {
                 }
             }
 
+            // Проверяем, является ли левая часть обращением к элементу массива через указатель
+            if left_node.node_type == "ArrayRef" {
+                // Обычное обращение к массиву
+                let left = self.generate_expression(left_node)?;
+                let right = self.generate_expression(right_node)?;
+                return Ok(self.line(&format!("{} = {}", left, right)));
+            }
+
             // Обычное присваивание
             let left = self.generate_expression(left_node)?;
             let right = self.generate_expression(right_node)?;
@@ -1589,7 +1647,6 @@ impl PythonGenerator {
             Ok(String::new())
         }
     }
-
     /// Генерирует объявление массива как список Python
     fn generate_array_decl(&mut self, node: &ASTNode) -> Result<String> {
         let mut output = String::new();
@@ -2186,11 +2243,9 @@ impl PythonGenerator {
         debug!("Генерация класса Enum из перечисления: {}", name);
         debug!("Детей у enum: {}", node.children.len());
 
-        // Генерируем определение класса
         output.push_str(&self.line(&format!("class {}(enum.Enum):", name)));
         self.indent_level += 1;
 
-        // Обрабатываем элементы перечисления
         let mut has_explicit_values = false;
         let mut enum_items_found = false;
 
@@ -2206,15 +2261,43 @@ impl PythonGenerator {
                             enumerator.attributes.get("name").and_then(|v| v.as_str())
                         {
                             enum_items_found = true;
-                            enum_values.push(item_name.to_string()); // <-- СОХРАНЯЕМ ЗНАЧЕНИЕ
+                            enum_values.push(item_name.to_string());
 
                             if let Some(value) = enumerator.attributes.get("value") {
                                 has_explicit_values = true;
 
-                                if let Some(value_str) = value.as_str() {
-                                    output.push_str(
-                                        &self.line(&format!("{} = {}", item_name, value_str)),
-                                    );
+                                // Пытаемся извлечь числовое значение
+                                if let Some(value_obj) = value.as_object() {
+                                    if let Some(value_str) =
+                                        value_obj.get("value").and_then(|v| v.as_str())
+                                    {
+                                        if value_str.chars().all(|c| c.is_ascii_digit()) {
+                                            output.push_str(
+                                                &self.line(&format!(
+                                                    "{} = {}",
+                                                    item_name, value_str
+                                                )),
+                                            );
+                                        } else {
+                                            output.push_str(
+                                                &self.line(&format!("{} = auto()", item_name)),
+                                            );
+                                        }
+                                    } else {
+                                        output.push_str(
+                                            &self.line(&format!("{} = auto()", item_name)),
+                                        );
+                                    }
+                                } else if let Some(value_str) = value.as_str() {
+                                    if value_str.chars().all(|c| c.is_ascii_digit()) {
+                                        output.push_str(
+                                            &self.line(&format!("{} = {}", item_name, value_str)),
+                                        );
+                                    } else {
+                                        output.push_str(
+                                            &self.line(&format!("{} = auto()", item_name)),
+                                        );
+                                    }
                                 } else if let Some(value_num) = value.as_i64() {
                                     output.push_str(
                                         &self.line(&format!("{} = {}", item_name, value_num)),
@@ -2231,13 +2314,32 @@ impl PythonGenerator {
             } else if child.node_type == "Enumerator" {
                 if let Some(item_name) = child.attributes.get("name").and_then(|v| v.as_str()) {
                     enum_items_found = true;
-                    enum_values.push(item_name.to_string()); // <-- СОХРАНЯЕМ ЗНАЧЕНИЕ
+                    enum_values.push(item_name.to_string());
 
                     if let Some(value) = child.attributes.get("value") {
                         has_explicit_values = true;
 
-                        if let Some(value_str) = value.as_str() {
-                            output.push_str(&self.line(&format!("{} = {}", item_name, value_str)));
+                        if let Some(value_obj) = value.as_object() {
+                            if let Some(value_str) = value_obj.get("value").and_then(|v| v.as_str())
+                            {
+                                if value_str.chars().all(|c| c.is_ascii_digit()) {
+                                    output.push_str(
+                                        &self.line(&format!("{} = {}", item_name, value_str)),
+                                    );
+                                } else {
+                                    output.push_str(&self.line(&format!("{} = auto()", item_name)));
+                                }
+                            } else {
+                                output.push_str(&self.line(&format!("{} = auto()", item_name)));
+                            }
+                        } else if let Some(value_str) = value.as_str() {
+                            if value_str.chars().all(|c| c.is_ascii_digit()) {
+                                output.push_str(
+                                    &self.line(&format!("{} = {}", item_name, value_str)),
+                                );
+                            } else {
+                                output.push_str(&self.line(&format!("{} = auto()", item_name)));
+                            }
                         } else if let Some(value_num) = value.as_i64() {
                             output.push_str(&self.line(&format!("{} = {}", item_name, value_num)));
                         } else {
@@ -2250,7 +2352,6 @@ impl PythonGenerator {
             }
         }
 
-        // Сохраняем информацию о enum для последующего использования  // <-- ДОБАВЛЕНО
         self.enum_info.insert(name.to_string(), enum_values);
 
         if !enum_items_found {
@@ -2313,6 +2414,7 @@ impl PythonGenerator {
     }
 }
 
+// В методе generate, после импорта sys и os, добавьте:
 impl Generator for PythonGenerator {
     type Output = String;
 
