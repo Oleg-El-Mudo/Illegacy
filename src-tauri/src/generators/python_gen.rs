@@ -1,7 +1,7 @@
 use anyhow::Result;
 use log::{debug, warn};
-use std::collections::HashSet;
 use serde_json::Value;
+use std::collections::HashSet;
 
 use super::Generator;
 use crate::ast::ASTNode;
@@ -505,7 +505,7 @@ impl PythonGenerator {
                         let deref_count = count_dereferences(node);
 
                         if let Some(child) = node.children.first() {
-                            // Случай 1: *(ptr + i) - арифметика указателей
+                            // Случай: *(ptr + i) - арифметика указателей
                             if child.node_type == "BinaryOp" {
                                 if let Some(op) =
                                     child.attributes.get("op").and_then(|v| v.as_str())
@@ -518,56 +518,37 @@ impl PythonGenerator {
                                             if let Some(var_name) =
                                                 left.attributes.get("name").and_then(|v| v.as_str())
                                             {
-                                                // Это указатель на массив?
-                                                if self.pointer_vars.contains(var_name) {
-                                                    let index =
-                                                        self.generate_expression_internal(right)?;
-
-                                                    // Если есть множественное разыменование, добавляем .value
-                                                    if deref_count > 1 {
-                                                        let mut result =
-                                                            format!("{}[{}]", var_name, index);
-                                                        for _ in 1..deref_count {
-                                                            result = format!("{}.value", result);
-                                                        }
-                                                        return Ok(result);
-                                                    }
-
-                                                    return Ok(format!("{}[{}]", var_name, index));
-                                                }
+                                                let index =
+                                                    self.generate_expression_internal(right)?;
+                                                // ВАЖНО: преобразуем *(ptr + i) в ptr[i]
+                                                return Ok(format!("{}[{}]", var_name, index));
                                             }
                                         }
                                     }
                                 }
                             }
 
-                            // Случай 2: **ptr - множественное разыменование
+                            // Случай: *ptr - простое разыменование
                             if child.node_type == "ID" {
                                 if let Some(var_name) =
                                     child.attributes.get("name").and_then(|v| v.as_str())
                                 {
-                                    // Генерируем цепочку .value
+                                    // Проверяем, является ли это указателем на массив
+                                    if self.pointer_vars.contains(var_name)
+                                        && self.array_vars.contains(var_name)
+                                    {
+                                        // Для указателя на массив *ptr эквивалентно ptr[0]
+                                        return Ok(format!("{}[0]", var_name));
+                                    }
+
+                                    // Множественное разыменование **ptr
                                     let mut result = var_name.to_string();
                                     for _ in 0..deref_count {
                                         result = format!("{}.value", result);
                                     }
-
-                                    // Если это в контексте присваивания и это указатель на массив
-                                    if !self.in_expression
-                                        && self.pointer_vars.contains(var_name)
-                                        && self.array_vars.contains(var_name)
-                                    {
-                                        return Ok(var_name.to_string());
-                                    }
-
                                     return Ok(result);
                                 }
                             }
-                        }
-
-                        // Для остальных случаев
-                        if !self.in_expression {
-                            return Ok(expr);
                         }
 
                         Ok(format!("{}.value", expr))
@@ -1866,7 +1847,7 @@ impl PythonGenerator {
             let left = self.generate_expression(left_node)?;
             let right = self.generate_expression(right_node)?;
 
-            // В методе generate_assignment, добавьте обработку составных операторов:
+            // В методе generate_assignment, убедитесь, что правильно обрабатывается op
             let op = node
                 .attributes
                 .get("op")
@@ -1887,6 +1868,13 @@ impl PythonGenerator {
                 ">>=" => ">>=",
                 _ => "=",
             };
+
+            // При генерации кода используйте py_op
+            if left_node.node_type == "ArrayRef" {
+                let left = self.generate_expression(left_node)?;
+                let right = self.generate_expression(right_node)?;
+                return Ok(self.line(&format!("{} {} {}", left, py_op, right)));
+            }
 
             debug!("  {} {} {}", left, py_op, right);
             Ok(self.line(&format!("{} {} {}", left, py_op, right)))
@@ -1946,11 +1934,17 @@ impl PythonGenerator {
         }
 
         // Проверяем, является ли это строкой (char массив)
-        let mut is_char_array = element_type.as_deref() == Some("char");
+        let is_char_array = element_type.as_deref() == Some("char");
+        debug!(
+            "Тип элементов массива: {:?}, is_char_array: {}",
+            element_type, is_char_array
+        );
 
         // Ищем инициализатор в детях
         let mut init_values = Vec::new();
         let mut found_init_list = false;
+        let mut is_string_initializer = false;
+        let mut string_chars = Vec::new();
 
         // Сначала ищем InitList - только из него берем значения
         for child in &node.children {
@@ -1961,26 +1955,54 @@ impl PythonGenerator {
                     child.children.len()
                 );
 
-                // Выводим детей InitList
+                // Если это char массив, пытаемся собрать строку
+                if is_char_array {
+                    let mut all_chars = true;
+                    let mut chars = Vec::new();
+
+                    for val_child in &child.children {
+                        if val_child.node_type == "Constant" {
+                            if let Some(val) = val_child.attributes.get("value") {
+                                if let Some(s) = val.as_str() {
+                                    // Проверяем, является ли это символом в кавычках
+                                    if s.starts_with('\'') && s.ends_with('\'') && s.len() >= 3 {
+                                        let c = &s[1..s.len() - 1];
+                                        if c == "\\0" {
+                                            break; // Конец строки
+                                        }
+                                        chars.push(c.to_string());
+                                    } else {
+                                        all_chars = false;
+                                        break;
+                                    }
+                                } else {
+                                    all_chars = false;
+                                    break;
+                                }
+                            } else {
+                                all_chars = false;
+                                break;
+                            }
+                        } else {
+                            all_chars = false;
+                            break;
+                        }
+                    }
+
+                    if all_chars && !chars.is_empty() {
+                        is_string_initializer = true;
+                        string_chars = chars;
+                        found_init_list = true;
+                        break;
+                    }
+                }
+
+                // Если не строка или не удалось собрать строку, собираем как обычные значения
                 for (j, val_child) in child.children.iter().enumerate() {
                     debug!(
                         "  InitList[{}]: тип={}, атрибуты={:?}",
                         j, val_child.node_type, val_child.attributes
                     );
-
-                    // Если это char массив, проверяем, не является ли значение строкой
-                    if is_char_array && val_child.node_type == "Constant" {
-                        if let Some(val) = val_child.attributes.get("value") {
-                            if let Some(s) = val.as_str() {
-                                // Проверяем, является ли это символом в кавычках
-                                if s.starts_with('\'') && s.ends_with('\'') && s.len() >= 3 {
-                                    let c = &s[1..s.len() - 1];
-                                    init_values.push(c.to_string());
-                                    continue;
-                                }
-                            }
-                        }
-                    }
 
                     let value = self.generate_expression(val_child)?;
                     debug!("    Значение: {}", value);
@@ -1991,39 +2013,12 @@ impl PythonGenerator {
             }
         }
 
-        // Если это char массив и все значения - одиночные символы
-        if is_char_array && !init_values.is_empty() {
-            let mut is_string_literal = true;
-            let mut string_chars = Vec::new();
-
-            for val in &init_values {
-                // Проверяем, является ли значение одиночным символом
-                if val.len() == 1
-                    || (val.starts_with('\'') && val.ends_with('\'') && val.len() == 3)
-                {
-                    let c = if val.starts_with('\'') {
-                        val[1..val.len() - 1].to_string()
-                    } else {
-                        val.clone()
-                    };
-
-                    if c == "\\0" {
-                        break; // Дошли до нуль-терминатора
-                    }
-                    string_chars.push(c);
-                } else {
-                    is_string_literal = false;
-                    break;
-                }
-            }
-
-            if is_string_literal && !string_chars.is_empty() {
-                // Формируем строку из символов
-                let string_value = string_chars.join("");
-                debug!("Преобразуем char массив в строку: {}", string_value);
-                output.push_str(&self.line(&format!("{} = \"{}\"", name, string_value)));
-                return Ok(output);
-            }
+        // Если это строковая инициализация, создаем строку Python
+        if is_string_initializer && !string_chars.is_empty() {
+            let string_value = string_chars.join("");
+            debug!("Преобразуем char массив в строку: {}", string_value);
+            output.push_str(&self.line(&format!("{} = \"{}\"", name, string_value)));
+            return Ok(output);
         }
 
         // Если нет InitList, тогда ищем прямые значения
@@ -2044,17 +2039,27 @@ impl PythonGenerator {
                     }
                 }
 
-                if child.node_type == "Constant" || child.node_type == "ID" {
+                if child.node_type == "Constant"
+                    || child.node_type == "ID"
+                    || child.node_type == "InitList"
+                {
                     debug!("Прямое значение в массиве: тип={}", child.node_type);
 
-                    // Если это char массив, проверяем на символ
+                    // Если это char массив и это константа, проверяем на символ
                     if is_char_array && child.node_type == "Constant" {
                         if let Some(val) = child.attributes.get("value") {
                             if let Some(s) = val.as_str() {
                                 if s.starts_with('\'') && s.ends_with('\'') && s.len() >= 3 {
                                     let c = &s[1..s.len() - 1];
-                                    init_values.push(c.to_string());
-                                    continue;
+                                    if c == "\\0" {
+                                        break;
+                                    }
+                                    // Если это одиночный символ, создаем строку
+                                    if init_values.is_empty() {
+                                        output
+                                            .push_str(&self.line(&format!("{} = \"{}\"", name, c)));
+                                        return Ok(output);
+                                    }
                                 }
                             }
                         }
@@ -2063,21 +2068,6 @@ impl PythonGenerator {
                     let value = self.generate_expression(child)?;
                     init_values.push(value);
                 }
-            }
-        }
-
-        // Если это char массив с одним элементом после проверки, преобразуем в строку
-        if is_char_array && init_values.len() == 1 {
-            let val = &init_values[0];
-            if val.len() == 1 || (val.starts_with('\'') && val.ends_with('\'') && val.len() == 3) {
-                let c = if val.starts_with('\'') {
-                    val[1..val.len() - 1].to_string()
-                } else {
-                    val.clone()
-                };
-                debug!("Преобразуем char массив в строку из одного символа: {}", c);
-                output.push_str(&self.line(&format!("{} = \"{}\"", name, c)));
-                return Ok(output);
             }
         }
 
@@ -2375,13 +2365,29 @@ impl PythonGenerator {
 
         // Собираем информацию о полях и их типах
         let mut fields = Vec::new();
-        let mut field_types = std::collections::HashMap::new();
+        let mut struct_fields = std::collections::HashMap::new(); // поле -> имя структуры
+        let mut is_nested = false;
 
+        // Сначала пробуем получить информацию из атрибута field_types (если есть)
         if let Some(field_types_json) = node.attributes.get("field_types") {
             if let Some(obj) = field_types_json.as_object() {
                 for (field_name, type_value) in obj {
                     fields.push(field_name.clone());
-                    field_types.insert(field_name.clone(), type_value.clone());
+
+                    // Проверяем, является ли тип структурой
+                    if let Some(type_obj) = type_value.as_object() {
+                        if let Some(node_type) = type_obj.get("__node__").and_then(|v| v.as_str()) {
+                            if node_type == "Struct" {
+                                if let Some(struct_name) =
+                                    type_obj.get("name").and_then(|v| v.as_str())
+                                {
+                                    struct_fields
+                                        .insert(field_name.clone(), struct_name.to_string());
+                                    is_nested = true;
+                                }
+                            }
+                        }
+                    }
                 }
             }
         } else {
@@ -2391,6 +2397,70 @@ impl PythonGenerator {
                     if let Some(field_name) = child.attributes.get("name").and_then(|v| v.as_str())
                     {
                         fields.push(field_name.to_string());
+
+                        // Проверяем, не является ли это поле вложенной структурой
+                        // Смотрим на тип поля
+                        if let Some(type_attr) = child.attributes.get("type") {
+                            if let Some(type_obj) = type_attr.as_object() {
+                                // Проверяем прямой тип
+                                if let Some(node_type) =
+                                    type_obj.get("__node__").and_then(|v| v.as_str())
+                                {
+                                    if node_type == "Struct" {
+                                        if let Some(struct_name) =
+                                            type_obj.get("name").and_then(|v| v.as_str())
+                                        {
+                                            struct_fields.insert(
+                                                field_name.to_string(),
+                                                struct_name.to_string(),
+                                            );
+                                            is_nested = true;
+                                            debug!(
+                                                "Найдена вложенная структура {} в поле {}",
+                                                struct_name, field_name
+                                            );
+                                        }
+                                    }
+                                }
+
+                                // Проверяем через TypeDecl (часто struct обернут в TypeDecl)
+                                if let Some(type_decl) = type_obj.get("type") {
+                                    if let Some(type_decl_obj) = type_decl.as_object() {
+                                        if type_decl_obj.get("__node__").and_then(|v| v.as_str())
+                                            == Some("Struct")
+                                        {
+                                            if let Some(struct_name) =
+                                                type_decl_obj.get("name").and_then(|v| v.as_str())
+                                            {
+                                                struct_fields.insert(
+                                                    field_name.to_string(),
+                                                    struct_name.to_string(),
+                                                );
+                                                is_nested = true;
+                                                debug!("Найдена вложенная структура {} в поле {} (через TypeDecl)", struct_name, field_name);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Также проверяем детей узла Decl на наличие Struct
+                        for grandchild in &child.children {
+                            if grandchild.node_type == "Struct" {
+                                if let Some(struct_name) =
+                                    grandchild.attributes.get("name").and_then(|v| v.as_str())
+                                {
+                                    struct_fields
+                                        .insert(field_name.to_string(), struct_name.to_string());
+                                    is_nested = true;
+                                    debug!(
+                                        "Найдена вложенная структура {} как прямой ребенок поля {}",
+                                        struct_name, field_name
+                                    );
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -2407,47 +2477,39 @@ impl PythonGenerator {
         // Инициализируем поля объединения
         for field_name in &fields {
             // Проверяем, является ли поле вложенной структурой
-            if let Some(type_value) = field_types.get(field_name) {
-                if let Some(type_obj) = type_value.as_object() {
-                    if let Some(node_type) = type_obj.get("__node__").and_then(|v| v.as_str()) {
-                        if node_type == "Struct" {
-                            if let Some(struct_name) = type_obj.get("name").and_then(|v| v.as_str())
-                            {
-                                // Для вложенной структуры создаем экземпляр с параметрами по умолчанию
-                                if let Some(fields) = self.struct_info.get(struct_name) {
-                                    if !fields.is_empty() {
-                                        let default_params =
-                                            vec!["None".to_string(); fields.len()].join(", ");
-                                        output.push_str(&self.line(&format!(
-                                            "self.{} = {}({})",
-                                            field_name, struct_name, default_params
-                                        )));
-                                    } else {
-                                        output.push_str(&self.line(&format!(
-                                            "self.{} = {}()",
-                                            field_name, struct_name
-                                        )));
-                                    }
-                                } else {
-                                    output.push_str(
-                                        &self.line(&format!(
-                                            "self.{} = {}()",
-                                            field_name, struct_name
-                                        )),
-                                    );
-                                }
-                                debug!(
-                                    "Создана вложенная структура {} в union {}",
-                                    struct_name, name
-                                );
-                                continue;
-                            }
-                        }
+            if let Some(struct_name) = struct_fields.get(field_name) {
+                // Для вложенной структуры создаем экземпляр
+                if let Some(fields) = self.struct_info.get(struct_name) {
+                    if !fields.is_empty() {
+                        let default_params = vec!["None".to_string(); fields.len()].join(", ");
+                        output.push_str(&self.line(&format!(
+                            "self.{} = {}({})",
+                            field_name, struct_name, default_params
+                        )));
+                    } else {
+                        output.push_str(
+                            &self.line(&format!("self.{} = {}()", field_name, struct_name)),
+                        );
                     }
+                } else {
+                    // Если информация о структуре еще не сохранена, создаем с дефолтными параметрами
+                    // Но сначала проверим, может структура уже определена позже в коде
+                    output
+                        .push_str(&self.line(&format!("self.{} = {}()", field_name, struct_name)));
                 }
+                debug!(
+                    "Создана вложенная структура {} в union {}",
+                    struct_name, name
+                );
+            } else {
+                // Обычное поле
+                output.push_str(&self.line(&format!("self.{} = None", field_name)));
             }
-            // Обычное поле
-            output.push_str(&self.line(&format!("self.{} = None", field_name)));
+        }
+
+        // Если полей нет, добавляем pass
+        if fields.is_empty() {
+            output.push_str(&self.line("pass"));
         }
 
         self.indent_level -= 1; // Выходим из __init__
@@ -2480,6 +2542,11 @@ impl PythonGenerator {
 
         self.indent_level -= 1; // Выходим из класса
         output.push_str(&self.line(""));
+
+        // Если есть вложенные структуры, добавляем импорт или определение, если нужно
+        if is_nested {
+            debug!("Union {} содержит вложенные структуры", name);
+        }
 
         Ok(output)
     }
