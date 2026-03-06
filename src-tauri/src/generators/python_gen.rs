@@ -2311,10 +2311,8 @@ impl PythonGenerator {
 
         output
     }
-
 }
 
-// В методе generate, после импорта sys и os, добавьте:
 impl Generator for PythonGenerator {
     type Output = String;
 
@@ -2352,13 +2350,27 @@ impl Generator for PythonGenerator {
         }
 
         // Обрабатываем функции
+        let mut has_main = false;
         for node in &ast.children {
             match node.node_type.as_str() {
                 "FuncDef" | "FuncDecl" => {
                     output.push_str(&generator.generate_function(node)?);
+
+                    // Проверяем, является ли эта функция main
+                    if let Some(name) = node.attributes.get("name").and_then(|v| v.as_str()) {
+                        if name == "main" {
+                            has_main = true;
+                        }
+                    }
                 }
                 _ => {}
             }
+        }
+
+        // Добавляем конструкцию if __name__ == "__main__" для вызова main()
+        if has_main {
+            output.push_str("\nif __name__ == \"__main__\":\n");
+            output.push_str("    main()\n");
         }
 
         Ok(output)

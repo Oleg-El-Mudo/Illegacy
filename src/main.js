@@ -1,4 +1,3 @@
-// main.js
 import { getDOMElements, setElements, elements } from './modules/dom-elements.js';
 import { initResizer, setInitialWidths } from './modules/resizer.js';
 import { initSyntaxHighlighting, updateSyntaxHighlighting } from './modules/syntax-highlight.js';

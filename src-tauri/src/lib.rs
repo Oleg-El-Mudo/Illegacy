@@ -255,7 +255,7 @@ async fn simple_transpile(code: String, from_lang: String, to_lang: String) -> R
 }
 
 /// Вспомогательная функция для сохранения AST в файл (отладка)
-fn debug_ast_to_file(ast_json: &str) -> Result<(), std::io::Error> {
+fn debug_ast_to_file(_ast_json: &str) -> Result<(), std::io::Error> {
     #[cfg(debug_assertions)]
     {
         use std::fs;
@@ -272,7 +272,7 @@ fn debug_ast_to_file(ast_json: &str) -> Result<(), std::io::Error> {
             .as_secs();
         
         let filename = debug_dir.join(format!("ast_{}.json", timestamp));
-        fs::write(filename, ast_json)?;
+        fs::write(filename, _ast_json)?;
     }
     Ok(())
 }
