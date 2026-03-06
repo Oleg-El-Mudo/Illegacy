@@ -19,6 +19,7 @@ pub struct PythonGenerator {
     pointer_types: std::collections::HashMap<String, String>,
     // Новое: отслеживание адресов переменных
     address_taken: HashSet<String>,
+    array_vars: HashSet<String>,
 }
 
 impl PythonGenerator {
@@ -34,6 +35,7 @@ impl PythonGenerator {
             pointer_vars: HashSet::new(),
             pointer_types: std::collections::HashMap::new(),
             address_taken: HashSet::new(),
+            array_vars: HashSet::new(),
         }
     }
 
@@ -397,19 +399,21 @@ impl PythonGenerator {
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown");
 
-                // Проверяем, является ли это арифметикой указателей (ptr + i)
+                // Проверяем, является ли это арифметикой указателей в контексте индексации
                 if op == "+" && node.children.len() == 2 {
                     let left = &node.children[0];
                     let right = &node.children[1];
 
-                    // Если левая часть - указатель, а правая - индекс
+                    // Если левая часть - указатель на массив
                     if left.node_type == "ID" {
                         if let Some(var_name) = left.attributes.get("name").and_then(|v| v.as_str())
                         {
-                            if self.pointer_vars.contains(var_name) {
-                                // Это ptr + i - нужно преобразовать в ptr[i] в контексте разыменования
+                            if self.pointer_vars.contains(var_name)
+                                && self.array_vars.contains(var_name)
+                            {
+                                // Это ptr + i - вернем как строку для дальнейшей обработки
                                 let index = self.generate_expression_internal(right)?;
-                                return Ok(format!("{}[{}]", var_name, index));
+                                return Ok(format!("{} + {}", var_name, index));
                             }
                         }
                     }
@@ -445,6 +449,7 @@ impl PythonGenerator {
                     left_with_parens, py_op, right_with_parens
                 ))
             }
+
             "UnaryOp" => {
                 let op = node
                     .attributes
@@ -462,10 +467,7 @@ impl PythonGenerator {
 
                 match op {
                     "&" => {
-                        // Взятие адреса в C
                         debug!("Операция взятия адреса: &{}", expr);
-
-                        // Помечаем, что у этой переменной берется адрес
                         if let Some(child) = node.children.first() {
                             if child.node_type == "ID" {
                                 if let Some(var_name) =
@@ -475,20 +477,70 @@ impl PythonGenerator {
                                 }
                             }
                         }
-
-                        // В Python возвращаем специальный объект-ссылку
                         Ok(format!("Reference({})", expr))
                     }
+                    // В generate_expression_internal(), в секции "UnaryOp" для оператора "*":
                     "*" => {
-                        // Разыменование указателя в C
                         debug!("Разыменование указателя: *{}", expr);
 
-                        // Если это разыменование для присваивания (будет обработано в generate_assignment)
-                        if !self.in_expression {
-                            return Ok(format!("{}", expr));
+                        // Проверяем особые случаи
+                        if let Some(child) = node.children.first() {
+                            // Случай 1: *(ptr + i) - арифметика указателей
+                            if child.node_type == "BinaryOp" {
+                                if let Some(op) =
+                                    child.attributes.get("op").and_then(|v| v.as_str())
+                                {
+                                    if op == "+" && child.children.len() == 2 {
+                                        let left = &child.children[0];
+                                        let right = &child.children[1];
+
+                                        if left.node_type == "ID" {
+                                            if let Some(var_name) =
+                                                left.attributes.get("name").and_then(|v| v.as_str())
+                                            {
+                                                // Это указатель на массив?
+                                                if self.pointer_vars.contains(var_name)
+                                                    && self.array_vars.contains(var_name)
+                                                {
+                                                    let index =
+                                                        self.generate_expression_internal(right)?;
+                                                    // Вне выражения (для присваивания) возвращаем просто индекс
+                                                    if !self.in_expression {
+                                                        return Ok(format!(
+                                                            "{}[{}]",
+                                                            var_name, index
+                                                        ));
+                                                    }
+                                                    // В выражении возвращаем значение
+                                                    return Ok(format!("{}[{}]", var_name, index));
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Случай 2: *ptr - простое разыменование
+                            if child.node_type == "ID" {
+                                if let Some(var_name) =
+                                    child.attributes.get("name").and_then(|v| v.as_str())
+                                {
+                                    // Это указатель на массив?
+                                    if self.pointer_vars.contains(var_name)
+                                        && self.array_vars.contains(var_name)
+                                    {
+                                        // Для указателя на массив не добавляем .value
+                                        return Ok(var_name.to_string());
+                                    }
+                                }
+                            }
                         }
 
-                        // В выражении возвращаем значение
+                        // Для обычных указателей
+                        if !self.in_expression {
+                            return Ok(expr);
+                        }
+
                         Ok(format!("{}.value", expr))
                     }
                     "++" | "p++" | "post++" => Ok(format!("({} + 1)", expr)),
@@ -510,6 +562,7 @@ impl PythonGenerator {
                     }
                 }
             }
+
             "FuncCall" => {
                 // Ищем имя функции
                 let mut name = None;
@@ -728,23 +781,36 @@ impl PythonGenerator {
                             "++" | "p++" | "post++" => {
                                 if self.pointer_vars.contains(var_name) {
                                     // Для указателей: ptr = ptr + 1 (арифметика указателей)
-                                    return Ok(self
-                                        .line(&format!("{} = {}.value + 1", var_name, var_name)));
+                                    return Ok(
+                                        self.line(&format!("{} = {} + 1", var_name, var_name))
+                                    );
                                 } else {
                                     return Ok(self.line(&format!("{} += 1", var_name)));
                                 }
                             }
                             "--" | "p--" | "post--" => {
                                 if self.pointer_vars.contains(var_name) {
-                                    return Ok(self
-                                        .line(&format!("{} = {}.value - 1", var_name, var_name)));
+                                    return Ok(
+                                        self.line(&format!("{} = {} - 1", var_name, var_name))
+                                    );
                                 } else {
                                     return Ok(self.line(&format!("{} -= 1", var_name)));
                                 }
                             }
+                            "*" => {
+                                // Это разыменование указателя как выражение
+                                // В Python это будет обработано в Assignment
+                                return Ok(self.line(&format!("{}", var_name)));
+                            }
                             _ => {}
                         }
                     }
+                }
+
+                // Для *(ptr + i) - разыменование с арифметикой
+                if op == "*" && child.node_type == "BinaryOp" {
+                    let inner_expr = self.generate_expression(child)?;
+                    return Ok(self.line(&inner_expr));
                 }
             }
         }
@@ -752,6 +818,7 @@ impl PythonGenerator {
         let expr = self.generate_expression(node)?;
         Ok(self.line(&expr))
     }
+
     /// Генерирует return
     fn generate_return(&mut self, node: &ASTNode) -> Result<String> {
         debug!("Генерация RETURN узла");
@@ -1077,13 +1144,6 @@ impl PythonGenerator {
                 }
             }
 
-            if is_pointer {
-                self.pointer_vars.insert(name.to_string());
-                if !pointed_type.is_empty() {
-                    self.pointer_types.insert(name.to_string(), pointed_type);
-                }
-                debug!("  Переменная {} помечена как указатель", name);
-            }
             // Сначала проверяем, не является ли это определением enum (Decl с Enum внутри)
             for child in &node.children {
                 if child.node_type == "Enum" {
@@ -1320,6 +1380,31 @@ impl PythonGenerator {
                 }
             }
 
+            if is_pointer {
+                self.pointer_vars.insert(name.to_string());
+
+                // Проверяем, не является ли это указателем на массив
+                if let Some(init) = init_node {
+                    if init.node_type == "ID" {
+                        if let Some(init_name) =
+                            init.attributes.get("name").and_then(|v| v.as_str())
+                        {
+                            // Если инициализатор - это массив, то и указатель - на массив
+                            if self.array_vars.contains(init_name) {
+                                self.array_vars.insert(name.to_string());
+                                debug!("  Переменная {} помечена как указатель на массив (инициализирована массивом {})", 
+                                   name, init_name);
+                            }
+                        }
+                    }
+                }
+
+                if !pointed_type.is_empty() {
+                    self.pointer_types.insert(name.to_string(), pointed_type);
+                }
+                debug!("  Переменная {} помечена как указатель", name);
+            }
+
             // Обрабатываем объявления в зависимости от типа
             if is_union_var {
                 self.handle_union_declaration(name, union_type, init_node, &mut output)?;
@@ -1433,51 +1518,74 @@ impl PythonGenerator {
             struct_type,
             init_node.is_some()
         );
-        if let Some(init) = init_node {
-            debug!("  init node type: {}", init.node_type);
-        }
 
         if let Some(init) = init_node {
             // Есть инициализатор
             if init.node_type == "InitList" {
                 // Проверяем, есть ли среди детей NamedInitializer (C99 designated initializers)
                 let mut has_named = false;
+                let mut named_values = Vec::new();
+
                 for child in &init.children {
                     if child.node_type == "NamedInitializer" {
                         has_named = true;
-                        break;
-                    }
-                }
-
-                if has_named {
-                    // Для designated initializers создаем объект и потом устанавливаем поля
-                    if let Some(struct_name) = struct_type {
-                        output.push_str(&self.line(&format!("{} = {}()", name, struct_name)));
-
-                        // Обрабатываем каждый NamedInitializer
-                        for child in &init.children {
-                            if child.node_type == "NamedInitializer" {
-                                if let Some(expr) = child.attributes.get("expr") {
-                                    // Парсим выражение
-                                    let temp_node =
-                                        ASTNode::new("Value").with_attr("value", expr.clone());
-                                    let value = self.generate_expression(&temp_node)?;
-
-                                    // Получаем имя поля из name[0]
-                                    if let Some(name_array) = child.attributes.get("name[0]") {
-                                        if let Some(name_obj) = name_array.as_object() {
-                                            if let Some(field_name) =
-                                                name_obj.get("name").and_then(|v| v.as_str())
-                                            {
-                                                output.push_str(&self.line(&format!(
-                                                    "{}.{} = {}",
-                                                    name, field_name, value
-                                                )));
+                        // Сохраняем информацию об именованных инициализаторах
+                        if let Some(struct_name) = &struct_type {
+                            if let Some(_fields) = self.struct_info.get(struct_name) {
+                                // Пытаемся извлечь имя поля и значение
+                                if let Some(name_attr) = child.attributes.get("name[0]") {
+                                    if let Some(name_obj) = name_attr.as_object() {
+                                        if let Some(field_name) =
+                                            name_obj.get("name").and_then(|v| v.as_str())
+                                        {
+                                            if let Some(expr_attr) = child.attributes.get("expr") {
+                                                named_values.push((
+                                                    field_name.to_string(),
+                                                    expr_attr.clone(),
+                                                ));
                                             }
                                         }
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+
+                if has_named {
+                    // Для designated initializers создаем объект с параметрами по умолчанию
+                    if let Some(struct_name) = struct_type {
+                        if let Some(fields) = self.struct_info.get(&struct_name) {
+                            let default_params = vec!["None".to_string(); fields.len()].join(", ");
+                            output.push_str(
+                                &self.line(&format!(
+                                    "{} = {}({})",
+                                    name, struct_name, default_params
+                                )),
+                            );
+
+                            // Затем устанавливаем именованные поля
+                            for (field_name, expr_attr) in named_values {
+                                // Создаем временный узел для выражения
+                                let temp_node = if let Some(expr_obj) = expr_attr.as_object() {
+                                    ASTNode::new(
+                                        expr_obj
+                                            .get("__node__")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("Value"),
+                                    )
+                                    .with_attr("value", expr_attr.clone())
+                                } else {
+                                    ASTNode::new("Value").with_attr("value", expr_attr)
+                                };
+
+                                let value = self.generate_expression(&temp_node)?;
+                                output.push_str(
+                                    &self.line(&format!("{}.{} = {}", name, field_name, value)),
+                                );
+                            }
+                        } else {
+                            output.push_str(&self.line(&format!("{} = {}()", name, struct_name)));
                         }
                     }
                 } else {
@@ -1520,7 +1628,6 @@ impl PythonGenerator {
 
         Ok(())
     }
-
     /// Обработка объявления переменной объединения
     fn handle_union_declaration(
         &mut self,
@@ -1598,27 +1705,93 @@ impl PythonGenerator {
             if left_node.node_type == "UnaryOp" {
                 if let Some(op) = left_node.attributes.get("op").and_then(|v| v.as_str()) {
                     if op == "*" && left_node.children.len() == 1 {
-                        // Это *ptr = value
-                        let ptr_expr = self.generate_expression(&left_node.children[0])?;
-                        let right_expr = self.generate_expression(right_node)?;
+                        let inner = &left_node.children[0];
 
-                        debug!(
-                            "  Присваивание через указатель: *{} = {}",
-                            ptr_expr, right_expr
-                        );
+                        // Проверяем, является ли внутреннее выражение арифметикой указателей
+                        if inner.node_type == "BinaryOp" {
+                            // Это *(ptr + i) = value
+                            if let Some(inner_op) =
+                                inner.attributes.get("op").and_then(|v| v.as_str())
+                            {
+                                if inner_op == "+" && inner.children.len() == 2 {
+                                    let ptr = &inner.children[0];
+                                    let index = &inner.children[1];
 
-                        // В Python: ptr.value = value
-                        return Ok(self.line(&format!("{}.value = {}", ptr_expr, right_expr)));
+                                    if ptr.node_type == "ID" {
+                                        if let Some(ptr_name) =
+                                            ptr.attributes.get("name").and_then(|v| v.as_str())
+                                        {
+                                            let index_expr = self.generate_expression(index)?;
+                                            let right_expr =
+                                                self.generate_expression(right_node)?;
+
+                                            // Для указателя на массив: ptr[index] = value
+                                            return Ok(self.line(&format!(
+                                                "{}[{}] = {}",
+                                                ptr_name, index_expr, right_expr
+                                            )));
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            // Это *ptr = value
+                            let ptr_expr = self.generate_expression(inner)?;
+                            let right_expr = self.generate_expression(right_node)?;
+
+                            debug!(
+                                "  Присваивание через указатель: *{} = {}",
+                                ptr_expr, right_expr
+                            );
+
+                            // Проверяем, является ли ptr_expr указателем на массив
+                            if self.pointer_vars.contains(&ptr_expr)
+                                && self.array_vars.contains(&ptr_expr)
+                            {
+                                // Для указателя на массив: ptr = value (без .value)
+                                return Ok(self.line(&format!("{} = {}", ptr_expr, right_expr)));
+                            } else {
+                                // Для обычного указателя: ptr.value = value
+                                return Ok(
+                                    self.line(&format!("{}.value = {}", ptr_expr, right_expr))
+                                );
+                            }
+                        }
                     }
                 }
             }
 
-            // Проверяем, является ли левая часть обращением к элементу массива через указатель
+            // Проверяем, является ли левая часть обращением к элементу массива
             if left_node.node_type == "ArrayRef" {
-                // Обычное обращение к массиву
                 let left = self.generate_expression(left_node)?;
                 let right = self.generate_expression(right_node)?;
+
+                // Проверяем, не нужно ли добавить .value к правой части
+                if right_node.node_type == "UnaryOp" {
+                    if let Some(op) = right_node.attributes.get("op").and_then(|v| v.as_str()) {
+                        if op == "*" {
+                            // Это ptr = *something - разыменование в правой части
+                            // Обрабатывается в generate_expression
+                        }
+                    }
+                }
+
                 return Ok(self.line(&format!("{} = {}", left, right)));
+            }
+
+            // Проверяем, является ли левая часть идентификатором, который может быть указателем
+            if left_node.node_type == "ID" {
+                if let Some(var_name) = left_node.attributes.get("name").and_then(|v| v.as_str()) {
+                    let right_expr = self.generate_expression(right_node)?;
+
+                    // Если это присваивание указателю (ptr = something)
+                    if self.pointer_vars.contains(var_name) {
+                        // Для указателей на массивы оставляем как есть
+                        if self.array_vars.contains(var_name) {
+                            return Ok(self.line(&format!("{} = {}", var_name, right_expr)));
+                        }
+                    }
+                }
             }
 
             // Обычное присваивание
@@ -1657,6 +1830,10 @@ impl PythonGenerator {
             .get("name")
             .and_then(|v| v.as_str())
             .unwrap_or("unknown_array");
+
+        // ВАЖНО: Добавляем переменную в множество массивов
+        self.array_vars.insert(name.to_string());
+        debug!("Переменная {} помечена как массив", name);
 
         debug!("Генерация объявления массива: {}", name);
         debug!("Детей у узла массива: {}", node.children.len());
