@@ -1167,7 +1167,7 @@ impl CParser {
                         }
                     }
 
-                    // В методе parse_ast_node, в секции обработки "Union":
+                    // В методе parse_ast_node, в секции "Union":
                     "Union" => {
                         debug!("Обработка UNION узла");
                         debug!("ПОЛНОЕ содержимое UNION: {:#?}", obj);
@@ -1183,6 +1183,9 @@ impl CParser {
                         node.attributes
                             .insert("_json".to_string(), Value::Object(obj.clone()));
 
+                        // Сохраняем информацию о полях для вложенных структур
+                        let mut field_types = serde_json::Map::new();
+
                         // Обрабатываем поля объединения (decls)
                         if let Some(decls) = obj.get("decls") {
                             debug!("Поля объединения: {:#?}", decls);
@@ -1190,39 +1193,30 @@ impl CParser {
                             if let Some(decls_array) = decls.as_array() {
                                 for decl in decls_array {
                                     if let Ok(decl_node) = self.parse_ast_node(decl) {
-                                        // Сохраняем информацию о том, что это поле объединения
-                                        if decl_node.node_type == "Decl" {
-                                            // Проверяем, является ли поле вложенной структурой
+                                        // Сохраняем информацию о типе поля
+                                        if let Some(field_name) = decl_node
+                                            .attributes
+                                            .get("name")
+                                            .and_then(|v| v.as_str())
+                                        {
                                             if let Some(type_attr) =
                                                 decl_node.attributes.get("type")
                                             {
-                                                if let Some(type_obj) = type_attr.as_object() {
-                                                    if type_obj
-                                                        .get("__node__")
-                                                        .and_then(|v| v.as_str())
-                                                        == Some("Struct")
-                                                    {
-                                                        debug!("Найдена вложенная структура в объединении");
-                                                        // Сохраняем JSON структуры для последующей обработки
-                                                        node.attributes.insert(
-                                                            format!(
-                                                                "field_{}_struct",
-                                                                decl_node
-                                                                    .attributes
-                                                                    .get("name")
-                                                                    .and_then(|v| v.as_str())
-                                                                    .unwrap_or("unknown")
-                                                            ),
-                                                            type_attr.clone(),
-                                                        );
-                                                    }
-                                                }
+                                                field_types.insert(
+                                                    field_name.to_string(),
+                                                    type_attr.clone(),
+                                                );
                                             }
                                         }
                                         node.children.push(decl_node);
                                     }
                                 }
                             }
+                        }
+
+                        if !field_types.is_empty() {
+                            node.attributes
+                                .insert("field_types".to_string(), Value::Object(field_types));
                         }
                     }
                     "UnionDecl" => {

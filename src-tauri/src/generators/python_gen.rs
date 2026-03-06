@@ -1,6 +1,7 @@
 use anyhow::Result;
 use log::{debug, warn};
 use std::collections::HashSet;
+use serde_json::Value;
 
 use super::Generator;
 use crate::ast::ASTNode;
@@ -399,21 +400,26 @@ impl PythonGenerator {
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown");
 
-                // Проверяем, является ли это арифметикой указателей в контексте индексации
+                // Специальная обработка для арифметики указателей
                 if op == "+" && node.children.len() == 2 {
                     let left = &node.children[0];
                     let right = &node.children[1];
 
-                    // Если левая часть - указатель на массив
+                    // Если левая часть - идентификатор и это указатель
                     if left.node_type == "ID" {
                         if let Some(var_name) = left.attributes.get("name").and_then(|v| v.as_str())
                         {
-                            if self.pointer_vars.contains(var_name)
-                                && self.array_vars.contains(var_name)
-                            {
-                                // Это ptr + i - вернем как строку для дальнейшей обработки
+                            if self.pointer_vars.contains(var_name) {
+                                // Это ptr + i
                                 let index = self.generate_expression_internal(right)?;
-                                return Ok(format!("{} + {}", var_name, index));
+
+                                // Если это в контексте разыменования, вернем как есть
+                                // Иначе вернем как выражение для индексации
+                                if self.in_expression {
+                                    return Ok(format!("{}[{}]", var_name, index));
+                                } else {
+                                    return Ok(format!("{} + {}", var_name, index));
+                                }
                             }
                         }
                     }
@@ -459,11 +465,24 @@ impl PythonGenerator {
 
                 debug!("Унарная операция: {} с {} детьми", op, node.children.len());
 
+                // Сначала получаем выражение для операнда
                 let expr = if let Some(child) = node.children.first() {
                     self.generate_expression_internal(child)?
                 } else {
                     String::new()
                 };
+
+                // Вспомогательная функция для подсчета уровней разыменования
+                fn count_dereferences(node: &ASTNode) -> usize {
+                    if node.node_type == "UnaryOp" {
+                        if let Some(op) = node.attributes.get("op").and_then(|v| v.as_str()) {
+                            if op == "*" && !node.children.is_empty() {
+                                return 1 + count_dereferences(&node.children[0]);
+                            }
+                        }
+                    }
+                    0
+                }
 
                 match op {
                     "&" => {
@@ -479,11 +498,12 @@ impl PythonGenerator {
                         }
                         Ok(format!("Reference({})", expr))
                     }
-                    // В generate_expression_internal(), в секции "UnaryOp" для оператора "*":
                     "*" => {
                         debug!("Разыменование указателя: *{}", expr);
 
-                        // Проверяем особые случаи
+                        // Подсчитываем количество разыменований
+                        let deref_count = count_dereferences(node);
+
                         if let Some(child) = node.children.first() {
                             // Случай 1: *(ptr + i) - арифметика указателей
                             if child.node_type == "BinaryOp" {
@@ -499,19 +519,20 @@ impl PythonGenerator {
                                                 left.attributes.get("name").and_then(|v| v.as_str())
                                             {
                                                 // Это указатель на массив?
-                                                if self.pointer_vars.contains(var_name)
-                                                    && self.array_vars.contains(var_name)
-                                                {
+                                                if self.pointer_vars.contains(var_name) {
                                                     let index =
                                                         self.generate_expression_internal(right)?;
-                                                    // Вне выражения (для присваивания) возвращаем просто индекс
-                                                    if !self.in_expression {
-                                                        return Ok(format!(
-                                                            "{}[{}]",
-                                                            var_name, index
-                                                        ));
+
+                                                    // Если есть множественное разыменование, добавляем .value
+                                                    if deref_count > 1 {
+                                                        let mut result =
+                                                            format!("{}[{}]", var_name, index);
+                                                        for _ in 1..deref_count {
+                                                            result = format!("{}.value", result);
+                                                        }
+                                                        return Ok(result);
                                                     }
-                                                    // В выражении возвращаем значение
+
                                                     return Ok(format!("{}[{}]", var_name, index));
                                                 }
                                             }
@@ -520,31 +541,66 @@ impl PythonGenerator {
                                 }
                             }
 
-                            // Случай 2: *ptr - простое разыменование
+                            // Случай 2: **ptr - множественное разыменование
                             if child.node_type == "ID" {
                                 if let Some(var_name) =
                                     child.attributes.get("name").and_then(|v| v.as_str())
                                 {
-                                    // Это указатель на массив?
-                                    if self.pointer_vars.contains(var_name)
+                                    // Генерируем цепочку .value
+                                    let mut result = var_name.to_string();
+                                    for _ in 0..deref_count {
+                                        result = format!("{}.value", result);
+                                    }
+
+                                    // Если это в контексте присваивания и это указатель на массив
+                                    if !self.in_expression
+                                        && self.pointer_vars.contains(var_name)
                                         && self.array_vars.contains(var_name)
                                     {
-                                        // Для указателя на массив не добавляем .value
                                         return Ok(var_name.to_string());
                                     }
+
+                                    return Ok(result);
                                 }
                             }
                         }
 
-                        // Для обычных указателей
+                        // Для остальных случаев
                         if !self.in_expression {
                             return Ok(expr);
                         }
 
                         Ok(format!("{}.value", expr))
                     }
-                    "++" | "p++" | "post++" => Ok(format!("({} + 1)", expr)),
-                    "--" | "p--" | "post--" => Ok(format!("({} - 1)", expr)),
+                    "++" | "p++" | "post++" => {
+                        if let Some(child) = node.children.first() {
+                            if child.node_type == "ID" {
+                                if let Some(var_name) =
+                                    child.attributes.get("name").and_then(|v| v.as_str())
+                                {
+                                    if self.pointer_vars.contains(var_name) {
+                                        // Для указателей: ptr = ptr + 1 (арифметика указателей)
+                                        return Ok(format!("{} + 1", var_name));
+                                    }
+                                }
+                            }
+                        }
+                        Ok(format!("({} + 1)", expr))
+                    }
+                    "--" | "p--" | "post--" => {
+                        if let Some(child) = node.children.first() {
+                            if child.node_type == "ID" {
+                                if let Some(var_name) =
+                                    child.attributes.get("name").and_then(|v| v.as_str())
+                                {
+                                    if self.pointer_vars.contains(var_name) {
+                                        return Ok(format!("{} - 1", var_name));
+                                    }
+                                }
+                            }
+                        }
+                        Ok(format!("({} - 1)", expr))
+                    }
                     "-" => {
                         if expr.chars().all(|c| c.is_ascii_digit() || c == '.') {
                             Ok(format!("-{}", expr))
@@ -562,7 +618,6 @@ impl PythonGenerator {
                     }
                 }
             }
-
             "FuncCall" => {
                 // Ищем имя функции
                 let mut name = None;
@@ -1380,8 +1435,21 @@ impl PythonGenerator {
                 }
             }
 
+            // В методе generate_declaration, при обнаружении указателя:
             if is_pointer {
                 self.pointer_vars.insert(name.to_string());
+
+                // Определяем уровень указателя
+                let mut ptr_level = 1;
+                let mut current = node;
+                while let Some(child) = current.children.first() {
+                    if child.node_type == "PtrDecl" {
+                        ptr_level += 1;
+                        current = child;
+                    } else {
+                        break;
+                    }
+                }
 
                 // Проверяем, не является ли это указателем на массив
                 if let Some(init) = init_node {
@@ -1389,22 +1457,18 @@ impl PythonGenerator {
                         if let Some(init_name) =
                             init.attributes.get("name").and_then(|v| v.as_str())
                         {
-                            // Если инициализатор - это массив, то и указатель - на массив
                             if self.array_vars.contains(init_name) {
                                 self.array_vars.insert(name.to_string());
-                                debug!("  Переменная {} помечена как указатель на массив (инициализирована массивом {})", 
-                                   name, init_name);
                             }
                         }
                     }
                 }
 
-                if !pointed_type.is_empty() {
-                    self.pointer_types.insert(name.to_string(), pointed_type);
-                }
-                debug!("  Переменная {} помечена как указатель", name);
+                debug!(
+                    "  Переменная {} помечена как указатель уровня {}",
+                    name, ptr_level
+                );
             }
-
             // Обрабатываем объявления в зависимости от типа
             if is_union_var {
                 self.handle_union_declaration(name, union_type, init_node, &mut output)?;
@@ -1734,33 +1798,37 @@ impl PythonGenerator {
                                     }
                                 }
                             }
-                        } else {
+                        } else if inner.node_type == "ID" {
                             // Это *ptr = value
-                            let ptr_expr = self.generate_expression(inner)?;
-                            let right_expr = self.generate_expression(right_node)?;
-
-                            debug!(
-                                "  Присваивание через указатель: *{} = {}",
-                                ptr_expr, right_expr
-                            );
-
-                            // Проверяем, является ли ptr_expr указателем на массив
-                            if self.pointer_vars.contains(&ptr_expr)
-                                && self.array_vars.contains(&ptr_expr)
+                            if let Some(ptr_name) =
+                                inner.attributes.get("name").and_then(|v| v.as_str())
                             {
-                                // Для указателя на массив: ptr = value (без .value)
-                                return Ok(self.line(&format!("{} = {}", ptr_expr, right_expr)));
-                            } else {
-                                // Для обычного указателя: ptr.value = value
-                                return Ok(
-                                    self.line(&format!("{}.value = {}", ptr_expr, right_expr))
+                                let right_expr = self.generate_expression(right_node)?;
+
+                                debug!(
+                                    "  Присваивание через указатель: *{} = {}",
+                                    ptr_name, right_expr
                                 );
+
+                                // Проверяем, является ли ptr_name указателем на массив
+                                if self.pointer_vars.contains(ptr_name)
+                                    && self.array_vars.contains(ptr_name)
+                                {
+                                    // Для указателя на массив: ptr[0] = value
+                                    return Ok(
+                                        self.line(&format!("{}[0] = {}", ptr_name, right_expr))
+                                    );
+                                } else {
+                                    // Для обычного указателя: ptr.value = value
+                                    return Ok(
+                                        self.line(&format!("{}.value = {}", ptr_name, right_expr))
+                                    );
+                                }
                             }
                         }
                     }
                 }
             }
-
             // Проверяем, является ли левая часть обращением к элементу массива
             if left_node.node_type == "ArrayRef" {
                 let left = self.generate_expression(left_node)?;
@@ -1798,6 +1866,7 @@ impl PythonGenerator {
             let left = self.generate_expression(left_node)?;
             let right = self.generate_expression(right_node)?;
 
+            // В методе generate_assignment, добавьте обработку составных операторов:
             let op = node
                 .attributes
                 .get("op")
@@ -1810,6 +1879,12 @@ impl PythonGenerator {
                 "-=" => "-=",
                 "*=" => "*=",
                 "/=" => "/=",
+                "%=" => "%=",
+                "&=" => "&=",
+                "|=" => "|=",
+                "^=" => "^=",
+                "<<=" => "<<=",
+                ">>=" => ">>=",
                 _ => "=",
             };
 
@@ -1846,9 +1921,32 @@ impl PythonGenerator {
             );
         }
 
-        // Проверяем, является ли это строкой (char массив с одним строковым литералом)
-        let mut is_string = false;
-        let mut string_value = None;
+        // Определяем тип элементов массива
+        let mut element_type = None;
+        for child in &node.children {
+            if child.node_type == "TypeDecl" {
+                if let Some(type_attr) = child.attributes.get("type") {
+                    if let Some(type_obj) = type_attr.as_object() {
+                        if type_obj.get("__node__").and_then(|v| v.as_str())
+                            == Some("IdentifierType")
+                        {
+                            if let Some(names) = type_obj.get("names") {
+                                if let Some(names_array) = names.as_array() {
+                                    if let Some(first) =
+                                        names_array.first().and_then(|v| v.as_str())
+                                    {
+                                        element_type = Some(first.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Проверяем, является ли это строкой (char массив)
+        let mut is_char_array = element_type.as_deref() == Some("char");
 
         // Ищем инициализатор в детях
         let mut init_values = Vec::new();
@@ -1870,19 +1968,15 @@ impl PythonGenerator {
                         j, val_child.node_type, val_child.attributes
                     );
 
-                    // Проверяем, является ли это строкой
-                    if val_child.node_type == "Constant" {
-                        if let Some(type_attr) = val_child.attributes.get("type") {
-                            if let Some(type_str) = type_attr.as_str() {
-                                if type_str == "string" {
-                                    is_string = true;
-                                    if let Some(val) = val_child.attributes.get("value") {
-                                        if let Some(s) = val.as_str() {
-                                            // Убираем внешние кавычки если они есть
-                                            let clean_str = s.trim_matches('"');
-                                            string_value = Some(clean_str.to_string());
-                                        }
-                                    }
+                    // Если это char массив, проверяем, не является ли значение строкой
+                    if is_char_array && val_child.node_type == "Constant" {
+                        if let Some(val) = val_child.attributes.get("value") {
+                            if let Some(s) = val.as_str() {
+                                // Проверяем, является ли это символом в кавычках
+                                if s.starts_with('\'') && s.ends_with('\'') && s.len() >= 3 {
+                                    let c = &s[1..s.len() - 1];
+                                    init_values.push(c.to_string());
+                                    continue;
                                 }
                             }
                         }
@@ -1897,11 +1991,37 @@ impl PythonGenerator {
             }
         }
 
-        // Если это строковый массив с одним элементом, преобразуем в строку Python
-        if is_string && init_values.len() == 1 {
-            if let Some(s) = string_value {
-                debug!("Преобразуем char массив в строку: {}", s);
-                output.push_str(&self.line(&format!("{} = \"{}\"", name, s)));
+        // Если это char массив и все значения - одиночные символы
+        if is_char_array && !init_values.is_empty() {
+            let mut is_string_literal = true;
+            let mut string_chars = Vec::new();
+
+            for val in &init_values {
+                // Проверяем, является ли значение одиночным символом
+                if val.len() == 1
+                    || (val.starts_with('\'') && val.ends_with('\'') && val.len() == 3)
+                {
+                    let c = if val.starts_with('\'') {
+                        val[1..val.len() - 1].to_string()
+                    } else {
+                        val.clone()
+                    };
+
+                    if c == "\\0" {
+                        break; // Дошли до нуль-терминатора
+                    }
+                    string_chars.push(c);
+                } else {
+                    is_string_literal = false;
+                    break;
+                }
+            }
+
+            if is_string_literal && !string_chars.is_empty() {
+                // Формируем строку из символов
+                let string_value = string_chars.join("");
+                debug!("Преобразуем char массив в строку: {}", string_value);
+                output.push_str(&self.line(&format!("{} = \"{}\"", name, string_value)));
                 return Ok(output);
             }
         }
@@ -1927,18 +2047,14 @@ impl PythonGenerator {
                 if child.node_type == "Constant" || child.node_type == "ID" {
                     debug!("Прямое значение в массиве: тип={}", child.node_type);
 
-                    // Проверяем, является ли это строкой
-                    if child.node_type == "Constant" {
-                        if let Some(type_attr) = child.attributes.get("type") {
-                            if let Some(type_str) = type_attr.as_str() {
-                                if type_str == "string" {
-                                    is_string = true;
-                                    if let Some(val) = child.attributes.get("value") {
-                                        if let Some(s) = val.as_str() {
-                                            let clean_str = s.trim_matches('"');
-                                            string_value = Some(clean_str.to_string());
-                                        }
-                                    }
+                    // Если это char массив, проверяем на символ
+                    if is_char_array && child.node_type == "Constant" {
+                        if let Some(val) = child.attributes.get("value") {
+                            if let Some(s) = val.as_str() {
+                                if s.starts_with('\'') && s.ends_with('\'') && s.len() >= 3 {
+                                    let c = &s[1..s.len() - 1];
+                                    init_values.push(c.to_string());
+                                    continue;
                                 }
                             }
                         }
@@ -1950,18 +2066,35 @@ impl PythonGenerator {
             }
         }
 
-        // Если это строковый массив с одним элементом, преобразуем в строку Python
-        if is_string && init_values.len() == 1 {
-            if let Some(s) = string_value {
-                debug!("Преобразуем char массив в строку: {}", s);
-                output.push_str(&self.line(&format!("{} = \"{}\"", name, s)));
+        // Если это char массив с одним элементом после проверки, преобразуем в строку
+        if is_char_array && init_values.len() == 1 {
+            let val = &init_values[0];
+            if val.len() == 1 || (val.starts_with('\'') && val.ends_with('\'') && val.len() == 3) {
+                let c = if val.starts_with('\'') {
+                    val[1..val.len() - 1].to_string()
+                } else {
+                    val.clone()
+                };
+                debug!("Преобразуем char массив в строку из одного символа: {}", c);
+                output.push_str(&self.line(&format!("{} = \"{}\"", name, c)));
                 return Ok(output);
             }
         }
 
         if !init_values.is_empty() {
             debug!("Инициализация массива значениями: {:?}", init_values);
-            output.push_str(&self.line(&format!("{} = [{}]", name, init_values.join(", "))));
+
+            // Обрабатываем многомерные массивы
+            if init_values
+                .iter()
+                .any(|v| v.starts_with('[') && v.ends_with(']'))
+            {
+                // Это уже вложенные списки, оставляем как есть
+                output.push_str(&self.line(&format!("{} = [{}]", name, init_values.join(", "))));
+            } else {
+                // Обычный одномерный массив
+                output.push_str(&self.line(&format!("{} = [{}]", name, init_values.join(", "))));
+            }
         } else {
             debug!("Нет инициализатора, создаем пустой список");
             output.push_str(&self.line(&format!("{} = []", name)));
@@ -1969,7 +2102,6 @@ impl PythonGenerator {
 
         Ok(output)
     }
-
     /// Генерирует обращение к элементу массива
     fn generate_array_ref(&mut self, node: &ASTNode) -> Result<String> {
         debug!("Генерация обращения к элементу массива");
@@ -2189,12 +2321,45 @@ impl PythonGenerator {
             let struct_expr = self.generate_expression(&node.children[0])?;
             let field_expr = self.generate_expression(&node.children[1])?;
 
-            Ok(format!("{}.{}", struct_expr, field_expr))
+            // Проверяем, является ли struct_expr указателем
+            // Извлекаем имя переменной из struct_expr (убираем возможные .value и т.д.)
+            let base_name = struct_expr.split('.').next().unwrap_or(&struct_expr);
+
+            if self.pointer_vars.contains(base_name) {
+                // Это доступ через указатель: ptr->field -> ptr.value.field
+                if struct_expr.contains(".value") {
+                    // Уже есть .value, добавляем поле
+                    Ok(format!("{}.{}", struct_expr, field_expr))
+                } else {
+                    // Добавляем .value перед полем
+                    Ok(format!("{}.value.{}", struct_expr, field_expr))
+                }
+            } else {
+                // Обычный доступ к полю
+                Ok(format!("{}.{}", struct_expr, field_expr))
+            }
         } else {
             Ok("None".to_string())
         }
     }
 
+    /// Генерирует обращение к элементу массива через указатель
+    fn generate_pointer_array_ref(
+        &mut self,
+        ptr_name: &str,
+        index_node: &ASTNode,
+    ) -> Result<String> {
+        let index = self.generate_expression(index_node)?;
+
+        // Проверяем, является ли это указателем на массив
+        if self.array_vars.contains(ptr_name) {
+            // Это указатель на массив - используем прямую индексацию
+            Ok(format!("{}[{}]", ptr_name, index))
+        } else {
+            // Это обычный указатель - нужно разыменовать после арифметики
+            Ok(format!("({} + {})", ptr_name, index))
+        }
+    }
     /// Генерирует класс Python из объединения C
     fn generate_union(&mut self, node: &ASTNode) -> Result<String> {
         let mut output = String::new();
@@ -2208,6 +2373,29 @@ impl PythonGenerator {
         debug!("Генерация класса из объединения: {}", name);
         debug!("Детей у объединения: {}", node.children.len());
 
+        // Собираем информацию о полях и их типах
+        let mut fields = Vec::new();
+        let mut field_types = std::collections::HashMap::new();
+
+        if let Some(field_types_json) = node.attributes.get("field_types") {
+            if let Some(obj) = field_types_json.as_object() {
+                for (field_name, type_value) in obj {
+                    fields.push(field_name.clone());
+                    field_types.insert(field_name.clone(), type_value.clone());
+                }
+            }
+        } else {
+            // Fallback: собираем из детей
+            for child in &node.children {
+                if child.node_type == "Decl" {
+                    if let Some(field_name) = child.attributes.get("name").and_then(|v| v.as_str())
+                    {
+                        fields.push(field_name.to_string());
+                    }
+                }
+            }
+        }
+
         // Генерируем определение класса
         output.push_str(&self.line(&format!("class {}:", name)));
         self.indent_level += 1;
@@ -2216,36 +2404,50 @@ impl PythonGenerator {
         output.push_str(&self.line("def __init__(self):"));
         self.indent_level += 1;
 
-        // Собираем поля объединения
-        for child in &node.children {
-            if child.node_type == "Decl" {
-                if let Some(field_name) = child.attributes.get("name").and_then(|v| v.as_str()) {
-                    // Проверяем, является ли поле вложенной структурой
-                    if self.is_nested_struct(child) {
-                        // Если это вложенная структура, создаем её экземпляр
-                        if let Some(struct_name) = self.extract_struct_name(child) {
-                            // Для структуры Point нужно создать с двумя параметрами None
-                            if struct_name == "Point" {
-                                output.push_str(
-                                    &self.line(&format!("self.{} = Point(None, None)", field_name)),
+        // Инициализируем поля объединения
+        for field_name in &fields {
+            // Проверяем, является ли поле вложенной структурой
+            if let Some(type_value) = field_types.get(field_name) {
+                if let Some(type_obj) = type_value.as_object() {
+                    if let Some(node_type) = type_obj.get("__node__").and_then(|v| v.as_str()) {
+                        if node_type == "Struct" {
+                            if let Some(struct_name) = type_obj.get("name").and_then(|v| v.as_str())
+                            {
+                                // Для вложенной структуры создаем экземпляр с параметрами по умолчанию
+                                if let Some(fields) = self.struct_info.get(struct_name) {
+                                    if !fields.is_empty() {
+                                        let default_params =
+                                            vec!["None".to_string(); fields.len()].join(", ");
+                                        output.push_str(&self.line(&format!(
+                                            "self.{} = {}({})",
+                                            field_name, struct_name, default_params
+                                        )));
+                                    } else {
+                                        output.push_str(&self.line(&format!(
+                                            "self.{} = {}()",
+                                            field_name, struct_name
+                                        )));
+                                    }
+                                } else {
+                                    output.push_str(
+                                        &self.line(&format!(
+                                            "self.{} = {}()",
+                                            field_name, struct_name
+                                        )),
+                                    );
+                                }
+                                debug!(
+                                    "Создана вложенная структура {} в union {}",
+                                    struct_name, name
                                 );
-                            } else {
-                                output.push_str(
-                                    &self.line(&format!("self.{} = {}()", field_name, struct_name)),
-                                );
+                                continue;
                             }
-                            debug!(
-                                "Создана вложенная структура {} в union {}",
-                                struct_name, name
-                            );
-                        } else {
-                            output.push_str(&self.line(&format!("self.{} = None", field_name)));
                         }
-                    } else {
-                        output.push_str(&self.line(&format!("self.{} = None", field_name)));
                     }
                 }
             }
+            // Обычное поле
+            output.push_str(&self.line(&format!("self.{} = None", field_name)));
         }
 
         self.indent_level -= 1; // Выходим из __init__
@@ -2281,7 +2483,6 @@ impl PythonGenerator {
 
         Ok(output)
     }
-
     /// Проверяет, является ли поле вложенной структурой
     fn is_nested_struct(&self, node: &ASTNode) -> bool {
         // Проверяем имя поля
