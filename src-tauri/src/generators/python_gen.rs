@@ -15,8 +15,6 @@ pub struct PythonGenerator {
     enum_info: std::collections::HashMap<String, Vec<String>>,
     // Новое: отслеживание переменных-указателей
     pointer_vars: HashSet<String>,
-    // Новое: отслеживание типов указателей (имя -> тип элемента)
-    pointer_types: std::collections::HashMap<String, String>,
     // Новое: отслеживание адресов переменных
     address_taken: HashSet<String>,
     array_vars: HashSet<String>,
@@ -33,7 +31,6 @@ impl PythonGenerator {
             struct_info: std::collections::HashMap::new(),
             enum_info: std::collections::HashMap::new(),
             pointer_vars: HashSet::new(),
-            pointer_types: std::collections::HashMap::new(),
             address_taken: HashSet::new(),
             array_vars: HashSet::new(),
         }
