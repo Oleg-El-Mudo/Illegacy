@@ -1,6 +1,5 @@
 use anyhow::Result;
 use log::{debug, warn};
-use serde_json::Value;
 use std::collections::HashSet;
 
 use super::Generator;
@@ -348,30 +347,34 @@ impl PythonGenerator {
     /// Внутренняя рекурсивная генерация выражения
     fn generate_expression_internal(&mut self, node: &ASTNode) -> Result<String> {
         match node.node_type.as_str() {
+            // В методе generate_expression_internal, добавьте обработку для строковых литералов
             "Constant" => {
                 if let Some(value) = node.attributes.get("value") {
                     if let Some(s) = value.as_str() {
+                        // Проверяем, является ли это строковым литералом в двойных кавычках
+                        if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
+                            // Это строковый литерал
+                            Ok(s.to_string())
+                        }
+                        // Проверяем, является ли это символом в одинарных кавычках
+                        else if s.starts_with('\'') && s.ends_with('\'') && s.len() >= 3 {
+                            // Это символ, оставляем как есть
+                            Ok(s.to_string())
+                        }
                         // Проверяем, является ли строка числом
-                        if s.parse::<i32>().is_ok() || s.parse::<f64>().is_ok() {
+                        else if s.parse::<i32>().is_ok() || s.parse::<f64>().is_ok() {
                             Ok(s.to_string())
                         } else {
-                            // Это строка, оставляем как есть (с кавычками)
+                            // Это идентификатор или что-то другое
                             Ok(s.to_string())
                         }
                     } else if let Some(n) = value.as_i64() {
                         Ok(n.to_string())
                     } else if let Some(n) = value.as_f64() {
-                        // Убираем суффикс 'f' если он есть в строковом представлении
-                        let n_str = n.to_string();
-                        if n_str.ends_with('f') {
-                            Ok(n_str[..n_str.len() - 1].to_string())
-                        } else {
-                            Ok(n_str)
-                        }
+                        Ok(n.to_string())
                     } else if let Some(b) = value.as_bool() {
                         Ok(b.to_string())
                     } else {
-                        // Для других типов JSON значений
                         Ok(value.to_string())
                     }
                 } else {
@@ -1158,7 +1161,7 @@ impl PythonGenerator {
 
             // Проверяем, является ли это указателем
             let mut is_pointer = false;
-            let mut pointed_type = String::new();
+            let mut _pointed_type = String::new();
 
             // Проверяем детей на наличие PtrDecl
             for child in &node.children {
@@ -1172,7 +1175,7 @@ impl PythonGenerator {
                             || grandchild.node_type == "IdentifierType"
                         {
                             if let Some(type_name) = self.extract_type_name(grandchild) {
-                                pointed_type = type_name;
+                                _pointed_type = type_name;
                             }
                         }
                     }
@@ -1404,7 +1407,7 @@ impl PythonGenerator {
             for child in &node.children {
                 match child.node_type.as_str() {
                     "InitList" | "Constant" | "FuncCall" | "TernaryOp" | "ID" | "BinaryOp"
-                    | "UnaryOp" | "NamedInitializer" => {
+                    | "UnaryOp" | "NamedInitializer" | "StructRef" => {
                         init_node = Some(child);
                         debug!(
                             "  Найден инициализатор типа {} для переменной {}",
@@ -2302,9 +2305,9 @@ impl PythonGenerator {
         Ok(output)
     }
 
-    /// Генерирует доступ к полю структуры
+    // В методе generate_struct_ref, улучшите обработку указателей на объединения
     fn generate_struct_ref(&mut self, node: &ASTNode) -> Result<String> {
-        debug!("Генерация доступа к полю структуры");
+        debug!("Генерация доступа к полю структуры/объединения");
         debug!("Детей у StructRef: {}", node.children.len());
 
         if node.children.len() >= 2 {
@@ -2312,11 +2315,10 @@ impl PythonGenerator {
             let field_expr = self.generate_expression(&node.children[1])?;
 
             // Проверяем, является ли struct_expr указателем
-            // Извлекаем имя переменной из struct_expr (убираем возможные .value и т.д.)
             let base_name = struct_expr.split('.').next().unwrap_or(&struct_expr);
 
             if self.pointer_vars.contains(base_name) {
-                // Это доступ через указатель: ptr->field -> ptr.value.field
+                // Это доступ через указатель: ptr->field
                 if struct_expr.contains(".value") {
                     // Уже есть .value, добавляем поле
                     Ok(format!("{}.{}", struct_expr, field_expr))
@@ -2332,25 +2334,7 @@ impl PythonGenerator {
             Ok("None".to_string())
         }
     }
-
-    /// Генерирует обращение к элементу массива через указатель
-    fn generate_pointer_array_ref(
-        &mut self,
-        ptr_name: &str,
-        index_node: &ASTNode,
-    ) -> Result<String> {
-        let index = self.generate_expression(index_node)?;
-
-        // Проверяем, является ли это указателем на массив
-        if self.array_vars.contains(ptr_name) {
-            // Это указатель на массив - используем прямую индексацию
-            Ok(format!("{}[{}]", ptr_name, index))
-        } else {
-            // Это обычный указатель - нужно разыменовать после арифметики
-            Ok(format!("({} + {})", ptr_name, index))
-        }
-    }
-    /// Генерирует класс Python из объединения C
+    // В методе generate_union, улучшите обработку вложенных структур
     fn generate_union(&mut self, node: &ASTNode) -> Result<String> {
         let mut output = String::new();
 
@@ -2361,106 +2345,19 @@ impl PythonGenerator {
             .unwrap_or("UnknownUnion");
 
         debug!("Генерация класса из объединения: {}", name);
-        debug!("Детей у объединения: {}", node.children.len());
 
         // Собираем информацию о полях и их типах
         let mut fields = Vec::new();
-        let mut struct_fields = std::collections::HashMap::new(); // поле -> имя структуры
-        let mut is_nested = false;
+        let mut field_types = std::collections::HashMap::new(); // поле -> тип
 
-        // Сначала пробуем получить информацию из атрибута field_types (если есть)
-        if let Some(field_types_json) = node.attributes.get("field_types") {
-            if let Some(obj) = field_types_json.as_object() {
-                for (field_name, type_value) in obj {
-                    fields.push(field_name.clone());
+        for child in &node.children {
+            if child.node_type == "Decl" {
+                if let Some(field_name) = child.attributes.get("name").and_then(|v| v.as_str()) {
+                    fields.push(field_name.to_string());
 
-                    // Проверяем, является ли тип структурой
-                    if let Some(type_obj) = type_value.as_object() {
-                        if let Some(node_type) = type_obj.get("__node__").and_then(|v| v.as_str()) {
-                            if node_type == "Struct" {
-                                if let Some(struct_name) =
-                                    type_obj.get("name").and_then(|v| v.as_str())
-                                {
-                                    struct_fields
-                                        .insert(field_name.clone(), struct_name.to_string());
-                                    is_nested = true;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            // Fallback: собираем из детей
-            for child in &node.children {
-                if child.node_type == "Decl" {
-                    if let Some(field_name) = child.attributes.get("name").and_then(|v| v.as_str())
-                    {
-                        fields.push(field_name.to_string());
-
-                        // Проверяем, не является ли это поле вложенной структурой
-                        // Смотрим на тип поля
-                        if let Some(type_attr) = child.attributes.get("type") {
-                            if let Some(type_obj) = type_attr.as_object() {
-                                // Проверяем прямой тип
-                                if let Some(node_type) =
-                                    type_obj.get("__node__").and_then(|v| v.as_str())
-                                {
-                                    if node_type == "Struct" {
-                                        if let Some(struct_name) =
-                                            type_obj.get("name").and_then(|v| v.as_str())
-                                        {
-                                            struct_fields.insert(
-                                                field_name.to_string(),
-                                                struct_name.to_string(),
-                                            );
-                                            is_nested = true;
-                                            debug!(
-                                                "Найдена вложенная структура {} в поле {}",
-                                                struct_name, field_name
-                                            );
-                                        }
-                                    }
-                                }
-
-                                // Проверяем через TypeDecl (часто struct обернут в TypeDecl)
-                                if let Some(type_decl) = type_obj.get("type") {
-                                    if let Some(type_decl_obj) = type_decl.as_object() {
-                                        if type_decl_obj.get("__node__").and_then(|v| v.as_str())
-                                            == Some("Struct")
-                                        {
-                                            if let Some(struct_name) =
-                                                type_decl_obj.get("name").and_then(|v| v.as_str())
-                                            {
-                                                struct_fields.insert(
-                                                    field_name.to_string(),
-                                                    struct_name.to_string(),
-                                                );
-                                                is_nested = true;
-                                                debug!("Найдена вложенная структура {} в поле {} (через TypeDecl)", struct_name, field_name);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Также проверяем детей узла Decl на наличие Struct
-                        for grandchild in &child.children {
-                            if grandchild.node_type == "Struct" {
-                                if let Some(struct_name) =
-                                    grandchild.attributes.get("name").and_then(|v| v.as_str())
-                                {
-                                    struct_fields
-                                        .insert(field_name.to_string(), struct_name.to_string());
-                                    is_nested = true;
-                                    debug!(
-                                        "Найдена вложенная структура {} как прямой ребенок поля {}",
-                                        struct_name, field_name
-                                    );
-                                }
-                            }
-                        }
+                    // Определяем тип поля
+                    if let Some(type_attr) = child.attributes.get("type") {
+                        field_types.insert(field_name.to_string(), type_attr.clone());
                     }
                 }
             }
@@ -2474,37 +2371,26 @@ impl PythonGenerator {
         output.push_str(&self.line("def __init__(self):"));
         self.indent_level += 1;
 
-        // Инициализируем поля объединения
+        // Инициализируем поля объединения с учетом их типов
         for field_name in &fields {
-            // Проверяем, является ли поле вложенной структурой
-            if let Some(struct_name) = struct_fields.get(field_name) {
-                // Для вложенной структуры создаем экземпляр
-                if let Some(fields) = self.struct_info.get(struct_name) {
-                    if !fields.is_empty() {
-                        let default_params = vec!["None".to_string(); fields.len()].join(", ");
-                        output.push_str(&self.line(&format!(
-                            "self.{} = {}({})",
-                            field_name, struct_name, default_params
-                        )));
-                    } else {
-                        output.push_str(
-                            &self.line(&format!("self.{} = {}()", field_name, struct_name)),
-                        );
+            if let Some(type_value) = field_types.get(field_name) {
+                if let Some(type_obj) = type_value.as_object() {
+                    if let Some(node_type) = type_obj.get("__node__").and_then(|v| v.as_str()) {
+                        if node_type == "Struct" {
+                            if let Some(struct_name) = type_obj.get("name").and_then(|v| v.as_str())
+                            {
+                                // Это поле - вложенная структура
+                                output.push_str(
+                                    &self.line(&format!("self.{} = {}()", field_name, struct_name)),
+                                );
+                                continue;
+                            }
+                        }
                     }
-                } else {
-                    // Если информация о структуре еще не сохранена, создаем с дефолтными параметрами
-                    // Но сначала проверим, может структура уже определена позже в коде
-                    output
-                        .push_str(&self.line(&format!("self.{} = {}()", field_name, struct_name)));
                 }
-                debug!(
-                    "Создана вложенная структура {} в union {}",
-                    struct_name, name
-                );
-            } else {
-                // Обычное поле
-                output.push_str(&self.line(&format!("self.{} = None", field_name)));
             }
+            // Обычное поле
+            output.push_str(&self.line(&format!("self.{} = None", field_name)));
         }
 
         // Если полей нет, добавляем pass
@@ -2512,126 +2398,10 @@ impl PythonGenerator {
             output.push_str(&self.line("pass"));
         }
 
-        self.indent_level -= 1; // Выходим из __init__
-
-        // Добавляем метод для установки значения с учетом типа
+        self.indent_level -= 2; // Выходим из __init__ и класса
         output.push_str(&self.line(""));
-        output.push_str(&self.line("def set_value(self, field_name, value):"));
-        self.indent_level += 1;
-        output.push_str(&self.line("if field_name not in self.__dict__:"));
-        self.indent_level += 1;
-        output.push_str(&self.line("raise ValueError(f\"Unknown field: {field_name}\")"));
-        self.indent_level -= 1;
-        output.push_str(&self.line("for field in self.__dict__:"));
-        self.indent_level += 1;
-        output.push_str(&self.line("self.__dict__[field] = None"));
-        self.indent_level -= 1;
-        output.push_str(&self.line("self.__dict__[field_name] = value"));
-        self.indent_level -= 1;
-
-        // Добавляем метод для получения значения
-        output.push_str(&self.line(""));
-        output.push_str(&self.line("def get_value(self, field_name):"));
-        self.indent_level += 1;
-        output.push_str(&self.line("if field_name not in self.__dict__:"));
-        self.indent_level += 1;
-        output.push_str(&self.line("raise ValueError(f\"Unknown field: {field_name}\")"));
-        self.indent_level -= 1;
-        output.push_str(&self.line("return self.__dict__[field_name]"));
-        self.indent_level -= 1;
-
-        self.indent_level -= 1; // Выходим из класса
-        output.push_str(&self.line(""));
-
-        // Если есть вложенные структуры, добавляем импорт или определение, если нужно
-        if is_nested {
-            debug!("Union {} содержит вложенные структуры", name);
-        }
 
         Ok(output)
-    }
-    /// Проверяет, является ли поле вложенной структурой
-    fn is_nested_struct(&self, node: &ASTNode) -> bool {
-        // Проверяем имя поля
-        if let Some(field_name) = node.attributes.get("name").and_then(|v| v.as_str()) {
-            if field_name == "point" {
-                return true; // Поле point всегда структура
-            }
-        }
-
-        // Проверяем прямые атрибуты
-        if let Some(type_attr) = node.attributes.get("type") {
-            if let Some(type_obj) = type_attr.as_object() {
-                if type_obj.get("__node__").and_then(|v| v.as_str()) == Some("Struct") {
-                    return true;
-                }
-            }
-        }
-
-        // Проверяем детей
-        for child in &node.children {
-            if child.node_type == "TypeDecl" {
-                for grandchild in &child.children {
-                    if grandchild.node_type == "Struct" {
-                        return true;
-                    }
-                    // Проверяем атрибуты внуков
-                    if let Some(type_attr) = grandchild.attributes.get("type") {
-                        if let Some(type_obj) = type_attr.as_object() {
-                            if type_obj.get("__node__").and_then(|v| v.as_str()) == Some("Struct") {
-                                return true;
-                            }
-                        }
-                    }
-                }
-            }
-            // Проверяем атрибуты детей
-            if let Some(type_attr) = child.attributes.get("type") {
-                if let Some(type_obj) = type_attr.as_object() {
-                    if type_obj.get("__node__").and_then(|v| v.as_str()) == Some("Struct") {
-                        return true;
-                    }
-                }
-            }
-        }
-        false
-    }
-    /// Извлекает имя структуры из поля
-    fn extract_struct_name(&self, node: &ASTNode) -> Option<String> {
-        // Проверяем прямые атрибуты
-        if let Some(type_attr) = node.attributes.get("type") {
-            if let Some(type_obj) = type_attr.as_object() {
-                if type_obj.get("__node__").and_then(|v| v.as_str()) == Some("Struct") {
-                    if let Some(name) = type_obj.get("name").and_then(|v| v.as_str()) {
-                        return Some(name.to_string());
-                    }
-                }
-            }
-        }
-
-        // Проверяем детей
-        for child in &node.children {
-            if child.node_type == "TypeDecl" {
-                for grandchild in &child.children {
-                    if grandchild.node_type == "Struct" {
-                        if let Some(name) =
-                            grandchild.attributes.get("name").and_then(|v| v.as_str())
-                        {
-                            return Some(name.to_string());
-                        }
-                    }
-                }
-            }
-        }
-
-        // Особый случай: если поле называется "point", скорее всего это структура Point
-        if let Some(name) = node.attributes.get("name").and_then(|v| v.as_str()) {
-            if name == "point" {
-                return Some("Point".to_string());
-            }
-        }
-
-        None
     }
     /// Генерирует объявление переменной типа объединения
     fn generate_union_decl(&mut self, node: &ASTNode) -> Result<String> {
