@@ -13,13 +13,12 @@ pub struct PythonGenerator {
     current_struct_type: Option<String>,
     struct_info: std::collections::HashMap<String, Vec<String>>,
     enum_info: std::collections::HashMap<String, Vec<String>>,
-    // Новое: отслеживание переменных-указателей
     pointer_vars: HashSet<String>,
-    // Новое: отслеживание адресов переменных
     address_taken: HashSet<String>,
     array_vars: HashSet<String>,
+    // Новые поля для отслеживания строковых инициализаций
+    pending_string_assignments: std::collections::HashMap<String, Vec<(usize, String)>>,
 }
-
 impl PythonGenerator {
     pub fn new() -> Self {
         Self {
@@ -33,9 +32,9 @@ impl PythonGenerator {
             pointer_vars: HashSet::new(),
             address_taken: HashSet::new(),
             array_vars: HashSet::new(),
+            pending_string_assignments: std::collections::HashMap::new(), // Новое поле
         }
     }
-
     /// Возвращает текущий отступ
     fn indent(&self) -> String {
         " ".repeat(self.indent_level * self.indent_size)
@@ -46,7 +45,6 @@ impl PythonGenerator {
         format!("{}{}\n", self.indent(), content)
     }
 
-    /// Генерирует код функции
     fn generate_function(&mut self, node: &ASTNode) -> Result<String> {
         let mut output = String::new();
 
@@ -142,12 +140,11 @@ impl PythonGenerator {
 
         debug!("Параметры функции {}: {:?}", name, params);
 
-        // Генерируем определение функции
         output.push_str(&self.line(&format!("def {}({}):", name, params.join(", "))));
 
         self.indent_level += 1;
 
-        // Генерируем тело функции - просто проходим по всем операторам в порядке их следования
+        // Генерируем тело функции
         let mut _has_return = false;
         let mut has_body = false;
         let mut body_output = String::new();
@@ -156,13 +153,50 @@ impl PythonGenerator {
             if child.node_type == "Compound" {
                 has_body = true;
                 debug!("Обработка Compound с {} детьми", child.children.len());
+
+                // Очищаем накопленные строки перед обработкой блока
+                self.pending_string_assignments.clear();
+
+                let mut last_was_string_assignment = false;
+
                 for (i, stmt) in child.children.iter().enumerate() {
                     debug!("  Оператор {} в Compound: тип={}", i, stmt.node_type);
+
                     let stmt_code = self.generate_statement(stmt)?;
-                    body_output.push_str(&stmt_code);
-                    if stmt.node_type == "Return" {
-                        _has_return = true;
+
+                    // Если оператор вернул непустой код, добавляем его
+                    if !stmt_code.is_empty() {
+                        body_output.push_str(&stmt_code);
+                        last_was_string_assignment = false;
+                    } else {
+                        // Если оператор вернул пустую строку, значит это было строковое присваивание
+                        // и оно накопилось в буфере
+                        last_was_string_assignment = true;
                     }
+
+                    // Проверяем, не является ли следующий оператор тоже строковым присваиванием
+                    let next_is_string_assignment = child
+                        .children
+                        .get(i + 1)
+                        .map(|next| {
+                            if next.node_type == "Assignment" && next.children.len() >= 2 {
+                                let left = &next.children[0];
+                                left.node_type == "ArrayRef" && left.children.len() >= 2
+                            } else {
+                                false
+                            }
+                        })
+                        .unwrap_or(false);
+
+                    // Если следующий оператор не строковое присваивание и у нас есть накопленные строки,
+                    // выводим их сейчас
+                    if !next_is_string_assignment && !self.pending_string_assignments.is_empty() {
+                        body_output.push_str(&self.finalize_string_assignments());
+                    }
+                }
+                // В конце, если остались накопленные строки, выводим их
+                if !self.pending_string_assignments.is_empty() {
+                    body_output.push_str(&self.finalize_string_assignments());
                 }
             }
         }
@@ -1671,6 +1705,14 @@ impl PythonGenerator {
             }
         }
 
+        // ДОПОЛНИТЕЛЬНАЯ ОБРАБОТКА: Проверяем, есть ли последующие операторы, которые инициализируют строковое поле
+        // Это нужно для случая, когда строка инициализируется посимвольно после объявления структуры
+        // Например: bob.name[0] = 'B'; bob.name[1] = 'o'; bob.name[2] = 'b'; bob.name[3] = '\0';
+
+        // Мы не можем обработать это здесь, так как это отдельные операторы.
+        // Вместо этого, нам нужно модифицировать метод generate_assignment, чтобы он распознавал
+        // последовательность присваиваний к элементам массива и собирал их в строку.
+
         Ok(())
     }
     /// Обработка объявления переменной объединения
@@ -1746,6 +1788,30 @@ impl PythonGenerator {
             let left_node = &node.children[0];
             let right_node = &node.children[1];
 
+            // Проверяем, является ли левая часть обращением к элементу массива строки
+            if left_node.node_type == "ArrayRef" && left_node.children.len() >= 2 {
+                let array_name_node = &left_node.children[0];
+                let index_node = &left_node.children[1];
+
+                // Генерируем выражение для имени массива (может быть bob.name)
+                let array_expr = self.generate_expression(array_name_node)?;
+
+                // Пытаемся получить индекс
+                if let Ok(index) = self.get_constant_int_value(index_node) {
+                    let value_expr = self.generate_expression(right_node)?;
+
+                    // Сохраняем присваивание в буфер
+                    let entry = self
+                        .pending_string_assignments
+                        .entry(array_expr.clone())
+                        .or_insert_with(Vec::new);
+                    entry.push((index, value_expr));
+
+                    // ВАЖНО: Не возвращаем пустую строку, а возвращаем комментарий
+                    // чтобы показать, что это было обработано, но не выводить сразу
+                    return Ok(String::new());
+                }
+            }
             // Проверяем, является ли левая часть разыменованием указателя
             if left_node.node_type == "UnaryOp" {
                 if let Some(op) = left_node.attributes.get("op").and_then(|v| v.as_str()) {
@@ -1847,7 +1913,6 @@ impl PythonGenerator {
             let left = self.generate_expression(left_node)?;
             let right = self.generate_expression(right_node)?;
 
-            // В методе generate_assignment, убедитесь, что правильно обрабатывается op
             let op = node
                 .attributes
                 .get("op")
@@ -1869,19 +1934,62 @@ impl PythonGenerator {
                 _ => "=",
             };
 
-            // При генерации кода используйте py_op
-            if left_node.node_type == "ArrayRef" {
-                let left = self.generate_expression(left_node)?;
-                let right = self.generate_expression(right_node)?;
-                return Ok(self.line(&format!("{} {} {}", left, py_op, right)));
-            }
-
             debug!("  {} {} {}", left, py_op, right);
             Ok(self.line(&format!("{} {} {}", left, py_op, right)))
         } else {
             debug!("  Недостаточно детей для присваивания");
             Ok(String::new())
         }
+    }
+
+    /// Пытается получить целочисленное значение из узла-константы
+    fn get_constant_int_value(&self, node: &ASTNode) -> Result<usize> {
+        if node.node_type == "Constant" {
+            if let Some(value) = node.attributes.get("value") {
+                if let Some(s) = value.as_str() {
+                    if let Ok(i) = s.parse::<usize>() {
+                        return Ok(i);
+                    }
+                } else if let Some(i) = value.as_i64() {
+                    return Ok(i as usize);
+                } else if let Some(i) = value.as_u64() {
+                    return Ok(i as usize);
+                }
+            }
+        }
+        Err(anyhow::anyhow!("Not a constant integer"))
+    }
+    /// Преобразует накопленные посимвольные присваивания в строковые литералы
+    fn finalize_string_assignments(&mut self) -> String {
+        let mut output = String::new();
+
+        for (array_path, mut indices_and_values) in
+            std::mem::take(&mut self.pending_string_assignments)
+        {
+            // Сортируем по индексу
+            indices_and_values.sort_by_key(|(idx, _)| *idx);
+
+            // Собираем символы в строку, игнорируя нулевой терминатор
+            let mut chars = Vec::new();
+            for (_idx, value) in indices_and_values {
+                if value == "'\\0'" || value == "0" {
+                    break; // Конец строки
+                }
+                // Извлекаем символ из кавычек, если это символ
+                if value.starts_with('\'') && value.ends_with('\'') && value.len() >= 3 {
+                    chars.push(value[1..value.len() - 1].to_string());
+                } else {
+                    chars.push(value);
+                }
+            }
+
+            if !chars.is_empty() {
+                let string_value = chars.join("");
+                output.push_str(&self.line(&format!("{} = \"{}\"", array_path, string_value)));
+            }
+        }
+
+        output
     }
     /// Генерирует объявление массива как список Python
     fn generate_array_decl(&mut self, node: &ASTNode) -> Result<String> {
