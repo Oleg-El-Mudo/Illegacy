@@ -16,7 +16,8 @@ pub struct PythonGenerator {
     pointer_vars: HashSet<String>,
     address_taken: HashSet<String>,
     array_vars: HashSet<String>,
-    // Новые поля для отслеживания строковых инициализаций
+    // Новое: информация о типах элементов массивов
+    array_element_types: std::collections::HashMap<String, String>,
     pending_string_assignments: std::collections::HashMap<String, Vec<(usize, String)>>,
 }
 impl PythonGenerator {
@@ -32,7 +33,8 @@ impl PythonGenerator {
             pointer_vars: HashSet::new(),
             address_taken: HashSet::new(),
             array_vars: HashSet::new(),
-            pending_string_assignments: std::collections::HashMap::new(), // Новое поле
+            array_element_types: std::collections::HashMap::new(), // Новое поле
+            pending_string_assignments: std::collections::HashMap::new(),
         }
     }
     /// Возвращает текущий отступ
@@ -1779,7 +1781,6 @@ impl PythonGenerator {
         Ok(())
     }
 
-    /// Генерирует присваивание
     fn generate_assignment(&mut self, node: &ASTNode) -> Result<String> {
         debug!("Генерация присваивания");
         debug!("  Детей у присваивания: {}", node.children.len());
@@ -1788,28 +1789,44 @@ impl PythonGenerator {
             let left_node = &node.children[0];
             let right_node = &node.children[1];
 
-            // Проверяем, является ли левая часть обращением к элементу массива строки
+            // Проверяем, является ли левая часть обращением к элементу массива
             if left_node.node_type == "ArrayRef" && left_node.children.len() >= 2 {
                 let array_name_node = &left_node.children[0];
                 let index_node = &left_node.children[1];
 
-                // Генерируем выражение для имени массива (может быть bob.name)
+                // Генерируем выражение для имени массива
                 let array_expr = self.generate_expression(array_name_node)?;
 
-                // Пытаемся получить индекс
-                if let Ok(index) = self.get_constant_int_value(index_node) {
-                    let value_expr = self.generate_expression(right_node)?;
+                // Проверяем, является ли это массивом символов (строкой)
+                // Извлекаем имя переменной из выражения (убираем индексы и обращения к полям)
+                let base_name = array_expr.split('.').next().unwrap_or(&array_expr);
+                let base_name = base_name.split('[').next().unwrap_or(base_name);
 
-                    // Сохраняем присваивание в буфер
-                    let entry = self
-                        .pending_string_assignments
-                        .entry(array_expr.clone())
-                        .or_insert_with(Vec::new);
-                    entry.push((index, value_expr));
+                // Проверяем, есть ли информация о том, что это массив символов
+                // Для этого нужно где-то хранить информацию о типах массивов
+                // Пока будем использовать простое правило: если имя поля "name" и тип не определен как структура
+                let is_string_array = array_expr.contains(".name")
+                    || (self.array_vars.contains(base_name)
+                        && !self.struct_info.contains_key(base_name));
 
-                    // ВАЖНО: Не возвращаем пустую строку, а возвращаем комментарий
-                    // чтобы показать, что это было обработано, но не выводить сразу
-                    return Ok(String::new());
+                if is_string_array {
+                    // Это строковый массив - обрабатываем через буфер
+                    if let Ok(index) = self.get_constant_int_value(index_node) {
+                        let value_expr = self.generate_expression(right_node)?;
+
+                        let entry = self
+                            .pending_string_assignments
+                            .entry(array_expr.clone())
+                            .or_insert_with(Vec::new);
+                        entry.push((index, value_expr));
+
+                        return Ok(String::new());
+                    }
+                } else {
+                    // Это обычный массив (не строка) - генерируем обычное присваивание
+                    let left = self.generate_expression(left_node)?;
+                    let right = self.generate_expression(right_node)?;
+                    return Ok(self.line(&format!("{} = {}", left, right)));
                 }
             }
             // Проверяем, является ли левая часть разыменованием указателя
@@ -1966,6 +1983,21 @@ impl PythonGenerator {
         for (array_path, mut indices_and_values) in
             std::mem::take(&mut self.pending_string_assignments)
         {
+            // Проверяем, что это действительно строковый массив
+            let base_name = array_path.split('.').next().unwrap_or(&array_path);
+            let base_name = base_name.split('[').next().unwrap_or(base_name);
+
+            if let Some(elem_type) = self.array_element_types.get(base_name) {
+                if elem_type != "char" {
+                    // Это не строка, пропускаем
+                    debug!(
+                        "Пропуск нестрокового массива {} типа {}",
+                        base_name, elem_type
+                    );
+                    continue;
+                }
+            }
+
             // Сортируем по индексу
             indices_and_values.sort_by_key(|(idx, _)| *idx);
 
@@ -1991,7 +2023,6 @@ impl PythonGenerator {
 
         output
     }
-    /// Генерирует объявление массива как список Python
     fn generate_array_decl(&mut self, node: &ASTNode) -> Result<String> {
         let mut output = String::new();
 
@@ -2005,17 +2036,6 @@ impl PythonGenerator {
         // ВАЖНО: Добавляем переменную в множество массивов
         self.array_vars.insert(name.to_string());
         debug!("Переменная {} помечена как массив", name);
-
-        debug!("Генерация объявления массива: {}", name);
-        debug!("Детей у узла массива: {}", node.children.len());
-
-        // Выводим всех детей для отладки
-        for (i, child) in node.children.iter().enumerate() {
-            debug!(
-                "  Ребенок {}: тип={}, атрибуты={:?}",
-                i, child.node_type, child.attributes
-            );
-        }
 
         // Определяем тип элементов массива
         let mut element_type = None;
@@ -2035,13 +2055,25 @@ impl PythonGenerator {
                                     }
                                 }
                             }
+                        } else if type_obj.get("__node__").and_then(|v| v.as_str())
+                            == Some("Struct")
+                        {
+                            if let Some(struct_name) = type_obj.get("name").and_then(|v| v.as_str())
+                            {
+                                element_type = Some(format!("struct:{}", struct_name));
+                            }
                         }
                     }
                 }
             }
         }
 
-        // Проверяем, является ли это строкой (char массив)
+        // Сохраняем тип элементов
+        if let Some(etype) = &element_type {
+            self.array_element_types
+                .insert(name.to_string(), etype.clone());
+        }
+
         let is_char_array = element_type.as_deref() == Some("char");
         debug!(
             "Тип элементов массива: {:?}, is_char_array: {}",
