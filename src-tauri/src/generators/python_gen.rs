@@ -254,60 +254,6 @@ impl PythonGenerator {
         Ok(output)
     }
 
-    // Добавить новый метод для обработки вызовов функций с параметрами-указателями
-    fn generate_function_call_with_refs(&mut self, node: &ASTNode) -> Result<String> {
-        let mut output = String::new();
-
-        if node.node_type == "FuncCall" {
-            let mut name = None;
-            let mut args = Vec::new();
-
-            // Извлекаем имя функции
-            if let Some(name_attr) = node.attributes.get("name").and_then(|v| v.as_str()) {
-                name = Some(name_attr.to_string());
-            }
-
-            // Извлекаем аргументы
-            for child in &node.children {
-                if child.node_type == "ExprList" {
-                    for arg in &child.children {
-                        let arg_expr = self.generate_expression(arg)?;
-
-                        // Проверяем, является ли аргумент переменной, адрес которой берется (&var)
-                        // В реальном AST это будет UnaryOp с оператором "&"
-                        if arg.node_type == "UnaryOp" {
-                            if let Some(op) = arg.attributes.get("op").and_then(|v| v.as_str()) {
-                                if op == "&" && !arg.children.is_empty() {
-                                    if let Some(inner) = arg.children.first() {
-                                        if inner.node_type == "ID" {
-                                            if let Some(var_name) = inner
-                                                .attributes
-                                                .get("name")
-                                                .and_then(|v| v.as_str())
-                                            {
-                                                // Это взятие адреса - оборачиваем в Reference
-                                                args.push(format!("Reference({})", var_name));
-                                                continue;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Обычный аргумент
-                        args.push(arg_expr);
-                    }
-                }
-            }
-
-            let name = name.unwrap_or_else(|| "unknown".to_string());
-            output.push_str(&self.line(&format!("{}({})", name, args.join(", "))));
-        }
-
-        Ok(output)
-    }
-
     // Извлекает имя параметра из узла
     fn extract_param_name(&self, node: &ASTNode) -> Option<String> {
         // Прямой атрибут name
@@ -2811,8 +2757,8 @@ impl PythonGenerator {
         Ok(output)
     }
     /// Генерирует код для инициализации вложенных объектов перед их использованием
-    fn ensure_nested_objects(&mut self, node: &ASTNode, object_path: &str) -> Result<String> {
-        let mut output = String::new();
+    fn ensure_nested_objects(&mut self, _node: &ASTNode, _object_path: &str) -> Result<String> {
+        let mut _output = String::new();
 
         // Для нашего случая просто возвращаем пустую строку,
         // так как мы инициализируем всё в конструкторах
