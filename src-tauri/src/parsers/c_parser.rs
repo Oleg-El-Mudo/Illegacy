@@ -842,6 +842,48 @@ impl CParser {
                             node.children.len()
                         );
                     }
+
+                    // В методе parse_ast_node, в секции match node_type, добавьте после обработки "InitList":
+                    "NamedInitializer" => {
+                        debug!("Обработка NamedInitializer (именованного инициализатора)");
+                        debug!("Содержимое NamedInitializer: {:#?}", obj);
+
+                        // Обрабатываем имя поля (может быть в виде "name[0]" или просто "name")
+                        let mut name_indices = Vec::new();
+                        for (key, value) in obj {
+                            if key.starts_with("name[") && key.ends_with(']') {
+                                if let Some(index_str) =
+                                    key.strip_prefix("name[").and_then(|s| s.strip_suffix(']'))
+                                {
+                                    if let Ok(index) = index_str.parse::<usize>() {
+                                        name_indices.push((index, value));
+                                    }
+                                }
+                            }
+                        }
+
+                        // Сортируем по индексу и сохраняем
+                        name_indices.sort_by_key(|(i, _)| *i);
+                        for (i, (_, value)) in name_indices.iter().enumerate() {
+                            node.attributes
+                                .insert(format!("name[{}]", i), (*value).clone());
+                        }
+
+                        // Если нет индексированных имен, проверяем прямое поле "name"
+                        if name_indices.is_empty() {
+                            if let Some(name) = obj.get("name") {
+                                node.attributes.insert("name".to_string(), name.clone());
+                            }
+                        }
+
+                        // Обрабатываем выражение
+                        if let Some(expr) = obj.get("expr") {
+                            node.attributes.insert("expr".to_string(), expr.clone());
+                            if let Ok(expr_node) = self.parse_ast_node(expr) {
+                                node.children.push(expr_node);
+                            }
+                        }
+                    }
                     "ArrayRef" => {
                         debug!("Обработка обращения к элементу массива");
                         debug!("Содержимое ArrayRef: {:#?}", obj);

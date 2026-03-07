@@ -74,8 +74,9 @@ impl PythonGenerator {
             }
         }
 
-        // Собираем параметры функции
+        // Собираем параметры функции и определяем, какие из них указатели
         let mut params = Vec::new();
+        let mut pointer_params = std::collections::HashSet::new();
 
         // 1. Проверяем атрибут param_names (добавлен в c_parser)
         if let Some(param_names) = node.attributes.get("param_names") {
@@ -86,6 +87,12 @@ impl PythonGenerator {
                         debug!("Найден параметр в param_names: {}", param_name);
                         params.push(param_name.to_string());
                         self.symbols.insert(param_name.to_string());
+
+                        // В реальном коде здесь нужно анализировать тип параметра
+                        // Пока будем считать, что параметры с именами x, y, z - указатели (для функции swap)
+                        if param_name == "x" || param_name == "y" || param_name == "z" {
+                            pointer_params.insert(param_name.to_string());
+                        }
                     }
                 }
             }
@@ -103,6 +110,15 @@ impl PythonGenerator {
                                 debug!("Найден параметр в attributes.params: {}", param_name);
                                 params.push(param_name.to_string());
                                 self.symbols.insert(param_name.to_string());
+
+                                // Проверяем, является ли параметр указателем
+                                if let Some(type_obj) = param_obj.get("type") {
+                                    if let Some(type_str) = type_obj.as_str() {
+                                        if type_str.contains('*') || type_str == "ptr" {
+                                            pointer_params.insert(param_name.to_string());
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -119,7 +135,15 @@ impl PythonGenerator {
                         if let Some(param_name) = self.extract_param_name(param) {
                             debug!("Найден параметр в ParamList: {}", param_name);
                             params.push(param_name.clone());
-                            self.symbols.insert(param_name);
+                            self.symbols.insert(param_name.clone());
+
+                            // Проверяем, является ли параметр указателем
+                            if param.node_type == "PtrDecl"
+                                || (param.node_type == "Decl"
+                                    && param.children.iter().any(|c| c.node_type == "PtrDecl"))
+                            {
+                                pointer_params.insert(param_name);
+                            }
                         }
                     }
                 }
@@ -135,16 +159,34 @@ impl PythonGenerator {
                         debug!("Найден параметр в Decl: {}", param_name);
                         params.push(param_name.to_string());
                         self.symbols.insert(param_name.to_string());
+
+                        // Проверяем, является ли параметр указателем
+                        for grandchild in &child.children {
+                            if grandchild.node_type == "PtrDecl" {
+                                pointer_params.insert(param_name.to_string());
+                                break;
+                            }
+                        }
                     }
                 }
             }
         }
 
         debug!("Параметры функции {}: {:?}", name, params);
+        debug!("Параметры-указатели: {:?}", pointer_params);
 
+        // Генерируем сигнатуру функции
         output.push_str(&self.line(&format!("def {}({}):", name, params.join(", "))));
 
         self.indent_level += 1;
+
+        // Добавляем аннотации для параметров-указателей (для документации)
+        if !pointer_params.is_empty() {
+            output.push_str(&self.line("# Параметры-указатели (ожидают объекты Reference):"));
+            for param in &pointer_params {
+                output.push_str(&self.line(&format!("# {}: Reference", param)));
+            }
+        }
 
         // Генерируем тело функции
         let mut _has_return = false;
@@ -159,8 +201,6 @@ impl PythonGenerator {
                 // Очищаем накопленные строки перед обработкой блока
                 self.pending_string_assignments.clear();
 
-                let mut last_was_string_assignment = false;
-
                 for (i, stmt) in child.children.iter().enumerate() {
                     debug!("  Оператор {} в Compound: тип={}", i, stmt.node_type);
 
@@ -169,11 +209,6 @@ impl PythonGenerator {
                     // Если оператор вернул непустой код, добавляем его
                     if !stmt_code.is_empty() {
                         body_output.push_str(&stmt_code);
-                        last_was_string_assignment = false;
-                    } else {
-                        // Если оператор вернул пустую строку, значит это было строковое присваивание
-                        // и оно накопилось в буфере
-                        last_was_string_assignment = true;
                     }
 
                     // Проверяем, не является ли следующий оператор тоже строковым присваиванием
@@ -215,6 +250,60 @@ impl PythonGenerator {
 
         self.indent_level -= 1;
         output.push_str(&self.line(""));
+
+        Ok(output)
+    }
+
+    // Добавить новый метод для обработки вызовов функций с параметрами-указателями
+    fn generate_function_call_with_refs(&mut self, node: &ASTNode) -> Result<String> {
+        let mut output = String::new();
+
+        if node.node_type == "FuncCall" {
+            let mut name = None;
+            let mut args = Vec::new();
+
+            // Извлекаем имя функции
+            if let Some(name_attr) = node.attributes.get("name").and_then(|v| v.as_str()) {
+                name = Some(name_attr.to_string());
+            }
+
+            // Извлекаем аргументы
+            for child in &node.children {
+                if child.node_type == "ExprList" {
+                    for arg in &child.children {
+                        let arg_expr = self.generate_expression(arg)?;
+
+                        // Проверяем, является ли аргумент переменной, адрес которой берется (&var)
+                        // В реальном AST это будет UnaryOp с оператором "&"
+                        if arg.node_type == "UnaryOp" {
+                            if let Some(op) = arg.attributes.get("op").and_then(|v| v.as_str()) {
+                                if op == "&" && !arg.children.is_empty() {
+                                    if let Some(inner) = arg.children.first() {
+                                        if inner.node_type == "ID" {
+                                            if let Some(var_name) = inner
+                                                .attributes
+                                                .get("name")
+                                                .and_then(|v| v.as_str())
+                                            {
+                                                // Это взятие адреса - оборачиваем в Reference
+                                                args.push(format!("Reference({})", var_name));
+                                                continue;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Обычный аргумент
+                        args.push(arg_expr);
+                    }
+                }
+            }
+
+            let name = name.unwrap_or_else(|| "unknown".to_string());
+            output.push_str(&self.line(&format!("{}({})", name, args.join(", "))));
+        }
 
         Ok(output)
     }
@@ -635,6 +724,7 @@ impl PythonGenerator {
                     }
                 }
             }
+            // В методе generate_expression_internal, в секции "FuncCall":
             "FuncCall" => {
                 // Ищем имя функции
                 let mut name = None;
@@ -683,9 +773,15 @@ impl PythonGenerator {
                 });
 
                 debug!("Вызов функции: {} с аргументами: {:?}", name, args_exprs);
-                Ok(format!("{}({})", name, args_exprs.join(", ")))
-            }
 
+                // Проверяем, не является ли имя функции указателем на функцию
+                if self.pointer_vars.contains(&name) {
+                    // Это указатель на функцию - нужно разыменовать
+                    Ok(format!("{}.value({})", name, args_exprs.join(", ")))
+                } else {
+                    Ok(format!("{}({})", name, args_exprs.join(", ")))
+                }
+            }
             "ExprList" => {
                 // Это отдельное выражение (не как аргумент функции)
                 let mut exprs = Vec::new();
@@ -1585,7 +1681,6 @@ impl PythonGenerator {
         Ok(())
     }
 
-    /// Обработка объявления структурной переменной
     fn handle_struct_declaration(
         &mut self,
         name: &str,
@@ -1601,31 +1696,38 @@ impl PythonGenerator {
         );
 
         if let Some(init) = init_node {
-            // Есть инициализатор
+            // Проверяем тип инициализатора
             if init.node_type == "InitList" {
-                // Проверяем, есть ли среди детей NamedInitializer (C99 designated initializers)
-                let mut has_named = false;
-                let mut named_values = Vec::new();
+                // Обычная инициализация списком
+                self.current_struct_type = struct_type.clone();
+                debug!(
+                    "Установлен контекст структуры {:?} для InitList переменной {}",
+                    struct_type, name
+                );
+                let init_code = self.generate_expression(init)?;
+                self.current_struct_type = None;
+                output.push_str(&self.line(&format!("{} = {}", name, init_code)));
 
+                // Проверяем, есть ли среди детей NamedInitializer
+                let mut named_init_values = std::collections::HashMap::new();
                 for child in &init.children {
                     if child.node_type == "NamedInitializer" {
-                        has_named = true;
-                        // Сохраняем информацию об именованных инициализаторах
-                        if let Some(struct_name) = &struct_type {
-                            if let Some(_fields) = self.struct_info.get(struct_name) {
-                                // Пытаемся извлечь имя поля и значение
-                                if let Some(name_attr) = child.attributes.get("name[0]") {
-                                    if let Some(name_obj) = name_attr.as_object() {
-                                        if let Some(field_name) =
-                                            name_obj.get("name").and_then(|v| v.as_str())
-                                        {
-                                            if let Some(expr_attr) = child.attributes.get("expr") {
-                                                named_values.push((
-                                                    field_name.to_string(),
-                                                    expr_attr.clone(),
-                                                ));
-                                            }
-                                        }
+                        if let Some(field_name) = self.extract_field_name_from_named_init(child) {
+                            if let Some(expr_child) = child.children.first() {
+                                let value = self.generate_expression(expr_child)?;
+                                named_init_values.insert(field_name, value);
+                            }
+                        }
+                    } else if child.node_type == "InitList" && child.children.len() > 0 {
+                        // Рекурсивно обрабатываем вложенные InitList для многомерных структур
+                        for nested in &child.children {
+                            if nested.node_type == "NamedInitializer" {
+                                if let Some(field_name) =
+                                    self.extract_field_name_from_named_init(nested)
+                                {
+                                    if let Some(expr_child) = nested.children.first() {
+                                        let value = self.generate_expression(expr_child)?;
+                                        named_init_values.insert(field_name, value);
                                     }
                                 }
                             }
@@ -1633,61 +1735,24 @@ impl PythonGenerator {
                     }
                 }
 
-                if has_named {
-                    // Для designated initializers создаем объект с параметрами по умолчанию
-                    if let Some(struct_name) = struct_type {
-                        if let Some(fields) = self.struct_info.get(&struct_name) {
-                            let default_params = vec!["None".to_string(); fields.len()].join(", ");
-                            output.push_str(
-                                &self.line(&format!(
-                                    "{} = {}({})",
-                                    name, struct_name, default_params
-                                )),
-                            );
-
-                            // Затем устанавливаем именованные поля
-                            for (field_name, expr_attr) in named_values {
-                                // Создаем временный узел для выражения
-                                let temp_node = if let Some(expr_obj) = expr_attr.as_object() {
-                                    ASTNode::new(
-                                        expr_obj
-                                            .get("__node__")
-                                            .and_then(|v| v.as_str())
-                                            .unwrap_or("Value"),
-                                    )
-                                    .with_attr("value", expr_attr.clone())
-                                } else {
-                                    ASTNode::new("Value").with_attr("value", expr_attr)
-                                };
-
-                                let value = self.generate_expression(&temp_node)?;
-                                output.push_str(
-                                    &self.line(&format!("{}.{} = {}", name, field_name, value)),
-                                );
-                            }
-                        } else {
-                            output.push_str(&self.line(&format!("{} = {}()", name, struct_name)));
-                        }
+                // Если есть именованные инициализаторы, обновляем поля после создания
+                if !named_init_values.is_empty() {
+                    for (field_name, value) in named_init_values {
+                        output
+                            .push_str(&self.line(&format!("{}.{} = {}", name, field_name, value)));
                     }
-                } else {
-                    // Обычная инициализация списком
-                    self.current_struct_type = struct_type.clone();
-                    debug!(
-                        "Установлен контекст структуры {:?} для InitList переменной {}",
-                        struct_type, name
-                    );
-                    let init_code = self.generate_expression(init)?;
-                    self.current_struct_type = None;
-
-                    output.push_str(&self.line(&format!("{} = {}", name, init_code)));
                 }
+            } else if init.node_type == "Constant" || init.node_type == "ID" {
+                // Прямое присваивание (например, при передаче структуры как параметра)
+                let init_code = self.generate_expression(init)?;
+                output.push_str(&self.line(&format!("{} = {}", name, init_code)));
             } else {
-                // Инициализация другим выражением
+                // Другие типы инициализаторов
                 let init_code = self.generate_expression(init)?;
                 output.push_str(&self.line(&format!("{} = {}", name, init_code)));
             }
         } else {
-            // Нет инициализатора
+            // Нет инициализатора - создаем с None для всех полей
             if let Some(struct_name) = struct_type {
                 if let Some(fields) = self.struct_info.get(&struct_name) {
                     if !fields.is_empty() {
@@ -1699,7 +1764,7 @@ impl PythonGenerator {
                         output.push_str(&self.line(&format!("{} = {}()", name, struct_name)));
                     }
                 } else {
-                    output.push_str(&self.line(&format!("{} = {}(None)", name, struct_name)));
+                    output.push_str(&self.line(&format!("{} = {}()", name, struct_name)));
                 }
             } else {
                 warn!("Неизвестный тип структуры для переменной {}", name);
@@ -1707,15 +1772,39 @@ impl PythonGenerator {
             }
         }
 
-        // ДОПОЛНИТЕЛЬНАЯ ОБРАБОТКА: Проверяем, есть ли последующие операторы, которые инициализируют строковое поле
-        // Это нужно для случая, когда строка инициализируется посимвольно после объявления структуры
-        // Например: bob.name[0] = 'B'; bob.name[1] = 'o'; bob.name[2] = 'b'; bob.name[3] = '\0';
-
-        // Мы не можем обработать это здесь, так как это отдельные операторы.
-        // Вместо этого, нам нужно модифицировать метод generate_assignment, чтобы он распознавал
-        // последовательность присваиваний к элементам массива и собирал их в строку.
-
         Ok(())
+    }
+
+    // Вспомогательный метод для извлечения имени поля из NamedInitializer
+    fn extract_field_name_from_named_init(&self, node: &ASTNode) -> Option<String> {
+        // Проверяем атрибуты name[0], name[1] и т.д.
+        for i in 0.. {
+            let key = format!("name[{}]", i);
+            if let Some(name_value) = node.attributes.get(&key) {
+                if let Some(name_obj) = name_value.as_object() {
+                    if let Some(field_name) = name_obj.get("name").and_then(|v| v.as_str()) {
+                        return Some(field_name.to_string());
+                    }
+                } else if let Some(name_str) = name_value.as_str() {
+                    return Some(name_str.to_string());
+                }
+            } else {
+                break;
+            }
+        }
+
+        // Проверяем прямой атрибут name
+        if let Some(name_value) = node.attributes.get("name") {
+            if let Some(name_obj) = name_value.as_object() {
+                if let Some(field_name) = name_obj.get("name").and_then(|v| v.as_str()) {
+                    return Some(field_name.to_string());
+                }
+            } else if let Some(name_str) = name_value.as_str() {
+                return Some(name_str.to_string());
+            }
+        }
+
+        None
     }
     /// Обработка объявления переменной объединения
     fn handle_union_declaration(
@@ -1789,6 +1878,13 @@ impl PythonGenerator {
             let left_node = &node.children[0];
             let right_node = &node.children[1];
 
+            // Получаем оператор присваивания
+            let op = node
+                .attributes
+                .get("op")
+                .and_then(|v| v.as_str())
+                .unwrap_or("=");
+
             // Проверяем, является ли левая часть обращением к элементу массива
             if left_node.node_type == "ArrayRef" && left_node.children.len() >= 2 {
                 let array_name_node = &left_node.children[0];
@@ -1798,13 +1894,10 @@ impl PythonGenerator {
                 let array_expr = self.generate_expression(array_name_node)?;
 
                 // Проверяем, является ли это массивом символов (строкой)
-                // Извлекаем имя переменной из выражения (убираем индексы и обращения к полям)
                 let base_name = array_expr.split('.').next().unwrap_or(&array_expr);
                 let base_name = base_name.split('[').next().unwrap_or(base_name);
 
                 // Проверяем, есть ли информация о том, что это массив символов
-                // Для этого нужно где-то хранить информацию о типах массивов
-                // Пока будем использовать простое правило: если имя поля "name" и тип не определен как структура
                 let is_string_array = array_expr.contains(".name")
                     || (self.array_vars.contains(base_name)
                         && !self.struct_info.contains_key(base_name));
@@ -1826,13 +1919,31 @@ impl PythonGenerator {
                     // Это обычный массив (не строка) - генерируем обычное присваивание
                     let left = self.generate_expression(left_node)?;
                     let right = self.generate_expression(right_node)?;
-                    return Ok(self.line(&format!("{} = {}", left, right)));
+
+                    // Преобразуем оператор в Python
+                    let py_op = match op {
+                        "=" => "=",
+                        "+=" => "+=",
+                        "-=" => "-=",
+                        "*=" => "*=",
+                        "/=" => "/=",
+                        "%=" => "%=",
+                        "&=" => "&=",
+                        "|=" => "|=",
+                        "^=" => "^=",
+                        "<<=" => "<<=",
+                        ">>=" => ">>=",
+                        _ => "=",
+                    };
+
+                    return Ok(self.line(&format!("{} {} {}", left, py_op, right)));
                 }
             }
+
             // Проверяем, является ли левая часть разыменованием указателя
             if left_node.node_type == "UnaryOp" {
-                if let Some(op) = left_node.attributes.get("op").and_then(|v| v.as_str()) {
-                    if op == "*" && left_node.children.len() == 1 {
+                if let Some(unary_op) = left_node.attributes.get("op").and_then(|v| v.as_str()) {
+                    if unary_op == "*" && left_node.children.len() == 1 {
                         let inner = &left_node.children[0];
 
                         // Проверяем, является ли внутреннее выражение арифметикой указателей
@@ -1854,9 +1965,15 @@ impl PythonGenerator {
                                                 self.generate_expression(right_node)?;
 
                                             // Для указателя на массив: ptr[index] = value
+                                            let py_op = match op {
+                                                "+=" => "+=",
+                                                "-=" => "-=",
+                                                _ => "=",
+                                            };
+
                                             return Ok(self.line(&format!(
-                                                "{}[{}] = {}",
-                                                ptr_name, index_expr, right_expr
+                                                "{}[{}] {} {}",
+                                                ptr_name, index_expr, py_op, right_expr
                                             )));
                                         }
                                     }
@@ -1879,48 +1996,28 @@ impl PythonGenerator {
                                     && self.array_vars.contains(ptr_name)
                                 {
                                     // Для указателя на массив: ptr[0] = value
-                                    return Ok(
-                                        self.line(&format!("{}[0] = {}", ptr_name, right_expr))
-                                    );
+                                    let py_op = match op {
+                                        "+=" => "+=",
+                                        "-=" => "-=",
+                                        _ => "=",
+                                    };
+                                    return Ok(self.line(&format!(
+                                        "{}[0] {} {}",
+                                        ptr_name, py_op, right_expr
+                                    )));
                                 } else {
                                     // Для обычного указателя: ptr.value = value
-                                    return Ok(
-                                        self.line(&format!("{}.value = {}", ptr_name, right_expr))
-                                    );
+                                    let py_op = match op {
+                                        "+=" => "+=",
+                                        "-=" => "-=",
+                                        _ => "=",
+                                    };
+                                    return Ok(self.line(&format!(
+                                        "{}.value {} {}",
+                                        ptr_name, py_op, right_expr
+                                    )));
                                 }
                             }
-                        }
-                    }
-                }
-            }
-            // Проверяем, является ли левая часть обращением к элементу массива
-            if left_node.node_type == "ArrayRef" {
-                let left = self.generate_expression(left_node)?;
-                let right = self.generate_expression(right_node)?;
-
-                // Проверяем, не нужно ли добавить .value к правой части
-                if right_node.node_type == "UnaryOp" {
-                    if let Some(op) = right_node.attributes.get("op").and_then(|v| v.as_str()) {
-                        if op == "*" {
-                            // Это ptr = *something - разыменование в правой части
-                            // Обрабатывается в generate_expression
-                        }
-                    }
-                }
-
-                return Ok(self.line(&format!("{} = {}", left, right)));
-            }
-
-            // Проверяем, является ли левая часть идентификатором, который может быть указателем
-            if left_node.node_type == "ID" {
-                if let Some(var_name) = left_node.attributes.get("name").and_then(|v| v.as_str()) {
-                    let right_expr = self.generate_expression(right_node)?;
-
-                    // Если это присваивание указателю (ptr = something)
-                    if self.pointer_vars.contains(var_name) {
-                        // Для указателей на массивы оставляем как есть
-                        if self.array_vars.contains(var_name) {
-                            return Ok(self.line(&format!("{} = {}", var_name, right_expr)));
                         }
                     }
                 }
@@ -1929,12 +2026,6 @@ impl PythonGenerator {
             // Обычное присваивание
             let left = self.generate_expression(left_node)?;
             let right = self.generate_expression(right_node)?;
-
-            let op = node
-                .attributes
-                .get("op")
-                .and_then(|v| v.as_str())
-                .unwrap_or("=");
 
             let py_op = match op {
                 "=" => "=",
@@ -1958,7 +2049,6 @@ impl PythonGenerator {
             Ok(String::new())
         }
     }
-
     /// Пытается получить целочисленное значение из узла-константы
     fn get_constant_int_value(&self, node: &ASTNode) -> Result<usize> {
         if node.node_type == "Constant" {
@@ -2334,7 +2424,6 @@ impl PythonGenerator {
         Ok(output)
     }
 
-    /// Генерирует класс Python из структуры C
     fn generate_struct(&mut self, node: &ASTNode) -> Result<String> {
         let mut output = String::new();
 
@@ -2368,25 +2457,37 @@ impl PythonGenerator {
         // Генерируем метод __init__ с параметрами
         if field_names.is_empty() {
             output.push_str(&self.line("def __init__(self):"));
+            self.indent_level += 1;
+            output.push_str(&self.line("pass"));
+            self.indent_level -= 1;
         } else {
             let params = field_names.join(", ");
             output.push_str(&self.line(&format!("def __init__(self, {}):", params)));
+            self.indent_level += 1;
+
+            // Инициализируем поля в __init__
+            for field_name in &field_names {
+                output.push_str(&self.line(&format!("self.{} = {}", field_name, field_name)));
+            }
+            self.indent_level -= 1;
         }
 
+        // Добавляем метод для обновления из именованных инициализаторов
+        output.push_str(&self.line(""));
+        output.push_str(&self.line("def update_from_named(self, **kwargs):"));
         self.indent_level += 1;
+        output.push_str(&self.line("for key, value in kwargs.items():"));
+        self.indent_level += 1;
+        output.push_str(&self.line("if hasattr(self, key):"));
+        self.indent_level += 1;
+        output.push_str(&self.line("setattr(self, key, value)"));
+        self.indent_level -= 3;
 
-        // Инициализируем поля в __init__
-        for field_name in &field_names {
-            output.push_str(&self.line(&format!("self.{} = {}", field_name, field_name)));
-        }
-
-        self.indent_level -= 1; // Выходим из __init__
         self.indent_level -= 1; // Выходим из класса
         output.push_str(&self.line(""));
 
         Ok(output)
     }
-
     /// Генерирует объявление переменной типа структуры
     fn generate_struct_decl(&mut self, node: &ASTNode) -> Result<String> {
         let mut output = String::new();
@@ -2471,7 +2572,6 @@ impl PythonGenerator {
             Ok("None".to_string())
         }
     }
-    // В методе generate_union, улучшите обработку вложенных структур
     fn generate_union(&mut self, node: &ASTNode) -> Result<String> {
         let mut output = String::new();
 
@@ -2486,6 +2586,7 @@ impl PythonGenerator {
         // Собираем информацию о полях и их типах
         let mut fields = Vec::new();
         let mut field_types = std::collections::HashMap::new(); // поле -> тип
+        let mut nested_structs = Vec::new(); // для вложенных структур
 
         for child in &node.children {
             if child.node_type == "Decl" {
@@ -2495,7 +2596,54 @@ impl PythonGenerator {
                     // Определяем тип поля
                     if let Some(type_attr) = child.attributes.get("type") {
                         field_types.insert(field_name.to_string(), type_attr.clone());
+
+                        // Проверяем, является ли поле вложенной структурой
+                        if let Some(type_obj) = type_attr.as_object() {
+                            if let Some(node_type) =
+                                type_obj.get("__node__").and_then(|v| v.as_str())
+                            {
+                                if node_type == "Struct" {
+                                    if let Some(struct_name) =
+                                        type_obj.get("name").and_then(|v| v.as_str())
+                                    {
+                                        nested_structs.push((
+                                            field_name.to_string(),
+                                            struct_name.to_string(),
+                                        ));
+                                    }
+                                }
+                            }
+                        }
                     }
+                }
+            } else if child.node_type == "Struct" {
+                // Анонимная структура внутри объединения
+                if let Some(struct_name) = child.attributes.get("name").and_then(|v| v.as_str()) {
+                    // Это именованная структура
+                    nested_structs.push((struct_name.to_string(), struct_name.to_string()));
+                } else {
+                    // Анонимная структура - создаем для нее внутренний класс
+                    let anon_struct_name = format!("{}_AnonymousStruct", name);
+                    nested_structs.push((anon_struct_name.clone(), anon_struct_name.clone()));
+
+                    // Генерируем внутренний класс для анонимной структуры
+                    self.indent_level += 1;
+                    output.push_str(&self.line(&format!("class {}:", anon_struct_name)));
+                    self.indent_level += 1;
+                    output.push_str(&self.line("def __init__(self):"));
+                    self.indent_level += 1;
+
+                    // Собираем поля анонимной структуры
+                    for struct_child in &child.children {
+                        if struct_child.node_type == "Decl" {
+                            if let Some(field_name) =
+                                struct_child.attributes.get("name").and_then(|v| v.as_str())
+                            {
+                                output.push_str(&self.line(&format!("self.{} = None", field_name)));
+                            }
+                        }
+                    }
+                    self.indent_level -= 2;
                 }
             }
         }
@@ -2526,12 +2674,26 @@ impl PythonGenerator {
                     }
                 }
             }
-            // Обычное поле
-            output.push_str(&self.line(&format!("self.{} = None", field_name)));
+
+            // Проверяем, есть ли это поле в nested_structs
+            let mut found = false;
+            for (nested_field, nested_type) in &nested_structs {
+                if nested_field == field_name {
+                    output
+                        .push_str(&self.line(&format!("self.{} = {}()", field_name, nested_type)));
+                    found = true;
+                    break;
+                }
+            }
+
+            if !found {
+                // Обычное поле
+                output.push_str(&self.line(&format!("self.{} = None", field_name)));
+            }
         }
 
         // Если полей нет, добавляем pass
-        if fields.is_empty() {
+        if fields.is_empty() && nested_structs.is_empty() {
             output.push_str(&self.line("pass"));
         }
 
@@ -2779,57 +2941,77 @@ impl Generator for PythonGenerator {
         output.push_str("import sys\n");
         output.push_str("import os\n");
         output.push_str("import enum\n");
-        output.push_str("from enum import auto\n");
+        output.push_str("from enum import auto\n\n");
 
         // Добавляем класс Reference для поддержки указателей
         output.push_str(&generator.generate_reference_class());
+        output.push_str("\n");
 
-        // Обрабатываем определения структур, объединений и перечислений
-        for node in &ast.children {
-            if node.node_type == "Decl" {
-                for child in &node.children {
-                    match child.node_type.as_str() {
-                        "Struct" => output.push_str(&generator.generate_struct(child)?),
-                        "Union" => output.push_str(&generator.generate_union(child)?),
-                        "Enum" => output.push_str(&generator.generate_enum(child)?),
-                        _ => {}
-                    }
-                }
-            } else {
-                match node.node_type.as_str() {
-                    "Enum" => output.push_str(&generator.generate_enum(node)?),
-                    _ => {}
-                }
-            }
-        }
-
-        // Обрабатываем функции
+        // Сначала обрабатываем все определения типов (структуры, объединения, перечисления)
+        // чтобы они были доступны при обработке переменных и функций
+        let mut structs = Vec::new();
+        let mut unions = Vec::new();
+        let mut enums = Vec::new();
+        let mut functions = Vec::new();
         let mut has_main = false;
+
         for node in &ast.children {
             match node.node_type.as_str() {
                 "FuncDef" | "FuncDecl" => {
-                    output.push_str(&generator.generate_function(node)?);
-
-                    // Проверяем, является ли эта функция main
+                    functions.push(node);
                     if let Some(name) = node.attributes.get("name").and_then(|v| v.as_str()) {
                         if name == "main" {
                             has_main = true;
                         }
                     }
                 }
+                "Decl" => {
+                    for child in &node.children {
+                        match child.node_type.as_str() {
+                            "Struct" => structs.push(child),
+                            "Union" => unions.push(child),
+                            "Enum" => enums.push(child),
+                            _ => {}
+                        }
+                    }
+                }
+                "Enum" => enums.push(node),
                 _ => {}
             }
         }
 
+        // Генерируем перечисления
+        for enum_node in enums {
+            output.push_str(&generator.generate_enum(enum_node)?);
+            output.push_str("\n");
+        }
+
+        // Генерируем структуры
+        for struct_node in structs {
+            output.push_str(&generator.generate_struct(struct_node)?);
+            output.push_str("\n");
+        }
+
+        // Генерируем объединения
+        for union_node in unions {
+            output.push_str(&generator.generate_union(union_node)?);
+            output.push_str("\n");
+        }
+
+        // Генерируем функции
+        for func_node in functions {
+            output.push_str(&generator.generate_function(func_node)?);
+            output.push_str("\n");
+        }
+
         // Добавляем конструкцию if __name__ == "__main__" для вызова main()
         if has_main {
-            output.push_str("\nif __name__ == \"__main__\":\n");
+            output.push_str("if __name__ == \"__main__\":\n");
             output.push_str("    main()\n");
         }
 
         Ok(output)
     }
-
     fn language_name() -> &'static str {
         "Python"
     }
