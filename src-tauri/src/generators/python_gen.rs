@@ -1,40 +1,181 @@
 use anyhow::Result;
 use log::{debug, warn};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use super::Generator;
 use crate::ast::ASTNode;
 
+// Структура для описания соответствия функций C и Python
+#[derive(Clone)] 
+struct FunctionMapping {
+    c_name: &'static str,
+    python_code: &'static str,
+    import_required: Option<&'static str>,
+    _is_standard_python: bool,
+}
+
+impl FunctionMapping {
+    fn new(
+        c_name: &'static str,
+        python_code: &'static str,
+        import_required: Option<&'static str>,
+    ) -> Self {
+        Self {
+            c_name,
+            python_code,
+            import_required,
+            _is_standard_python: true,
+        }
+    }
+}
 pub struct PythonGenerator {
     indent_level: usize,
     indent_size: usize,
     symbols: HashSet<String>,
     in_expression: bool,
     current_struct_type: Option<String>,
-    struct_info: std::collections::HashMap<String, Vec<String>>,
-    enum_info: std::collections::HashMap<String, Vec<String>>,
+    struct_info: HashMap<String, Vec<String>>,
+    enum_info: HashMap<String, Vec<String>>,
     pointer_vars: HashSet<String>,
     address_taken: HashSet<String>,
     array_vars: HashSet<String>,
-    // Новое: информация о типах элементов массивов
-    array_element_types: std::collections::HashMap<String, String>,
-    pending_string_assignments: std::collections::HashMap<String, Vec<(usize, String)>>,
+    array_element_types: HashMap<String, String>,
+    pending_string_assignments: HashMap<String, Vec<(usize, String)>>,
+    // Новые поля для отслеживания импортов и используемых функций
+    required_imports: HashSet<String>,
+    used_functions: HashSet<String>,
+    function_mappings: HashMap<String, FunctionMapping>,
 }
+
 impl PythonGenerator {
     pub fn new() -> Self {
-        Self {
+        let mut generator = Self {
             indent_level: 0,
             indent_size: 4,
             symbols: HashSet::new(),
             in_expression: false,
             current_struct_type: None,
-            struct_info: std::collections::HashMap::new(),
-            enum_info: std::collections::HashMap::new(),
+            struct_info: HashMap::new(),
+            enum_info: HashMap::new(),
             pointer_vars: HashSet::new(),
             address_taken: HashSet::new(),
             array_vars: HashSet::new(),
-            array_element_types: std::collections::HashMap::new(), // Новое поле
-            pending_string_assignments: std::collections::HashMap::new(),
+            array_element_types: HashMap::new(),
+            pending_string_assignments: HashMap::new(),
+            required_imports: HashSet::new(),
+            used_functions: HashSet::new(),
+            function_mappings: HashMap::new(),
+        };
+
+        generator.init_function_mappings();
+        generator
+    }
+    /// Инициализация маппинга стандартных функций C
+    fn init_function_mappings(&mut self) {
+        let mappings: Vec<FunctionMapping> = vec![
+            // Математические функции (math.h) - требуют import math
+            FunctionMapping::new("sin", "math.sin({})", Some("import math")),
+            FunctionMapping::new("cos", "math.cos({})", Some("import math")),
+            FunctionMapping::new("tan", "math.tan({})", Some("import math")),
+            FunctionMapping::new("asin", "math.asin({})", Some("import math")),
+            FunctionMapping::new("acos", "math.acos({})", Some("import math")),
+            FunctionMapping::new("atan", "math.atan({})", Some("import math")),
+            FunctionMapping::new("atan2", "math.atan2({}, {})", Some("import math")),
+            FunctionMapping::new("sinh", "math.sinh({})", Some("import math")),
+            FunctionMapping::new("cosh", "math.cosh({})", Some("import math")),
+            FunctionMapping::new("tanh", "math.tanh({})", Some("import math")),
+            FunctionMapping::new("exp", "math.exp({})", Some("import math")),
+            FunctionMapping::new("log", "math.log({})", Some("import math")),
+            FunctionMapping::new("log10", "math.log10({})", Some("import math")),
+            FunctionMapping::new("sqrt", "math.sqrt({})", Some("import math")),
+            FunctionMapping::new("pow", "math.pow({}, {})", Some("import math")),
+            FunctionMapping::new("fabs", "math.fabs({})", Some("import math")),
+            FunctionMapping::new("ceil", "math.ceil({})", Some("import math")),
+            FunctionMapping::new("floor", "math.floor({})", Some("import math")),
+            FunctionMapping::new("fmod", "math.fmod({}, {})", Some("import math")),
+            // Строковые функции (string.h) - некоторые встроенные, некоторые требуют import
+            FunctionMapping::new("strlen", "len({})", None),
+            FunctionMapping::new("strcpy", "{}[:]", None), // Для копирования строки
+            FunctionMapping::new("strcat", "{0} + {1}", None), // Конкатенация
+            FunctionMapping::new(
+                "strcmp",
+                "(0 if {0} == {1} else -1 if {0} < {1} else 1)",
+                None,
+            ),
+            FunctionMapping::new(
+                "strncmp",
+                "(0 if {0}[:{2}] == {1}[:{2}] else -1 if {0}[:{2}] < {1}[:{2}] else 1)",
+                None,
+            ),
+            FunctionMapping::new("strchr", "{0}.find({1})", None),
+            FunctionMapping::new("strstr", "{0}.find({1})", None),
+            FunctionMapping::new("strdup", "{0}[:]", None),
+            FunctionMapping::new("strlwr", "{0}.lower()", None),
+            FunctionMapping::new("strupr", "{0}.upper()", None),
+            // Функции ввода-вывода (stdio.h)
+            FunctionMapping::new("printf", "print({})", None),
+            FunctionMapping::new("puts", "print({})", None),
+            FunctionMapping::new("putchar", "print(chr({}), end='')", None),
+            FunctionMapping::new("sprintf", "{} = {}", None),
+            FunctionMapping::new("snprintf", "{} = {}", None),
+            FunctionMapping::new("fopen", "open({}, {})", None),
+            FunctionMapping::new("fclose", "{}.close()", None),
+            FunctionMapping::new("fprintf", "{}.write({})", None),
+            FunctionMapping::new("fscanf", "{}.read()", None), // Упрощенно
+            FunctionMapping::new("fgets", "{}.readline()", None),
+            FunctionMapping::new("fputs", "{}.write({})", None),
+            FunctionMapping::new("getchar", "sys.stdin.read(1)", Some("import sys")),
+            FunctionMapping::new(
+                "gets",
+                "sys.stdin.readline().rstrip('\\n')",
+                Some("import sys"),
+            ),
+            FunctionMapping::new("scanf", "int(input())", None), // Упрощенно для целых чисел
+            // Функции стандартной библиотеки (stdlib.h)
+            FunctionMapping::new("atoi", "int({})", None),
+            FunctionMapping::new("atol", "int({})", None),
+            FunctionMapping::new("atof", "float({})", None),
+            FunctionMapping::new("itoa", "str({})", None),
+            FunctionMapping::new("abs", "abs({})", None),
+            FunctionMapping::new("labs", "abs({})", None),
+            FunctionMapping::new("rand", "random.randint(0, RAND_MAX)", Some("import random")),
+            FunctionMapping::new("srand", "random.seed({})", Some("import random")),
+            FunctionMapping::new("malloc", "[None] * {}", None), // Упрощенно для массивов
+            FunctionMapping::new("calloc", "[0] * ({0} * {1})", None),
+            FunctionMapping::new("free", "del {}", None),
+            FunctionMapping::new("exit", "sys.exit({})", Some("import sys")),
+            FunctionMapping::new("system", "os.system({})", Some("import os")),
+            FunctionMapping::new("getenv", "os.environ.get({})", Some("import os")),
+            FunctionMapping::new("setenv", "os.environ[{}] = {}", Some("import os")),
+            // Функции времени (time.h)
+            FunctionMapping::new("time", "time.time()", Some("import time")),
+            FunctionMapping::new("clock", "time.process_time()", Some("import time")),
+            FunctionMapping::new("difftime", "{} - {}", None),
+            FunctionMapping::new("ctime", "time.ctime({})", Some("import time")),
+            FunctionMapping::new("sleep", "time.sleep({})", Some("import time")),
+            // Функции для работы с символами (ctype.h)
+            FunctionMapping::new("isalnum", "{}.isalnum()", None),
+            FunctionMapping::new("isalpha", "{}.isalpha()", None),
+            FunctionMapping::new("isdigit", "{}.isdigit()", None),
+            FunctionMapping::new("islower", "{}.islower()", None),
+            FunctionMapping::new("isupper", "{}.isupper()", None),
+            FunctionMapping::new("isspace", "{}.isspace()", None),
+            FunctionMapping::new("tolower", "{}.lower()", None),
+            FunctionMapping::new("toupper", "{}.upper()", None),
+            // Функции для работы с памятью
+            FunctionMapping::new("memcpy", "{}[:len({})] = {}[:len({})]", None),
+            FunctionMapping::new("memmove", "{}[:len({})] = {}[:len({})]", None),
+            FunctionMapping::new("memset", "{} = [{}] * len({})", None),
+            FunctionMapping::new("memcmp", "{} == {}", None),
+            // Специальные функции
+            FunctionMapping::new("assert", "assert {}, \"Assertion failed\"", None),
+            FunctionMapping::new("qsort", "sorted({})", None), // Упрощенно
+            FunctionMapping::new("bsearch", "{} in {}", None), // Упрощенно
+        ];
+
+        for mapping in mappings {
+            self.function_mappings
+                .insert(mapping.c_name.to_string(), mapping);
         }
     }
     /// Возвращает текущий отступ
@@ -47,6 +188,34 @@ impl PythonGenerator {
         format!("{}{}\n", self.indent(), content)
     }
 
+    /// Добавляет импорт, если он еще не был добавлен
+    fn add_import(&mut self, import_stmt: &str) {
+        if !self.required_imports.contains(import_stmt) {
+            self.required_imports.insert(import_stmt.to_string());
+        }
+    }
+
+    fn generate_imports(&self) -> String {
+        let mut output = String::new();
+        let _imports: Vec<&String> = self.required_imports.iter().collect(); // Убрать mut
+                                                                            // imports.sort(); // Нельзя сортировать Vec<&String>
+
+        // Если нужна сортировка, собираем в Vec<String>
+        let mut imports: Vec<String> = self.required_imports.iter().cloned().collect();
+        imports.sort();
+
+        for import in &imports {
+            // Используем ссылку &
+            output.push_str(import);
+            output.push('\n');
+        }
+
+        if !imports.is_empty() {
+            output.push('\n');
+        }
+
+        output
+    }
     fn generate_function(&mut self, node: &ASTNode) -> Result<String> {
         let mut output = String::new();
 
@@ -430,28 +599,19 @@ impl PythonGenerator {
         result
     }
 
-    /// Внутренняя рекурсивная генерация выражения
+    // В методе generate_expression_internal, замените обработку "FuncCall" на:
     fn generate_expression_internal(&mut self, node: &ASTNode) -> Result<String> {
         match node.node_type.as_str() {
-            // В методе generate_expression_internal, добавьте обработку для строковых литералов
             "Constant" => {
                 if let Some(value) = node.attributes.get("value") {
                     if let Some(s) = value.as_str() {
-                        // Проверяем, является ли это строковым литералом в двойных кавычках
                         if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
-                            // Это строковый литерал
                             Ok(s.to_string())
-                        }
-                        // Проверяем, является ли это символом в одинарных кавычках
-                        else if s.starts_with('\'') && s.ends_with('\'') && s.len() >= 3 {
-                            // Это символ, оставляем как есть
+                        } else if s.starts_with('\'') && s.ends_with('\'') && s.len() >= 3 {
                             Ok(s.to_string())
-                        }
-                        // Проверяем, является ли строка числом
-                        else if s.parse::<i32>().is_ok() || s.parse::<f64>().is_ok() {
+                        } else if s.parse::<i32>().is_ok() || s.parse::<f64>().is_ok() {
                             Ok(s.to_string())
                         } else {
-                            // Это идентификатор или что-то другое
                             Ok(s.to_string())
                         }
                     } else if let Some(n) = value.as_i64() {
@@ -469,19 +629,15 @@ impl PythonGenerator {
             }
             "ID" => {
                 if let Some(name) = node.attributes.get("name").and_then(|v| v.as_str()) {
-                    // ПРОВЕРЯЕМ, НЕ ЯВЛЯЕТСЯ ЛИ ЭТО ЗНАЧЕНИЕМ ENUM
                     if let Some(enum_name) = self.is_enum_value(name) {
-                        // Если это enum значение, квалифицируем его именем класса
                         Ok(format!("{}.{}", enum_name, name))
                     } else {
-                        // Обычный идентификатор
                         Ok(name.to_string())
                     }
                 } else {
                     Ok("unknown".to_string())
                 }
             }
-
             "BinaryOp" => {
                 let op = node
                     .attributes
@@ -489,21 +645,15 @@ impl PythonGenerator {
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown");
 
-                // Специальная обработка для арифметики указателей
                 if op == "+" && node.children.len() == 2 {
                     let left = &node.children[0];
                     let right = &node.children[1];
 
-                    // Если левая часть - идентификатор и это указатель
                     if left.node_type == "ID" {
                         if let Some(var_name) = left.attributes.get("name").and_then(|v| v.as_str())
                         {
                             if self.pointer_vars.contains(var_name) {
-                                // Это ptr + i
                                 let index = self.generate_expression_internal(right)?;
-
-                                // Если это в контексте разыменования, вернем как есть
-                                // Иначе вернем как выражение для индексации
                                 if self.in_expression {
                                     return Ok(format!("{}[{}]", var_name, index));
                                 } else {
@@ -514,7 +664,6 @@ impl PythonGenerator {
                     }
                 }
 
-                // Обычная бинарная операция
                 let py_op = match op {
                     "==" | "!=" | "<" | ">" | "<=" | ">=" | "+" | "-" | "*" | "/" | "%" => op,
                     "&&" => "and",
@@ -534,8 +683,6 @@ impl PythonGenerator {
                     String::new()
                 };
 
-                debug!("Бинарная операция: {} {} {}", left, py_op, right);
-
                 let left_with_parens = self.wrap_if_needed(&left, node.children.get(0));
                 let right_with_parens = self.wrap_if_needed(&right, node.children.get(1));
 
@@ -544,7 +691,6 @@ impl PythonGenerator {
                     left_with_parens, py_op, right_with_parens
                 ))
             }
-
             "UnaryOp" => {
                 let op = node
                     .attributes
@@ -552,16 +698,12 @@ impl PythonGenerator {
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown");
 
-                debug!("Унарная операция: {} с {} детьми", op, node.children.len());
-
-                // Сначала получаем выражение для операнда
                 let expr = if let Some(child) = node.children.first() {
                     self.generate_expression_internal(child)?
                 } else {
                     String::new()
                 };
 
-                // Вспомогательная функция для подсчета уровней разыменования
                 fn count_dereferences(node: &ASTNode) -> usize {
                     if node.node_type == "UnaryOp" {
                         if let Some(op) = node.attributes.get("op").and_then(|v| v.as_str()) {
@@ -575,7 +717,6 @@ impl PythonGenerator {
 
                 match op {
                     "&" => {
-                        debug!("Операция взятия адреса: &{}", expr);
                         if let Some(child) = node.children.first() {
                             if child.node_type == "ID" {
                                 if let Some(var_name) =
@@ -588,13 +729,9 @@ impl PythonGenerator {
                         Ok(format!("Reference({})", expr))
                     }
                     "*" => {
-                        debug!("Разыменование указателя: *{}", expr);
-
-                        // Подсчитываем количество разыменований
                         let deref_count = count_dereferences(node);
 
                         if let Some(child) = node.children.first() {
-                            // Случай: *(ptr + i) - арифметика указателей
                             if child.node_type == "BinaryOp" {
                                 if let Some(op) =
                                     child.attributes.get("op").and_then(|v| v.as_str())
@@ -609,7 +746,6 @@ impl PythonGenerator {
                                             {
                                                 let index =
                                                     self.generate_expression_internal(right)?;
-                                                // ВАЖНО: преобразуем *(ptr + i) в ptr[i]
                                                 return Ok(format!("{}[{}]", var_name, index));
                                             }
                                         }
@@ -617,20 +753,16 @@ impl PythonGenerator {
                                 }
                             }
 
-                            // Случай: *ptr - простое разыменование
                             if child.node_type == "ID" {
                                 if let Some(var_name) =
                                     child.attributes.get("name").and_then(|v| v.as_str())
                                 {
-                                    // Проверяем, является ли это указателем на массив
                                     if self.pointer_vars.contains(var_name)
                                         && self.array_vars.contains(var_name)
                                     {
-                                        // Для указателя на массив *ptr эквивалентно ptr[0]
                                         return Ok(format!("{}[0]", var_name));
                                     }
 
-                                    // Множественное разыменование **ptr
                                     let mut result = var_name.to_string();
                                     for _ in 0..deref_count {
                                         result = format!("{}.value", result);
@@ -649,7 +781,6 @@ impl PythonGenerator {
                                     child.attributes.get("name").and_then(|v| v.as_str())
                                 {
                                     if self.pointer_vars.contains(var_name) {
-                                        // Для указателей: ptr = ptr + 1 (арифметика указателей)
                                         return Ok(format!("{} + 1", var_name));
                                     }
                                 }
@@ -688,7 +819,6 @@ impl PythonGenerator {
                     }
                 }
             }
-            // В методе generate_expression_internal, в секции "FuncCall":
             "FuncCall" => {
                 // Ищем имя функции
                 let mut name = None;
@@ -699,6 +829,11 @@ impl PythonGenerator {
                     name = Some(name_attr.to_string());
                 }
 
+                // Проверяем атрибут func_name
+                if let Some(func_name) = node.attributes.get("func_name").and_then(|v| v.as_str()) {
+                    name = Some(func_name.to_string());
+                }
+
                 // Обрабатываем детей
                 for child in &node.children {
                     match child.node_type.as_str() {
@@ -706,28 +841,20 @@ impl PythonGenerator {
                             if let Some(id_name) =
                                 child.attributes.get("name").and_then(|v| v.as_str())
                             {
-                                // Это имя функции
                                 if name.is_none() {
                                     name = Some(id_name.to_string());
                                 }
                             }
                         }
                         "ExprList" => {
-                            // Это список аргументов
-                            debug!("Обработка ExprList с {} детьми", child.children.len());
-
-                            // Проходим по всем детям ExprList
                             for arg in &child.children {
                                 let arg_expr = self.generate_expression_internal(arg)?;
                                 if !arg_expr.is_empty() && arg_expr != "None" {
-                                    debug!("Аргумент: {}", arg_expr);
                                     args_exprs.push(arg_expr);
                                 }
                             }
                         }
-                        _ => {
-                            debug!("Игнорируем ребенка типа {} в FuncCall", child.node_type);
-                        }
+                        _ => {}
                     }
                 }
 
@@ -736,144 +863,130 @@ impl PythonGenerator {
                     "unknown".to_string()
                 });
 
-                debug!("Вызов функции: {} с аргументами: {:?}", name, args_exprs);
+                // Проверяем, является ли это стандартной функцией C
+                if let Some(mapping) = self.function_mappings.get(&name).cloned() {
+                    // Добавляем необходимый импорт
+                    if let Some(import_stmt) = mapping.import_required {
+                        self.add_import(import_stmt);
+                    }
+
+                    // Отмечаем, что функция использована
+                    self.used_functions.insert(name.clone());
+
+                    // Формируем Python код с аргументами
+                    let python_code = match name.as_str() {
+                        "printf" => self.handle_printf(&args_exprs),
+                        "scanf" => self.handle_scanf(&args_exprs),
+                        "sprintf" | "snprintf" => {
+                            if args_exprs.len() >= 2 {
+                                if args_exprs.len() > 2 {
+                                    format!(
+                                        "{} = {} % ({})",
+                                        args_exprs[0],
+                                        args_exprs[1],
+                                        args_exprs[2..].join(", ")
+                                    )
+                                } else {
+                                    format!("{} = {}", args_exprs[0], args_exprs[1])
+                                }
+                            } else {
+                                mapping.python_code.to_string()
+                            }
+                        }
+                        "malloc" | "calloc" => self.handle_allocation(&name, &args_exprs),
+                        "strcpy" | "strcat" | "strcmp" => {
+                            self.handle_string_function(&name, &args_exprs)
+                        }
+                        "fopen" | "fclose" | "fprintf" => {
+                            self.handle_file_operation(&name, &args_exprs)
+                        }
+                        _ => {
+                            let mut code = mapping.python_code.to_string();
+                            for (i, arg) in args_exprs.iter().enumerate() {
+                                code = code.replacen(&format!("{{{}}}", i), arg, 1);
+                            }
+                            // Заменяем оставшиеся {} на аргументы по порядку
+                            for arg in args_exprs {
+                                code = code.replacen("{}", &arg, 1);
+                            }
+                            code
+                        }
+                    };
+
+                    debug!(
+                        "Стандартная функция {} преобразована в: {}",
+                        name, python_code
+                    );
+                    return Ok(python_code);
+                }
 
                 // Проверяем, не является ли имя функции указателем на функцию
                 if self.pointer_vars.contains(&name) {
-                    // Это указатель на функцию - нужно разыменовать
                     Ok(format!("{}.value({})", name, args_exprs.join(", ")))
                 } else {
                     Ok(format!("{}({})", name, args_exprs.join(", ")))
                 }
             }
             "ExprList" => {
-                // Это отдельное выражение (не как аргумент функции)
                 let mut exprs = Vec::new();
-                debug!(
-                    "Генерация ExprList как отдельного выражения с {} детьми",
-                    node.children.len()
-                );
-
                 for child in &node.children {
                     let expr = self.generate_expression_internal(child)?;
                     if !expr.is_empty() {
-                        debug!("  Выражение в ExprList: {}", expr);
                         exprs.push(expr);
                     }
                 }
                 Ok(exprs.join(", "))
             }
-
             "ArrayRef" => self.generate_array_ref(node),
-
             "InitList" => {
                 let mut values = Vec::new();
-                let node_id = node.coord.as_deref().unwrap_or("unknown");
-
-                debug!(
-                    "Генерация InitList (id: {}) с {} детьми, контекст структуры: {:?}",
-                    node_id,
-                    node.children.len(),
-                    self.current_struct_type
-                );
-
-                for (i, child) in node.children.iter().enumerate() {
+                for child in &node.children {
                     if child.node_type == "InitList" {
-                        debug!("InitList содержит другой InitList как ребенка!");
                         let nested_values = self.generate_expression_internal(child)?;
                         values.push(nested_values);
                     } else if child.node_type == "NamedInitializer" {
-                        // Обрабатываем именованные инициализаторы (C99 designated initializers)
                         if let Some(expr) = child.attributes.get("expr") {
-                            if let Some(_expr_value) = expr.as_object() {
-                                // Парсим выражение из атрибута
-                                let temp_node =
-                                    ASTNode::new("Value").with_attr("value", expr.clone());
-                                let value = self.generate_expression_internal(&temp_node)?;
-                                values.push(value);
-                            } else {
-                                values.push("None".to_string());
-                            }
+                            let temp_node = ASTNode::new("Value").with_attr("value", expr.clone());
+                            let value = self.generate_expression_internal(&temp_node)?;
+                            values.push(value);
                         } else {
                             values.push("None".to_string());
                         }
                     } else {
                         let value = self.generate_expression_internal(child)?;
-                        debug!(
-                            "  InitList {} ребенок {}: тип={}, значение={}",
-                            node_id, i, child.node_type, value
-                        );
                         values.push(value);
                     }
                 }
 
-                debug!(
-                    "InitList {} итоговые значения ({} шт): {:?}",
-                    node_id,
-                    values.len(),
-                    values
-                );
-
-                // Если это инициализация структуры, создаем вызов конструктора класса
                 if let Some(struct_name) = &self.current_struct_type {
-                    // Для структур возвращаем вызов конструктора с параметрами
-                    // Например: Point(30, 40)
                     Ok(format!("{}({})", struct_name, values.join(", ")))
                 } else {
-                    // Иначе возвращаем как список (для массивов)
                     Ok(format!("[{}]", values.join(", ")))
                 }
             }
             "TernaryOp" => {
-                debug!("Генерация TernaryOp");
-
-                // В Python тернарный оператор имеет синтаксис: value_if_true if condition else value_if_false
-                // В C: condition ? value_if_true : value_if_false
-                // Поэтому порядок детей: [cond, iftrue, iffalse]
-
                 if node.children.len() >= 3 {
                     let cond = self.generate_expression_internal(&node.children[0])?;
                     let iftrue = self.generate_expression_internal(&node.children[1])?;
                     let iffalse = self.generate_expression_internal(&node.children[2])?;
-
-                    debug!(
-                        "Тернарный оператор: cond={}, true={}, false={}",
-                        cond, iftrue, iffalse
-                    );
                     Ok(format!("{} if {} else {}", iftrue, cond, iffalse))
                 } else {
-                    debug!(
-                        "TernaryOp имеет недостаточно детей: {}",
-                        node.children.len()
-                    );
                     Ok("None".to_string())
                 }
             }
-
             "StructRef" => self.generate_struct_ref(node),
-            "StructDecl" => {
-                // Если StructDecl используется как выражение (например, в инициализации)
-                self.generate_struct_decl(node)
-            }
-
             "Cast" => {
-                debug!("Обработка приведения типа");
-
                 let expr = if let Some(child) = node.children.first() {
                     self.generate_expression_internal(child)?
                 } else {
                     String::new()
                 };
 
-                // В Python приведение типов обычно не нужно, но можно добавить
-                // аннотации или преобразования для特定ных случаев
                 if let Some(to_type) = node.attributes.get("to_type") {
                     if let Some(type_str) = to_type.as_str() {
-                        // Для числовых типов используем соответствующие функции
                         match type_str {
                             "int" => Ok(format!("int({})", expr)),
-                            "float" => Ok(format!("float({})", expr)),
-                            "double" => Ok(format!("float({})", expr)),
+                            "float" | "double" => Ok(format!("float({})", expr)),
                             "char" => Ok(format!(
                                 "chr({}) if isinstance({}, int) else {}",
                                 expr, expr, expr
@@ -887,19 +1000,149 @@ impl PythonGenerator {
                     Ok(expr)
                 }
             }
-
-            "PtrDecl" => {
-                // Обработка объявления указателя в выражении
-                // Обычно это не используется напрямую в выражениях
-                Ok("None".to_string())
-            }
             _ => {
                 debug!("Неизвестное выражение: {}", node.node_type);
                 Ok("None".to_string())
             }
         }
     }
+    /// Специальная обработка для printf с форматированием
+    fn handle_printf(&mut self, args: &[String]) -> String {
+        if args.is_empty() {
+            return "print()".to_string();
+        }
 
+        let format_str = &args[0];
+
+        // Если есть дополнительные аргументы, используем форматирование
+        if args.len() > 1 {
+            let format_args = args[1..].join(", ");
+
+            // Проверяем, содержит ли форматная строка спецификаторы
+            if format_str.contains('%') && !format_str.contains("{{") {
+                // Преобразуем спецификаторы C в Python
+                let python_format = format_str
+                    .replace("%d", "{}")
+                    .replace("%i", "{}")
+                    .replace("%f", "{}")
+                    .replace("%lf", "{}")
+                    .replace("%c", "{}")
+                    .replace("%s", "{}")
+                    .replace("%x", "{:x}")
+                    .replace("%X", "{:X}")
+                    .replace("%o", "{:o}")
+                    .replace("%p", "{}");
+
+                return format!("print({}.format({}))", python_format, format_args);
+            }
+        }
+
+        format!("print({})", format_str)
+    }
+
+    /// Обработка строковых функций
+    fn handle_string_function(&mut self, func_name: &str, args: &[String]) -> String {
+        match func_name {
+            "strcpy" => {
+                if args.len() >= 2 {
+                    format!("{} = {}", args[0], args[1])
+                } else {
+                    String::new()
+                }
+            }
+            "strcat" => {
+                if args.len() >= 2 {
+                    format!("{} += {}", args[0], args[1])
+                } else {
+                    String::new()
+                }
+            }
+            "strcmp" => {
+                if args.len() >= 2 {
+                    format!(
+                        "(0 if {} == {} else -1 if {} < {} else 1)",
+                        args[0], args[1], args[0], args[1]
+                    )
+                } else {
+                    "0".to_string()
+                }
+            }
+            _ => String::new(),
+        }
+    }
+    /// Специальная обработка для scanf
+    fn handle_scanf(&mut self, args: &[String]) -> String {
+        if args.is_empty() {
+            return "input()".to_string();
+        }
+
+        let format_str = &args[0];
+
+        if format_str.starts_with('"') || format_str.starts_with('\'') {
+            let prompt = &format_str[1..format_str.len() - 1];
+            format!("input({})", prompt)
+        } else {
+            "input()".to_string()
+        }
+    }
+
+    /// Обработка malloc/calloc для создания списков
+    fn handle_allocation(&mut self, func_name: &str, args: &[String]) -> String {
+        match func_name {
+            "malloc" => {
+                if !args.is_empty() {
+                    format!("[None] * {}", args[0])
+                } else {
+                    "[]".to_string()
+                }
+            }
+            "calloc" => {
+                if args.len() >= 2 {
+                    format!("[0] * ({} * {})", args[0], args[1])
+                } else {
+                    "[]".to_string()
+                }
+            }
+            _ => "[]".to_string(),
+        }
+    }
+
+    /// Обработка файловых операций
+    fn handle_file_operation(&mut self, func_name: &str, args: &[String]) -> String {
+        match func_name {
+            "fopen" => {
+                if args.len() >= 2 {
+                    let mode = if args[1].contains("r") {
+                        "'r'"
+                    } else if args[1].contains("w") {
+                        "'w'"
+                    } else if args[1].contains("a") {
+                        "'a'"
+                    } else {
+                        "'r'"
+                    };
+                    format!("open({}, {})", args[0], mode)
+                } else {
+                    "None".to_string()
+                }
+            }
+            "fclose" => {
+                if !args.is_empty() {
+                    format!("{}.close()", args[0])
+                } else {
+                    String::new()
+                }
+            }
+            "fprintf" => {
+                if args.len() >= 2 {
+                    format!("{}.write({})", args[0], args[1])
+                } else {
+                    String::new()
+                }
+            }
+            _ => String::new(),
+        }
+    }
     /// Генерирует унарный оператор как оператор
     fn generate_unary_stmt(&mut self, node: &ASTNode) -> Result<String> {
         debug!("Генерация унарного оператора как стейтмента");
@@ -973,7 +1216,6 @@ impl PythonGenerator {
 
     fn wrap_if_needed(&self, expr: &str, child: Option<&ASTNode>) -> String {
         if let Some(child_node) = child {
-            // Если ребенок - бинарная операция, оборачиваем в скобки
             if child_node.node_type == "BinaryOp" {
                 return format!("({})", expr);
             }
@@ -2288,11 +2530,9 @@ impl PythonGenerator {
     }
     /// Генерирует обращение к элементу массива
     fn generate_array_ref(&mut self, node: &ASTNode) -> Result<String> {
-        debug!("Генерация обращения к элементу массива");
-
         if node.children.len() >= 2 {
-            let array_name = self.generate_expression(&node.children[0])?;
-            let index = self.generate_expression(&node.children[1])?;
+            let array_name = self.generate_expression_internal(&node.children[0])?;
+            let index = self.generate_expression_internal(&node.children[1])?;
             Ok(format!("{}[{}]", array_name, index))
         } else {
             Ok("[]".to_string())
@@ -2582,35 +2822,27 @@ impl PythonGenerator {
         Ok(output)
     }
 
-    // В методе generate_struct_ref, улучшите обработку указателей на объединения
     fn generate_struct_ref(&mut self, node: &ASTNode) -> Result<String> {
-        debug!("Генерация доступа к полю структуры/объединения");
-        debug!("Детей у StructRef: {}", node.children.len());
-
         if node.children.len() >= 2 {
-            let struct_expr = self.generate_expression(&node.children[0])?;
-            let field_expr = self.generate_expression(&node.children[1])?;
+            let struct_expr = self.generate_expression_internal(&node.children[0])?;
+            let field_expr = self.generate_expression_internal(&node.children[1])?;
 
-            // Проверяем, является ли struct_expr указателем
             let base_name = struct_expr.split('.').next().unwrap_or(&struct_expr);
 
             if self.pointer_vars.contains(base_name) {
-                // Это доступ через указатель: ptr->field
                 if struct_expr.contains(".value") {
-                    // Уже есть .value, добавляем поле
                     Ok(format!("{}.{}", struct_expr, field_expr))
                 } else {
-                    // Добавляем .value перед полем
                     Ok(format!("{}.value.{}", struct_expr, field_expr))
                 }
             } else {
-                // Обычный доступ к полю
                 Ok(format!("{}.{}", struct_expr, field_expr))
             }
         } else {
             Ok("None".to_string())
         }
     }
+
     fn generate_union(&mut self, node: &ASTNode) -> Result<String> {
         let mut output = String::new();
 
@@ -2946,7 +3178,6 @@ impl PythonGenerator {
         Ok(output)
     }
 
-    /// Проверяет, является ли идентификатор значением enum
     fn is_enum_value(&self, name: &str) -> Option<String> {
         for (enum_name, values) in &self.enum_info {
             if values.contains(&name.to_string()) {
@@ -3000,6 +3231,8 @@ impl Generator for PythonGenerator {
 
         output.push_str("# Generated by C to Python transpiler\n");
         output.push_str("# This is an approximate conversion\n\n");
+
+        // Базовые импорты, которые могут понадобиться
         output.push_str("import sys\n");
         output.push_str("import os\n");
         output.push_str("import enum\n");
@@ -3041,19 +3274,19 @@ impl Generator for PythonGenerator {
             }
         }
 
-        // Генерируем перечисления (они не зависят от других типов)
+        // Генерируем перечисления
         for enum_node in enums {
             output.push_str(&generator.generate_enum(enum_node)?);
             output.push_str("\n");
         }
 
-        // Генерируем структуры (они могут ссылаться друг на друга)
+        // Генерируем структуры
         for struct_node in structs {
             output.push_str(&generator.generate_struct(struct_node)?);
             output.push_str("\n");
         }
 
-        // Генерируем объединения (они могут содержать структуры)
+        // Генерируем объединения
         for union_node in unions {
             output.push_str(&generator.generate_union(union_node)?);
             output.push_str("\n");
@@ -3071,8 +3304,21 @@ impl Generator for PythonGenerator {
             output.push_str("    main()\n");
         }
 
+        // Вставляем все необходимые импорты в начало файла
+        let imports = generator.generate_imports();
+        if !imports.is_empty() {
+            // Находим место после базовых импортов
+            let base_imports_end = output.find("\n\n").unwrap_or(0);
+            if base_imports_end > 0 {
+                output.insert_str(base_imports_end + 2, &imports);
+            } else {
+                output.insert_str(0, &imports);
+            }
+        }
+
         Ok(output)
     }
+
     fn language_name() -> &'static str {
         "Python"
     }

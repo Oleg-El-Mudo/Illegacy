@@ -466,6 +466,7 @@ impl CParser {
                         }
                     }
 
+                    // В методе parse_ast_node, в секции match для "FuncCall"
                     "FuncCall" => {
                         // Для вызова функции
                         debug!("Обработка вызова функции");
@@ -479,6 +480,13 @@ impl CParser {
                                         "name".to_string(),
                                         Value::String(name.to_string()),
                                     );
+
+                                    // СОХРАНЯЕМ ИМЯ ФУНКЦИИ В АТРИБУТЕ func_name ДЛЯ ЛЕГКОГО ДОСТУПА
+                                    node.attributes.insert(
+                                        "func_name".to_string(),
+                                        Value::String(name.to_string()),
+                                    );
+
                                     debug!("Найдено имя функции в вызове: {}", name);
                                 }
                             }
@@ -492,7 +500,6 @@ impl CParser {
                                     == Some("ExprList")
                                 {
                                     debug!("Найдены аргументы функции (ExprList)");
-                                    // Важно: парсим args как узел, чтобы получить его детей
                                     if let Ok(args_node) = self.parse_ast_node(args) {
                                         debug!(
                                             "Аргументы узел типа {} с {} детьми",
@@ -505,7 +512,6 @@ impl CParser {
                             }
                         }
                     }
-
                     "ParamDecl" => {
                         debug!("Обработка ParamDecl");
 

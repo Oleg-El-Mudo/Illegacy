@@ -63,6 +63,14 @@ function removeCComments(code) {
     return result;
 }
 
+function removeIncludeLines(code) {
+    if (!code) return code;
+    
+    return code.split('\n')
+        .filter(line => !line.trim().startsWith('#include'))
+        .join('\n');
+}
+
 /**
  * Удаляет комментарии из кода в зависимости от языка
  * @param {string} code - исходный код
@@ -103,21 +111,25 @@ function cleanCode(code, language) {
     const original = code;
     
     // Удаляем комментарии
-    const cleaned = removeCommentsByLanguage(code, language);
+    let cleaned = removeCommentsByLanguage(code, language);
+    
+    // Для C языка также удаляем строки с #include
+    if (language === 'c') {
+        const includeCount = (code.match(/^#include/gm) || []).length;
+        cleaned = removeIncludeLines(cleaned);
+        
+        if (includeCount > 0) {
+            console.log(`Удалено строк с #include: ${includeCount}`);
+        }
+    }
     
     const cleanedLength = cleaned.length;
     const cleanedLines = cleaned.split('\n').filter(line => line.trim().length > 0).length;
     
-    console.log(`Очистка комментариев [${language}]:`);
+    console.log(`Очистка комментариев и #include [${language}]:`);
     console.log(`  Оригинал: ${originalLength} символов, ${originalLines} строк`);
     console.log(`  После очистки: ${cleanedLength} символов, ${cleanedLines} непустых строк`);
     console.log(`  Удалено: ${originalLength - cleanedLength} символов`);
-    
-    // Для отладки покажем первые 200 символов до и после
-    console.log('Первые 200 символов ДО очистки:');
-    console.log(original.substring(0, 200));
-    console.log('Первые 200 символов ПОСЛЕ очистки:');
-    console.log(cleaned.substring(0, 200));
     
     return {
         original,
@@ -130,7 +142,6 @@ function cleanCode(code, language) {
         }
     };
 }
-
 export async function translateCode() {
     const inputLang = elements.inputLangSelect.value;
     const outputLang = elements.outputLangSelect.value;
