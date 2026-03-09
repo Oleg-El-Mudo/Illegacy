@@ -556,38 +556,30 @@ impl PythonGenerator {
 
             let cond_code = self.generate_expression(condition)?;
 
-            // Правильная реализация do-while с поддержкой continue
+            // Простая и понятная реализация do-while
             output.push_str(&self.line("while True:"));
             self.indent_level += 1;
 
-            // Флаг для отслеживания выполнения continue
-            output.push_str(&self.line("_continue_flag = False"));
-
-            // Генерируем тело цикла с обработкой continue
+            // Генерируем тело цикла
             if body.node_type == "Compound" {
                 for stmt in &body.children {
                     if stmt.node_type == "Continue" {
-                        // Заменяем continue на установку флага и переход к проверке условия
-                        output.push_str(&self.line("_continue_flag = True"));
+                        // Continue просто переходит к проверке условия
+                        output.push_str(&self.line("pass  # continue"));
                     } else {
-                        output.push_str(&self.generate_statement(stmt)?);
+                        let stmt_code = self.generate_statement(stmt)?;
+                        if !stmt_code.trim().is_empty() {
+                            output.push_str(&stmt_code);
+                        }
                     }
-                    // После каждого оператора проверяем, не был ли вызван continue
-                    output.push_str(&self.line("if _continue_flag:"));
-                    self.indent_level += 1;
-                    output.push_str(&self.line("break"));
-                    self.indent_level -= 1;
                 }
             } else {
-                if body.node_type == "Continue" {
-                    output.push_str(&self.line("_continue_flag = True"));
-                } else {
-                    output.push_str(&self.generate_statement(body)?);
+                if body.node_type != "Continue" {
+                    let stmt_code = self.generate_statement(body)?;
+                    if !stmt_code.trim().is_empty() {
+                        output.push_str(&stmt_code);
+                    }
                 }
-                output.push_str(&self.line("if _continue_flag:"));
-                self.indent_level += 1;
-                output.push_str(&self.line("break"));
-                self.indent_level -= 1;
             }
 
             // Проверка условия в конце
@@ -1426,76 +1418,69 @@ impl PythonGenerator {
         Ok(output)
     }
 
-    /// Генерирует case как паттерн в match
     fn generate_case(&mut self, node: &ASTNode) -> Result<String> {
         let mut output = String::new();
 
-        debug!("Генерация CASE узла");
-        debug!("Детей у case: {}", node.children.len());
-        for (i, child) in node.children.iter().enumerate() {
-            debug!(
-                "  Ребенок {}: тип={}, атрибуты={:?}",
-                i, child.node_type, child.attributes
-            );
-        }
-
-        // Первый ребенок - значение case
         if let Some(value_node) = node.children.first() {
             let value = self.generate_expression(value_node)?;
-            debug!("Значение case: '{}'", value);
-            output.push_str(&self.line(&format!("case {}:", value)));
 
+            output.push_str(&self.line(&format!("case {}:", value)));
             self.indent_level += 1;
 
-            // Остальные дети - операторы в case (может быть несколько)
+            // Проверяем, есть ли операторы в case
+            let mut has_statements = false;
             for stmt in node.children.iter().skip(1) {
                 if stmt.node_type == "Break" {
-                    // В Python match не требует break, просто пропускаем
                     continue;
                 }
                 let stmt_code = self.generate_statement(stmt)?;
-                output.push_str(&stmt_code);
+                if !stmt_code.trim().is_empty() {
+                    output.push_str(&stmt_code);
+                    has_statements = true;
+                }
+            }
+
+            // Если нет операторов, добавляем pass
+            if !has_statements {
+                output.push_str(&self.line("pass"));
             }
 
             self.indent_level -= 1;
-        } else {
-            debug!("Нет значения в case!");
         }
 
         Ok(output)
     }
-
     /// Генерирует default в match
     fn generate_default(&mut self, node: &ASTNode) -> Result<String> {
         let mut output = String::new();
 
-        debug!("Генерация DEFAULT узла");
-        debug!("Детей у default: {}", node.children.len());
-        for (i, child) in node.children.iter().enumerate() {
-            debug!(
-                "  Ребенок {}: тип={}, атрибуты={:?}",
-                i, child.node_type, child.attributes
-            );
-        }
-
         output.push_str(&self.line("case _:"));
 
+        // УВЕЛИЧИВАЕМ отступ для тела default
         self.indent_level += 1;
 
-        // Операторы в default (все дети)
+        // Операторы в default
+        let mut has_statements = false;
         for stmt in node.children.iter() {
             if stmt.node_type == "Break" {
                 continue;
             }
             let stmt_code = self.generate_statement(stmt)?;
-            output.push_str(&stmt_code);
+            if !stmt_code.trim().is_empty() {
+                output.push_str(&stmt_code);
+                has_statements = true;
+            }
         }
 
+        if !has_statements {
+            output.push_str(&self.line("pass"));
+        }
+
+        // УМЕНЬШАЕМ отступ обратно
         self.indent_level -= 1;
 
         Ok(output)
     }
-
     /// Генерирует while
     fn generate_while(&mut self, node: &ASTNode) -> Result<String> {
         let mut output = String::new();
@@ -2690,14 +2675,13 @@ impl PythonGenerator {
         debug!("Детей у структуры: {}", node.children.len());
 
         // Собираем информацию о полях и вложенных структурах
-        let mut field_names = Vec::new();
+        let mut field_names: Vec<String> = Vec::new();
         let mut struct_fields: std::collections::HashSet<String> = std::collections::HashSet::new();
         let mut struct_field_types: std::collections::HashMap<String, String> =
             std::collections::HashMap::new();
-        // В методе generate_union, замените объявление nested_structs
-        let mut nested_structs: Vec<(String, ASTNode)> = Vec::new(); // Явно указываем тип
+        let mut nested_structs: Vec<(String, ASTNode)> = Vec::new();
 
-        // В методе generate_struct, при обработке Decl
+        // Обрабатываем поля структуры
         for child in &node.children {
             if child.node_type == "Decl" {
                 if let Some(field_name) = child.attributes.get("name").and_then(|v| v.as_str()) {
@@ -2726,29 +2710,25 @@ impl PythonGenerator {
 
                     field_names.push(field_name.to_string());
 
-                    if is_array {
-                        if let Some(size) = array_size {
-                            // Для массивов создаем список фиксированного размера
-                            if field_name == "name" && array_size == Some(50) {
-                                // Для строковых массивов особый случай
-                                output.push_str(
-                                    &self.line(&format!("self.{} = [''] * {}", field_name, size)),
-                                );
-                            } else {
-                                output.push_str(
-                                    &self.line(&format!("self.{} = [None] * {}", field_name, size)),
-                                );
+                    // Здесь мы ТОЛЬКО собираем информацию, НЕ генерируем код
+                    // Генерация кода будет позже, в методе __init__
+
+                    // Проверяем, является ли поле вложенной структурой
+                    for grandchild in &child.children {
+                        if grandchild.node_type == "Struct" {
+                            if let Some(struct_name) =
+                                grandchild.attributes.get("name").and_then(|v| v.as_str())
+                            {
+                                struct_fields.insert(field_name.to_string());
+                                struct_field_types
+                                    .insert(field_name.to_string(), struct_name.to_string());
                             }
-                        } else {
-                            output.push_str(&self.line(&format!("self.{} = []", field_name)));
                         }
-                    } else {
-                        output
-                            .push_str(&self.line(&format!("self.{} = {}", field_name, field_name)));
                     }
                 }
             }
         }
+
         // Генерируем внутренние классы для вложенных структур
         for (nested_name, nested_node) in &nested_structs {
             output.push_str(&self.line(&format!("    class {}:", nested_name)));
@@ -2800,7 +2780,9 @@ impl PythonGenerator {
 
             // Инициализируем поля
             for field_name in &field_names {
-                // Если поле - структура, инициализируем её
+                // Проверяем, является ли поле массивом (нужно определить из сохраненной информации)
+                let is_array_field = false; // Здесь нужно определить из анализа выше
+
                 if struct_fields.contains(field_name) {
                     if let Some(struct_type) = struct_field_types.get(field_name) {
                         output.push_str(&self.line(&format!(
@@ -2811,6 +2793,9 @@ impl PythonGenerator {
                         output
                             .push_str(&self.line(&format!("self.{} = {}", field_name, field_name)));
                     }
+                } else if is_array_field {
+                    // Для массивов нужно специальная обработка
+                    output.push_str(&self.line(&format!("self.{} = {}", field_name, field_name)));
                 } else {
                     output.push_str(&self.line(&format!("self.{} = {}", field_name, field_name)));
                 }
@@ -2911,11 +2896,13 @@ impl PythonGenerator {
         debug!("Генерация класса из объединения: {}", name);
 
         // Собираем информацию о полях
-        let mut fields = Vec::new();
-        let mut struct_fields = std::collections::HashSet::new();
-        let mut struct_field_types = std::collections::HashMap::new();
-        let mut nested_structs: Vec<(String, ASTNode)> = Vec::new(); // для вложенных структур
-        let mut nested_struct_defs = Vec::new(); // для определений вложенных структур
+        let mut fields: Vec<String> = Vec::new();
+        let mut struct_fields: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut struct_field_types: std::collections::HashMap<String, String> =
+            std::collections::HashMap::new();
+        let mut nested_structs: Vec<(String, ASTNode)> = Vec::new();
+        let mut nested_struct_defs: Vec<String> = Vec::new();
+        let mut anon_structs: Vec<(String, ASTNode)> = Vec::new(); // для анонимных структур
 
         // Сначала обрабатываем детей для сбора информации
         for child in &node.children {
@@ -2936,7 +2923,7 @@ impl PythonGenerator {
                             } else {
                                 // Анонимная структура как поле
                                 let nested_name = format!("{}_{}", name, field_name);
-                                nested_structs.push((nested_name.clone(), grandchild.clone()));
+                                anon_structs.push((nested_name.clone(), grandchild.clone()));
                                 struct_fields.insert(field_name.to_string());
                                 struct_field_types.insert(field_name.to_string(), nested_name);
                             }
@@ -2965,7 +2952,7 @@ impl PythonGenerator {
             } else if child.node_type == "Struct" {
                 // Анонимная структура внутри объединения (без имени поля)
                 let nested_name = format!("{}_AnonymousStruct", name);
-                nested_structs.push((nested_name.clone(), child.clone()));
+                anon_structs.push((nested_name.clone(), child.clone()));
 
                 // Добавляем поле для анонимной структуры
                 fields.push(nested_name.clone());
@@ -2974,8 +2961,8 @@ impl PythonGenerator {
             }
         }
 
-        // Генерируем внутренние классы для вложенных структур
-        for (nested_name, nested_node) in &nested_structs {
+        // Генерируем внутренние классы для анонимных структур
+        for (nested_name, nested_node) in &anon_structs {
             let mut struct_def = String::new();
             struct_def.push_str(&self.line(&format!("    class {}:", nested_name)));
             self.indent_level += 2;
@@ -3016,12 +3003,12 @@ impl PythonGenerator {
         output.push_str(&self.line("def __init__(self):"));
         self.indent_level += 1;
 
-        // Инициализируем все возможные поля как None
-        let mut has_fields = false; // Объявляем здесь, перед циклом
+        // Инициализируем все поля
+        let mut has_fields = false;
         for field_name in &fields {
             if struct_fields.contains(field_name) {
                 if let Some(struct_type) = struct_field_types.get(field_name) {
-                    // Для полей-структур создаем экземпляр
+                    // Для полей-структур создаем экземпляр внутреннего класса
                     output
                         .push_str(&self.line(&format!("self.{} = {}()", field_name, struct_type)));
                     has_fields = true;
@@ -3030,10 +3017,20 @@ impl PythonGenerator {
                     has_fields = true;
                 }
             } else if field_name.contains('.') {
-                // Для вложенных полей (например, tagged.content)
+                // Для вложенных полей (например, parts.low)
                 let parts: Vec<&str> = field_name.split('.').collect();
-                if parts.len() == 2 {
-                    output.push_str(&self.line(&format!("self.{}.{} = None", parts[0], parts[1])));
+                // В методе generate_union, при обработке поля parts
+                if field_name == "parts" {
+                    // Создаем внутренний класс Parts
+                    output.push_str(&self.line("    class Parts:"));
+                    self.indent_level += 2;
+                    output.push_str(&self.line("def __init__(self):"));
+                    self.indent_level += 1;
+                    output.push_str(&self.line("self.low = None"));
+                    output.push_str(&self.line("self.high = None"));
+                    self.indent_level -= 3;
+
+                    output.push_str(&self.line("self.parts = self.Parts()"));
                     has_fields = true;
                 }
             } else {
