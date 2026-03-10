@@ -781,6 +781,7 @@ impl PythonGenerator {
                             Ok(format!("Reference({})", expr))
                         }
                     }
+                    // В методе generate_expression_internal, в обработке "UnaryOp" для оператора "*":
                     "*" => {
                         let deref_count = count_dereferences(node);
 
@@ -817,15 +818,26 @@ impl PythonGenerator {
                                     }
 
                                     let mut result = var_name.to_string();
-                                    for _ in 0..deref_count {
-                                        result = format!("{}.value", result);
+                                    for i in 0..deref_count {
+                                        if i == deref_count - 1 {
+                                            // Последнее разыменование - получаем значение
+                                            result = format!("{}.get_final_value()", result);
+                                        } else {
+                                            // Промежуточные - получаем ссылку
+                                            result = format!("{}.value", result);
+                                        }
                                     }
                                     return Ok(result);
                                 }
                             }
                         }
 
-                        Ok(format!("{}.value", expr))
+                        // Для выражений
+                        let mut result = expr;
+                        for _ in 0..deref_count {
+                            result = format!("{}.get_final_value()", result);
+                        }
+                        Ok(result)
                     }
                     "++" | "p++" | "post++" => {
                         if let Some(child) = node.children.first() {
@@ -2215,62 +2227,42 @@ impl PythonGenerator {
                 }
             }
 
-            // Проверяем, является ли левая часть разыменованием указателя
+            // В методе generate_assignment, при обработке разыменования указателя:
+
             if left_node.node_type == "UnaryOp" {
                 if let Some(unary_op) = left_node.attributes.get("op").and_then(|v| v.as_str()) {
                     if unary_op == "*" && left_node.children.len() == 1 {
                         let inner = &left_node.children[0];
 
-                        // Проверяем, является ли внутреннее выражение арифметикой указателей
-                        if inner.node_type == "BinaryOp" {
-                            // Это *(ptr + i) = value
-                            if let Some(inner_op) =
-                                inner.attributes.get("op").and_then(|v| v.as_str())
-                            {
-                                if inner_op == "+" && inner.children.len() == 2 {
-                                    let ptr = &inner.children[0];
-                                    let index = &inner.children[1];
-
-                                    if ptr.node_type == "ID" {
-                                        if let Some(ptr_name) =
-                                            ptr.attributes.get("name").and_then(|v| v.as_str())
-                                        {
-                                            let index_expr = self.generate_expression(index)?;
-                                            let right_expr =
-                                                self.generate_expression(right_node)?;
-
-                                            // Для указателя на массив: ptr[index] = value
-                                            let py_op = match op {
-                                                "+=" => "+=",
-                                                "-=" => "-=",
-                                                _ => "=",
-                                            };
-
-                                            return Ok(self.line(&format!(
-                                                "{}[{}] {} {}",
-                                                ptr_name, index_expr, py_op, right_expr
-                                            )));
-                                        }
+                        // Функция для подсчета уровня разыменования
+                        fn count_dereferences(node: &ASTNode) -> usize {
+                            if node.node_type == "UnaryOp" {
+                                if let Some(op) = node.attributes.get("op").and_then(|v| v.as_str())
+                                {
+                                    if op == "*" && !node.children.is_empty() {
+                                        return 1 + count_dereferences(&node.children[0]);
                                     }
                                 }
                             }
-                        } else if inner.node_type == "ID" {
-                            // Это *ptr = value
+                            0
+                        }
+
+                        let deref_count = count_dereferences(left_node);
+
+                        if inner.node_type == "ID" {
                             if let Some(ptr_name) =
                                 inner.attributes.get("name").and_then(|v| v.as_str())
                             {
                                 let right_expr = self.generate_expression(right_node)?;
 
                                 debug!(
-                                    "  Присваивание через указатель: *{} = {}",
-                                    ptr_name, right_expr
+                                    "  Присваивание через указатель: *{} = {}, уровень={}",
+                                    ptr_name, right_expr, deref_count
                                 );
 
-                                // Проверяем, является ли ptr_name указателем на массив
                                 if self.pointer_vars.contains(ptr_name)
                                     && self.array_vars.contains(ptr_name)
                                 {
-                                    // Для указателя на массив: ptr[0] = value
                                     let py_op = match op {
                                         "+=" => "+=",
                                         "-=" => "-=",
@@ -2281,24 +2273,61 @@ impl PythonGenerator {
                                         ptr_name, py_op, right_expr
                                     )));
                                 } else {
-                                    // Для обычного указателя: ptr.value = value
                                     let py_op = match op {
                                         "+=" => "+=",
                                         "-=" => "-=",
                                         _ => "=",
                                     };
-                                    return Ok(self.line(&format!(
-                                        "{}.value {} {}",
-                                        ptr_name, py_op, right_expr
-                                    )));
+
+                                    // Для двойных указателей используем цепочку value
+                                    let result = match deref_count {
+                                        1 => format!("{}.value {} {}", ptr_name, py_op, right_expr),
+                                        2 => format!(
+                                            "{}.value.value {} {}",
+                                            ptr_name, py_op, right_expr
+                                        ),
+                                        3 => format!(
+                                            "{}.value.value.value {} {}",
+                                            ptr_name, py_op, right_expr
+                                        ),
+                                        _ => format!("{}.value {} {}", ptr_name, py_op, right_expr),
+                                    };
+                                    return Ok(self.line(&result));
+                                }
+                            }
+                        } else if inner.node_type == "UnaryOp" {
+                            // Это случай **ptr
+                            if let Some(inner_op) =
+                                inner.attributes.get("op").and_then(|v| v.as_str())
+                            {
+                                if inner_op == "*" && !inner.children.is_empty() {
+                                    if let Some(grandchild) = inner.children.first() {
+                                        if grandchild.node_type == "ID" {
+                                            if let Some(ptr_name) = grandchild
+                                                .attributes
+                                                .get("name")
+                                                .and_then(|v| v.as_str())
+                                            {
+                                                let right_expr =
+                                                    self.generate_expression(right_node)?;
+                                                let py_op = match op {
+                                                    "+=" => "+=",
+                                                    "-=" => "-=",
+                                                    _ => "=",
+                                                };
+                                                return Ok(self.line(&format!(
+                                                    "{}.value.value {} {}",
+                                                    ptr_name, py_op, right_expr
+                                                )));
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
-
-            // Обычное присваивание
+            } // Обычное присваивание
             let left = self.generate_expression(left_node)?;
             let right = self.generate_expression(right_node)?;
 
@@ -3425,37 +3454,62 @@ impl PythonGenerator {
         Ok(output)
     }
 
-    // В классе Reference, который генерируется в методе generate_reference_class:
-
     fn generate_reference_class(&self) -> String {
         let mut output = String::new();
 
         output.push_str("\n# Класс для имитации ссылок и указателей C\n");
         output.push_str("class Reference:\n");
         output.push_str("    def __init__(self, value):\n");
-        output.push_str("        # Если это значение перечисления, берем его числовое значение\n");
-        output.push_str("        if hasattr(value, 'value'):\n");
-        output.push_str("            self.value = value.value\n");
+        output.push_str("        # Сохраняем ссылку на объект\n");
+        output.push_str("        self.ref = value\n");
+        output.push_str("    \n");
+        output.push_str("    @property\n");
+        output.push_str("    def value(self):\n");
+        output.push_str("        # Возвращаем сам объект ref для возможности цепочки\n");
+        output.push_str("        return self.ref\n");
+        output.push_str("    \n");
+        output.push_str("    @value.setter\n");
+        output.push_str("    def value(self, new_value):\n");
+        output.push_str(
+            "        # Если ref сам является Reference, устанавливаем его значение через цепочку\n",
+        );
+        output.push_str("        if isinstance(self.ref, Reference):\n");
+        output.push_str("            self.ref.value = new_value\n");
         output.push_str("        else:\n");
-        output.push_str("            self.value = value\n");
+        output.push_str("            self.ref = new_value\n");
+        output.push_str("    \n");
+        output.push_str("    def get_final_value(self):\n");
+        output.push_str("        # Получаем конечное значение по цепочке ссылок\n");
+        output.push_str("        if isinstance(self.ref, Reference):\n");
+        output.push_str("            return self.ref.get_final_value()\n");
+        output.push_str(
+            "        elif hasattr(self.ref, 'value') and not isinstance(self.ref, Reference):\n",
+        );
+        output.push_str("            return self.ref.value\n");
+        output.push_str("        else:\n");
+        output.push_str("            return self.ref\n");
         output.push_str("    \n");
         output.push_str("    def __repr__(self):\n");
-        output.push_str("        return f\"Reference({self.value})\"\n");
+        output.push_str("        return f\"Reference({self.get_final_value()})\"\n");
         output.push_str("    \n");
         output.push_str("    # Поддержка арифметики указателей\n");
         output.push_str("    def __add__(self, other):\n");
-        output.push_str("        return Reference(self.value + other)\n");
+        output.push_str("        return Reference(self.get_final_value() + other)\n");
         output.push_str("    \n");
         output.push_str("    def __sub__(self, other):\n");
-        output.push_str("        return Reference(self.value - other)\n");
+        output.push_str("        return Reference(self.get_final_value() - other)\n");
         output.push_str("    \n");
         output.push_str("    # Поддержка индексации (для pointer[index])\n");
         output.push_str("    def __getitem__(self, index):\n");
-        output.push_str("        return self.value[index] if hasattr(self.value, '__getitem__') else self.value + index\n");
+        output.push_str("        val = self.get_final_value()\n");
+        output.push_str(
+            "        return val[index] if hasattr(val, '__getitem__') else val + index\n",
+        );
         output.push_str("    \n");
         output.push_str("    def __setitem__(self, index, value):\n");
-        output.push_str("        if hasattr(self.value, '__setitem__'):\n");
-        output.push_str("            self.value[index] = value\n");
+        output.push_str("        val = self.get_final_value()\n");
+        output.push_str("        if hasattr(val, '__setitem__'):\n");
+        output.push_str("            val[index] = value\n");
         output.push_str("        else:\n");
         output.push_str("            # Для арифметики указателей\n");
         output.push_str("            self.value = value - index\n");
