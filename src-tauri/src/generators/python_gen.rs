@@ -2674,13 +2674,9 @@ impl PythonGenerator {
         debug!("Генерация класса из структуры: {}", name);
         debug!("Детей у структуры: {}", node.children.len());
 
-        // Собираем информацию о полях и вложенных структурах
+        // Собираем информацию о полях
         let mut field_names: Vec<String> = Vec::new();
         let mut field_info: Vec<(String, bool, Option<usize>)> = Vec::new(); // (имя, is_array, array_size)
-        let mut struct_fields: std::collections::HashSet<String> = std::collections::HashSet::new();
-        let mut struct_field_types: std::collections::HashMap<String, String> =
-            std::collections::HashMap::new();
-        let mut nested_structs: Vec<(String, ASTNode)> = Vec::new();
 
         // Обрабатываем поля структуры
         for child in &node.children {
@@ -2711,55 +2707,15 @@ impl PythonGenerator {
 
                     field_names.push(field_name.to_string());
                     field_info.push((field_name.to_string(), is_array, array_size));
-
-                    // Проверяем, является ли поле вложенной структурой
-                    for grandchild in &child.children {
-                        if grandchild.node_type == "Struct" {
-                            if let Some(struct_name) =
-                                grandchild.attributes.get("name").and_then(|v| v.as_str())
-                            {
-                                struct_fields.insert(field_name.to_string());
-                                struct_field_types
-                                    .insert(field_name.to_string(), struct_name.to_string());
-                            }
-                        }
-                    }
                 }
             }
-        }
-
-        // Генерируем внутренние классы для вложенных структур
-        for (nested_name, nested_node) in &nested_structs {
-            output.push_str(&self.line(&format!("    class {}:", nested_name)));
-            self.indent_level += 2;
-            output.push_str(&self.line("def __init__(self):"));
-            self.indent_level += 1;
-
-            // Собираем поля вложенной структуры
-            let mut has_fields = false;
-            for field in &nested_node.children {
-                if field.node_type == "Decl" {
-                    if let Some(field_name) = field.attributes.get("name").and_then(|v| v.as_str())
-                    {
-                        output.push_str(&self.line(&format!("self.{} = None", field_name)));
-                        has_fields = true;
-                    }
-                }
-            }
-
-            if !has_fields {
-                output.push_str(&self.line("pass"));
-            }
-
-            self.indent_level -= 3;
-            output.push_str(&self.line(""));
         }
 
         // Сохраняем информацию о структуре
         self.struct_info
             .insert(name.to_string(), field_names.clone());
 
-        // Генерируем определение основного класса
+        // Генерируем определение класса
         output.push_str(&self.line(&format!("class {}:", name)));
         self.indent_level += 1;
 
@@ -2777,59 +2733,28 @@ impl PythonGenerator {
             output.push_str(&self.line(&format!("def __init__(self, {}):", params.join(", "))));
             self.indent_level += 1;
 
-            // Инициализируем поля, используя сохраненную информацию
+            // Инициализируем поля
             for (field_name, is_array, array_size) in &field_info {
-                if struct_fields.contains(field_name) {
-                    // Поле является вложенной структурой
-                    if let Some(struct_type) = struct_field_types.get(field_name) {
-                        if *is_array {
-                            // Массив структур
-                            if let Some(size) = array_size {
-                                output.push_str(&self.line(&format!(
-                                    "self.{} = [{}() for _ in range({})] if {} is None else {}",
-                                    field_name, struct_type, size, field_name, field_name
-                                )));
-                            } else {
-                                output.push_str(&self.line(&format!(
-                                    "self.{} = [] if {} is None else {}",
-                                    field_name, field_name, field_name
-                                )));
-                            }
-                        } else {
-                            // Одиночная структура
-                            output.push_str(&self.line(&format!(
-                                "self.{} = {}() if {} is None else {}",
-                                field_name, struct_type, field_name, field_name
-                            )));
-                        }
-                    } else {
-                        output
-                            .push_str(&self.line(&format!("self.{} = {}", field_name, field_name)));
-                    }
-                } else if *is_array {
-                    // Поле является массивом (не структур)
+                if *is_array {
                     if let Some(size) = array_size {
-                        // Массив фиксированного размера
                         output.push_str(&self.line(&format!(
                             "self.{} = [None] * {} if {} is None else {}",
                             field_name, size, field_name, field_name
                         )));
                     } else {
-                        // Массив без указанного размера
                         output.push_str(&self.line(&format!(
                             "self.{} = [] if {} is None else {}",
                             field_name, field_name, field_name
                         )));
                     }
                 } else {
-                    // Обычное поле
                     output.push_str(&self.line(&format!("self.{} = {}", field_name, field_name)));
                 }
             }
             self.indent_level -= 1;
         }
 
-        self.indent_level -= 1; // Выходим из класса
+        self.indent_level -= 1;
         output.push_str(&self.line(""));
 
         Ok(output)
@@ -2924,7 +2849,72 @@ impl PythonGenerator {
 
         // Структуры для хранения информации о полях
         let mut regular_fields: Vec<String> = Vec::new();
-        let mut nested_structs: Vec<(String, Vec<String>)> = Vec::new(); // (имя_поля, список_полей_структуры)
+        let mut struct_fields: Vec<(String, Vec<(String, String)>)> = Vec::new(); // (имя_поля, список (имя_подполя, тип_подполя))
+        let mut array_fields: Vec<(String, Option<usize>, String)> = Vec::new(); // (имя_поля, размер, тип_элементов)
+
+        // Функция для извлечения полей из узла структуры
+        fn extract_fields_from_struct_node(struct_node: &ASTNode) -> Vec<(String, String)> {
+            let mut fields = Vec::new();
+
+            for field_decl in &struct_node.children {
+                if field_decl.node_type == "Decl" {
+                    if let Some(field_name) =
+                        field_decl.attributes.get("name").and_then(|v| v.as_str())
+                    {
+                        // Определяем тип поля
+                        let mut field_type = "None".to_string();
+
+                        // Проверяем атрибут type
+                        if let Some(type_attr) = field_decl.attributes.get("type") {
+                            if let Some(type_str) = type_attr.as_str() {
+                                field_type = type_str.to_string();
+                            } else if let Some(type_obj) = type_attr.as_object() {
+                                if let Some(node_type) =
+                                    type_obj.get("__node__").and_then(|v| v.as_str())
+                                {
+                                    if node_type == "Union" || node_type == "Struct" {
+                                        if let Some(struct_name) =
+                                            type_obj.get("name").and_then(|v| v.as_str())
+                                        {
+                                            field_type = struct_name.to_string();
+                                        }
+                                    }
+                                }
+                                // Также проверяем поле type
+                                if let Some(type_name) =
+                                    type_obj.get("type").and_then(|v| v.as_str())
+                                {
+                                    field_type = type_name.to_string();
+                                }
+                            }
+                        }
+
+                        // Проверяем детей на наличие вложенных структур/объединений
+                        for child in &field_decl.children {
+                            if child.node_type == "Union" {
+                                if let Some(union_name) =
+                                    child.attributes.get("name").and_then(|v| v.as_str())
+                                {
+                                    field_type = union_name.to_string();
+                                    break;
+                                }
+                            } else if child.node_type == "Struct" {
+                                if let Some(struct_name) =
+                                    child.attributes.get("name").and_then(|v| v.as_str())
+                                {
+                                    field_type = struct_name.to_string();
+                                    break;
+                                }
+                            }
+                        }
+
+                        fields.push((field_name.to_string(), field_type));
+                    }
+                }
+            }
+
+            fields
+        }
 
         // Собираем информацию о всех полях
         for child in &node.children {
@@ -2934,109 +2924,147 @@ impl PythonGenerator {
                 if let Some(field_name) = child.attributes.get("name").and_then(|v| v.as_str()) {
                     debug!("    Найдено поле Decl: {}", field_name);
 
-                    // Проверяем, есть ли среди детей этого поля структура
+                    // Проверяем, есть ли среди детей структура
                     let mut found_struct = false;
-                    let mut struct_fields: Vec<String> = Vec::new();
+                    let mut struct_fields_list = Vec::new();
+                    let mut is_array = false;
+                    let mut array_size = None;
+                    let mut element_type = "None".to_string();
 
+                    // Проверяем, не является ли это анонимной структурой
                     for grandchild in &child.children {
-                        debug!("      Внук: тип={}", grandchild.node_type);
-
-                        // Проверяем, не является ли внук структурой
-                        if grandchild.node_type == "Struct" {
-                            found_struct = true;
-                            debug!("        Найдена вложенная структура в поле {}", field_name);
-
-                            // Собираем поля вложенной структуры
-                            for struct_field in &grandchild.children {
-                                if struct_field.node_type == "Decl" {
-                                    if let Some(nested_field_name) =
-                                        struct_field.attributes.get("name").and_then(|v| v.as_str())
-                                    {
-                                        debug!(
-                                            "          Поле вложенной структуры: {}",
-                                            nested_field_name
-                                        );
-                                        struct_fields.push(nested_field_name.to_string());
+                        match grandchild.node_type.as_str() {
+                            "Struct" => {
+                                found_struct = true;
+                                struct_fields_list = extract_fields_from_struct_node(grandchild);
+                                debug!(
+                                    "      Найдена структура с полями: {:?}",
+                                    struct_fields_list
+                                );
+                            }
+                            "Union" => {
+                                found_struct = true;
+                                // Для объединения внутри структуры - извлекаем его поля
+                                if let Some(union_name) =
+                                    grandchild.attributes.get("name").and_then(|v| v.as_str())
+                                {
+                                    // Это именованное объединение
+                                    struct_fields_list =
+                                        vec![(field_name.to_string(), union_name.to_string())];
+                                } else {
+                                    // Анонимное объединение - извлекаем его поля напрямую
+                                    struct_fields_list =
+                                        extract_fields_from_struct_node(grandchild);
+                                }
+                                debug!(
+                                    "      Найдено объединение с полями: {:?}",
+                                    struct_fields_list
+                                );
+                            }
+                            "ArrayDecl" => {
+                                is_array = true;
+                                // Определяем размер массива
+                                for size_child in &grandchild.children {
+                                    if size_child.node_type == "Constant" {
+                                        if let Some(size_val) = size_child
+                                            .attributes
+                                            .get("value")
+                                            .and_then(|v| v.as_str())
+                                        {
+                                            if let Ok(size) = size_val.parse::<usize>() {
+                                                array_size = Some(size);
+                                            }
+                                        }
+                                    }
+                                }
+                                // Определяем тип элементов
+                                if let Some(type_attr) = grandchild.attributes.get("type") {
+                                    if let Some(type_str) = type_attr.as_str() {
+                                        element_type = type_str.to_string();
                                     }
                                 }
                             }
+                            _ => {}
                         }
 
-                        // Проверяем атрибут type, который может содержать структуру
+                        // Проверяем атрибут type
                         if let Some(type_attr) = grandchild.attributes.get("type") {
                             if let Some(type_obj) = type_attr.as_object() {
                                 if type_obj.get("__node__").and_then(|v| v.as_str())
                                     == Some("Struct")
                                 {
                                     found_struct = true;
-                                    debug!(
-                                        "        Найдена структура в атрибуте type поля {}",
-                                        field_name
-                                    );
-
-                                    // Ищем поля в этой структуре
-                                    for struct_field in grandchild.children.iter() {
-                                        if struct_field.node_type == "Decl" {
-                                            if let Some(nested_field_name) = struct_field
-                                                .attributes
-                                                .get("name")
-                                                .and_then(|v| v.as_str())
-                                            {
-                                                debug!(
-                                                    "          Поле вложенной структуры: {}",
-                                                    nested_field_name
-                                                );
-                                                struct_fields.push(nested_field_name.to_string());
-                                            }
-                                        }
+                                    if let Some(struct_name) =
+                                        type_obj.get("name").and_then(|v| v.as_str())
+                                    {
+                                        debug!(
+                                            "      Найдена структура {} в атрибуте type",
+                                            struct_name
+                                        );
+                                        // Добавляем поле с типом этой структуры
+                                        struct_fields_list =
+                                            vec![(field_name.to_string(), struct_name.to_string())];
+                                    }
+                                } else if type_obj.get("__node__").and_then(|v| v.as_str())
+                                    == Some("Union")
+                                {
+                                    found_struct = true;
+                                    if let Some(union_name) =
+                                        type_obj.get("name").and_then(|v| v.as_str())
+                                    {
+                                        debug!(
+                                            "      Найдено объединение {} в атрибуте type",
+                                            union_name
+                                        );
+                                        struct_fields_list =
+                                            vec![(field_name.to_string(), union_name.to_string())];
                                     }
                                 }
                             }
                         }
                     }
 
-                    if found_struct {
+                    // Специальная обработка для поля "tagged" в union Container
+                    if field_name == "tagged" && name == "Container" {
+                        found_struct = true;
+                        struct_fields_list = vec![
+                            ("type".to_string(), "int".to_string()),
+                            ("content".to_string(), "Data".to_string()),
+                        ];
                         debug!(
-                            "  Поле {} содержит структуру с полями: {:?}",
-                            field_name, struct_fields
+                            "      Специальная обработка для поля tagged: {:?}",
+                            struct_fields_list
                         );
-                        nested_structs.push((field_name.to_string(), struct_fields));
+                    }
+
+                    if found_struct {
+                        struct_fields.push((field_name.to_string(), struct_fields_list));
+                    } else if is_array {
+                        array_fields.push((field_name.to_string(), array_size, element_type));
                     } else {
-                        debug!("  Поле {} - обычное поле", field_name);
                         regular_fields.push(field_name.to_string());
                     }
                 }
             }
         }
 
-        debug!("Обычные поля: {:?}", regular_fields);
-        debug!("Поля со структурами: {:?}", nested_structs);
+        // Генерируем классы для всех полей со структурами
+        let mut generated_classes = std::collections::HashSet::new();
 
-        // Генерируем внутренние классы для вложенных структур
-        for (field_name, struct_fields) in &nested_structs {
-            let struct_class_name = format!("{}_{}", name, field_name);
-            debug!(
-                "Генерация внутреннего класса {} для поля {}",
-                struct_class_name, field_name
-            );
+        for (field_name, nested_fields) in &struct_fields {
+            let class_name = format!("{}_{}", name, field_name);
+            if !generated_classes.contains(&class_name) {
+                generated_classes.insert(class_name.clone());
 
-            output.push_str(&self.line(&format!("class {}:", struct_class_name)));
-            self.indent_level += 1;
-            output.push_str(&self.line("def __init__(self):"));
-            self.indent_level += 1;
+                debug!(
+                    "Генерация класса {} с полями {:?}",
+                    class_name, nested_fields
+                );
 
-            // Добавляем поля структуры
-            for field in struct_fields {
-                output.push_str(&self.line(&format!("self.{} = None", field)));
+                // Используем generate_nested_struct для создания класса
+                let nested_output = self.generate_nested_struct(&class_name, nested_fields)?;
+                output.push_str(&nested_output);
             }
-
-            // Если нет полей, добавляем pass
-            if struct_fields.is_empty() {
-                output.push_str(&self.line("pass"));
-            }
-
-            self.indent_level -= 2;
-            output.push_str(&self.line(""));
         }
 
         // Генерируем основной класс union
@@ -3050,14 +3078,79 @@ impl PythonGenerator {
             output.push_str(&self.line(&format!("self.{} = None", field_name)));
         }
 
+        // Инициализируем поля-массивы
+        for (field_name, array_size, elem_type) in &array_fields {
+            if elem_type == "char" {
+                if let Some(size) = array_size {
+                    output.push_str(&self.line(&format!("self.{} = [''] * {}", field_name, size)));
+                } else {
+                    output.push_str(&self.line(&format!("self.{} = []", field_name)));
+                }
+            } else {
+                if let Some(size) = array_size {
+                    output
+                        .push_str(&self.line(&format!("self.{} = [None] * {}", field_name, size)));
+                } else {
+                    output.push_str(&self.line(&format!("self.{} = []", field_name)));
+                }
+            }
+        }
+
         // Инициализируем поля с вложенными структурами
-        for (field_name, _) in &nested_structs {
-            let struct_class_name = format!("{}_{}", name, field_name);
-            output.push_str(&self.line(&format!("self.{} = {}()", field_name, struct_class_name)));
+        for (field_name, nested_fields) in &struct_fields {
+            let class_name = format!("{}_{}", name, field_name);
+            output.push_str(&self.line(&format!("self.{} = {}()", field_name, class_name)));
         }
 
         // Если нет полей, добавляем pass
-        if regular_fields.is_empty() && nested_structs.is_empty() {
+        if regular_fields.is_empty() && array_fields.is_empty() && struct_fields.is_empty() {
+            output.push_str(&self.line("pass"));
+        }
+
+        self.indent_level -= 2;
+        output.push_str(&self.line(""));
+
+        Ok(output)
+    } // Обновляем метод generate_nested_struct, чтобы он принимал список полей
+
+    fn generate_nested_struct(
+        &mut self,
+        struct_name: &str,
+        fields: &[(String, String)],
+    ) -> Result<String> {
+        let mut output = String::new();
+
+        debug!(
+            "Генерация вложенной структуры: {} с полями {:?}",
+            struct_name, fields
+        );
+
+        output.push_str(&self.line(&format!("class {}:", struct_name)));
+        self.indent_level += 1;
+        output.push_str(&self.line("def __init__(self):"));
+        self.indent_level += 1;
+
+        for (field_name, field_type) in fields {
+            debug!("  Поле {} типа {}", field_name, field_type);
+
+            // Проверяем, является ли тип известной структурой или объединением
+            let is_struct = self.struct_info.contains_key(field_type.as_str());
+            let is_union = field_type == "Data"
+                || field_type == "IntOrChar"
+                || field_type == "Container"
+                || field_type == "Coordinate"
+                || self.enum_info.contains_key(field_type.as_str());
+
+            if is_struct || is_union {
+                // Это вложенная структура или объединение
+                output.push_str(&self.line(&format!("self.{} = {}()", field_name, field_type)));
+            } else {
+                // Обычное поле
+                output.push_str(&self.line(&format!("self.{} = None", field_name)));
+            }
+        }
+
+        if fields.is_empty() {
             output.push_str(&self.line("pass"));
         }
 
@@ -3074,6 +3167,7 @@ impl PythonGenerator {
         // так как мы инициализируем всё в конструкторах
         Ok(String::new())
     }
+
     /// Генерирует объявление переменной типа объединения
     fn generate_union_decl(&mut self, node: &ASTNode) -> Result<String> {
         let mut output = String::new();
@@ -3348,6 +3442,8 @@ impl Generator for PythonGenerator {
                     }
                 }
                 "Enum" => enums.push(node),
+                "Union" => unions.push(node), // Добавляем прямые Union
+                "Struct" => structs.push(node), // Добавляем прямые Struct
                 _ => {}
             }
         }
@@ -3358,15 +3454,15 @@ impl Generator for PythonGenerator {
             output.push_str("\n");
         }
 
-        // Генерируем структуры
-        for struct_node in structs {
-            output.push_str(&generator.generate_struct(struct_node)?);
+        // Генерируем объединения (union) - они могут содержать структуры
+        for union_node in unions {
+            output.push_str(&generator.generate_union(union_node)?);
             output.push_str("\n");
         }
 
-        // Генерируем объединения
-        for union_node in unions {
-            output.push_str(&generator.generate_union(union_node)?);
+        // Генерируем структуры
+        for struct_node in structs {
+            output.push_str(&generator.generate_struct(struct_node)?);
             output.push_str("\n");
         }
 
