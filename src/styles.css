@@ -39,15 +39,105 @@ body {
     margin-top: 0.25rem;
 }
 
-.code-textarea {
+.code-container {
+    position: relative;
     width: 100%;
-    flex: 1 1 auto; /* Занимает все доступное пространство */
-    min-height: 0; /* Важно для корректной работы flexbox */
-    padding: 0.5rem;
-    font-family: monospace;
-    resize: none; /* Запрещаем изменение размера курсором */
-    overflow-y: auto; /* Добавляем вертикальный скролл при необходимости */
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid #444;
+    border-radius: 4px;
+    background-color: #1e1e1e;
+}
+
+/* Общие стили для textarea и pre */
+.code-textarea,
+.code-preview {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre;
+    word-wrap: normal;
+    overflow: auto;
     box-sizing: border-box;
+    border: none;
+    outline: none;
+}
+
+/* Textarea для ввода - добавляем отступы */
+.code-textarea {
+    padding: 10px;
+    background: transparent;
+    color: transparent; /* Делаем текст невидимым */
+    caret-color: white; /* Но курсор оставляем видимым */
+    resize: none;
+    z-index: 2;
+}
+
+/* Pre для подсветки - без отступов */
+.code-preview {
+    padding: 0;
+    pointer-events: none; /* Чтобы не мешать вводу */
+    z-index: 1;
+    background-color: #1e1e1e;
+    overflow: auto;
+}
+
+.code-preview code {
+    font-family: inherit;
+    background: transparent !important;
+    padding: 0;
+    margin: 0;
+    display: block;
+    box-sizing: border-box;
+    min-height: 100%;
+    width: fit-content;
+    min-width: 100%;
+}
+
+/* Стили для скроллбара - одинаковые для обоих элементов */
+.code-textarea::-webkit-scrollbar,
+.code-preview::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+.code-textarea::-webkit-scrollbar-track,
+.code-preview::-webkit-scrollbar-track {
+    background: #2d2d2d;
+}
+
+.code-textarea::-webkit-scrollbar-thumb,
+.code-preview::-webkit-scrollbar-thumb {
+    background: #666;
+    border-radius: 5px;
+}
+
+.code-textarea::-webkit-scrollbar-thumb:hover,
+.code-preview::-webkit-scrollbar-thumb:hover {
+    background: #888;
+}
+
+/* Скрываем скроллбар у preview, чтобы не мешал */
+.code-preview::-webkit-scrollbar {
+    display: none;
+}
+
+/* Для Firefox */
+.code-preview {
+    scrollbar-width: none;
+}
+
+/* Стили для placeholder */
+.code-textarea::placeholder {
+    color: #666;
+    opacity: 1;
 }
 
 #resizer {
@@ -56,7 +146,7 @@ body {
     width: 5px;
     height: 100%;
     flex-shrink: 0;
-    z-index: 1;
+    z-index: 10;
     transition: background-color 0.2s;
 }
 
@@ -65,20 +155,57 @@ body {
     background-color: #999;
 }
 
-/* Стили для скроллбара (опционально) */
-.code-textarea::-webkit-scrollbar {
-    width: 10px;
+/* Класс для режима ресайза */
+.resizing {
+    user-select: none;
+    cursor: col-resize;
 }
 
-.code-textarea::-webkit-scrollbar-track {
-    background: #f1f1f1;
+.resizing .code-textarea,
+.resizing .code-preview {
+    pointer-events: none;
 }
 
-.code-textarea::-webkit-scrollbar-thumb {
-    background: #888;
-    border-radius: 5px;
+/* styles.css - добавить в конец файла */
+
+/* Анимация для изменения размера шрифта */
+.code-textarea,
+.code-preview,
+.code-preview code {
+    transition: font-size 0.05s ease;
 }
 
-.code-textarea::-webkit-scrollbar-thumb:hover {
-    background: #555;
+/* Индикатор текущего масштаба (опционально - можно добавить потом) */
+.zoom-indicator {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+}
+
+.zoom-indicator.show {
+    opacity: 1;
+}
+
+/* Делаем табуляции видимыми (опционально) */
+.code-textarea,
+.code-preview {
+    tab-size: 4;
+    -moz-tab-size: 4;
+    -o-tab-size: 4;
+    -webkit-tab-size: 4;
+}
+
+/* Можно добавить подсветку для отладки отступов */
+.code-textarea::selection,
+.code-preview::selection {
+    background: rgba(255, 255, 255, 0.2);
 }
