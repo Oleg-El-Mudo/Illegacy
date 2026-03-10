@@ -3515,67 +3515,76 @@ impl PythonGenerator {
         output.push_str("class Reference:\n");
         output.push_str("    def __init__(self, value):\n");
         output.push_str("        # Сохраняем ссылку на объект\n");
-        output.push_str("        self.ref = value\n");
+        output.push_str("        self._ref = value\n");
         output.push_str("    \n");
         output.push_str("    @property\n");
         output.push_str("    def value(self):\n");
-        output.push_str("        # Возвращаем сам объект ref для возможности цепочки\n");
-        output.push_str("        return self.ref\n");
+        output.push_str("        # Возвращаем ссылку на следующий объект в цепочке\n");
+        output.push_str("        if isinstance(self._ref, Reference):\n");
+        output.push_str("            return self._ref\n");
+        output.push_str("        else:\n");
+        output.push_str("            return self._ref\n");
         output.push_str("    \n");
         output.push_str("    @value.setter\n");
         output.push_str("    def value(self, new_value):\n");
-        output.push_str(
-            "        # Если ref сам является Reference, устанавливаем его значение через цепочку\n",
-        );
-        output.push_str("        if isinstance(self.ref, Reference):\n");
-        output.push_str("            self.ref.value = new_value\n");
+        output.push_str("        if isinstance(self._ref, Reference):\n");
+        output.push_str("            self._ref.value = new_value\n");
         output.push_str("        else:\n");
-        output.push_str("            self.ref = new_value\n");
+        output.push_str("            self._ref = new_value\n");
+        output.push_str("    \n");
+        output.push_str("    def get(self):\n");
+        output.push_str("        # Получаем конечное значение по цепочке ссылок\n");
+        output.push_str("        if isinstance(self._ref, Reference):\n");
+        output.push_str("            return self._ref.get()\n");
+        output.push_str(
+            "        elif hasattr(self._ref, 'value') and not isinstance(self._ref, Reference):\n",
+        );
+        output.push_str("            return self._ref.value\n");
+        output.push_str("        else:\n");
+        output.push_str("            return self._ref\n");
+        output.push_str("    \n");
+        output.push_str("    # Для обратной совместимости\n");
+        output.push_str("    def get_final_value(self):\n");
+        output.push_str("        return self.get()\n");
         output.push_str("    \n");
         output.push_str("    def __getattr__(self, name):\n");
-        output.push_str("        # Прямой доступ к полям объекта\n");
-        output.push_str("        return getattr(self.get_final_value(), name)\n");
+        output.push_str("        if name == '_ref':\n");
+        output.push_str("            return super().__getattr__(name)\n");
+        output.push_str("        final_obj = self.get()\n");
+        output.push_str("        return getattr(final_obj, name)\n");
         output.push_str("    \n");
         output.push_str("    def __setattr__(self, name, value):\n");
-        output.push_str("        if name in ['ref']:\n");
+        output.push_str("        if name == '_ref':\n");
         output.push_str("            super().__setattr__(name, value)\n");
+        output.push_str("        elif name == 'value':\n");
+        output.push_str("            if isinstance(self._ref, Reference):\n");
+        output.push_str("                self._ref.value = value\n");
+        output.push_str("            else:\n");
+        output.push_str("                self._ref = value\n");
         output.push_str("        else:\n");
-        output.push_str("            setattr(self.get_final_value(), name, value)\n");
-        output.push_str("    \n");
-        output.push_str("    def get_final_value(self):\n");
-        output.push_str("        # Получаем конечное значение по цепочке ссылок\n");
-        output.push_str("        if isinstance(self.ref, Reference):\n");
-        output.push_str("            return self.ref.get_final_value()\n");
-        output.push_str(
-            "        elif hasattr(self.ref, 'value') and not isinstance(self.ref, Reference):\n",
-        );
-        output.push_str("            return self.ref.value\n");
-        output.push_str("        else:\n");
-        output.push_str("            return self.ref\n");
+        output.push_str("            final_obj = self.get()\n");
+        output.push_str("            setattr(final_obj, name, value)\n");
         output.push_str("    \n");
         output.push_str("    def __repr__(self):\n");
-        output.push_str("        return f\"Reference({self.get_final_value()})\"\n");
+        output.push_str("        return f\"Reference({self.get()})\"\n");
         output.push_str("    \n");
-        output.push_str("    # Поддержка арифметики указателей\n");
         output.push_str("    def __add__(self, other):\n");
-        output.push_str("        return Reference(self.get_final_value() + other)\n");
+        output.push_str("        return Reference(self.get() + other)\n");
         output.push_str("    \n");
         output.push_str("    def __sub__(self, other):\n");
-        output.push_str("        return Reference(self.get_final_value() - other)\n");
+        output.push_str("        return Reference(self.get() - other)\n");
         output.push_str("    \n");
-        output.push_str("    # Поддержка индексации (для pointer[index])\n");
         output.push_str("    def __getitem__(self, index):\n");
-        output.push_str("        val = self.get_final_value()\n");
+        output.push_str("        val = self.get()\n");
         output.push_str(
             "        return val[index] if hasattr(val, '__getitem__') else val + index\n",
         );
         output.push_str("    \n");
         output.push_str("    def __setitem__(self, index, value):\n");
-        output.push_str("        val = self.get_final_value()\n");
+        output.push_str("        val = self.get()\n");
         output.push_str("        if hasattr(val, '__setitem__'):\n");
         output.push_str("            val[index] = value\n");
         output.push_str("        else:\n");
-        output.push_str("            # Для арифметики указателей\n");
         output.push_str("            self.value = value - index\n");
         output.push_str("\n");
 
