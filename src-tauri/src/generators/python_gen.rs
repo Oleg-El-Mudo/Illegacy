@@ -3222,7 +3222,7 @@ impl PythonGenerator {
         }
 
         // Инициализируем поля с вложенными структурами
-        for (field_name, nested_fields) in &struct_fields {
+        for (field_name, _nested_fields) in &struct_fields {
             let class_name = format!("{}_{}", name, field_name);
             output.push_str(&self.line(&format!("self.{} = {}()", field_name, class_name)));
         }
