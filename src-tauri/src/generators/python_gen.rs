@@ -644,7 +644,8 @@ impl PythonGenerator {
             "ID" => {
                 if let Some(name) = node.attributes.get("name").and_then(|v| v.as_str()) {
                     if let Some(enum_name) = self.is_enum_value(name) {
-                        Ok(format!("{}.{}", enum_name, name))
+                        // Если это значение перечисления, возвращаем его числовое значение
+                        Ok(format!("{}.{}.value", enum_name, name))
                     } else {
                         Ok(name.to_string())
                     }
@@ -1535,6 +1536,15 @@ impl PythonGenerator {
         }
 
         Ok(output)
+    }
+
+    fn is_enum_value(&self, name: &str) -> Option<String> {
+        for (enum_name, values) in &self.enum_info {
+            if values.contains(&name.to_string()) {
+                return Some(enum_name.clone());
+            }
+        }
+        None
     }
 
     fn generate_declaration(&mut self, node: &ASTNode) -> Result<String> {
@@ -3260,6 +3270,7 @@ impl PythonGenerator {
 
         let mut has_explicit_values = false;
         let mut enum_items_found = false;
+        let mut current_value = 0;
 
         for child in &node.children {
             debug!("  Ребенок enum: тип={}", child.node_type);
@@ -3273,7 +3284,6 @@ impl PythonGenerator {
                             enumerator.attributes.get("name").and_then(|v| v.as_str())
                         {
                             enum_items_found = true;
-                            enum_values.push(item_name.to_string());
 
                             if let Some(value) = enumerator.attributes.get("value") {
                                 has_explicit_values = true;
@@ -3284,49 +3294,66 @@ impl PythonGenerator {
                                         value_obj.get("value").and_then(|v| v.as_str())
                                     {
                                         if value_str.chars().all(|c| c.is_ascii_digit()) {
-                                            output.push_str(
-                                                &self.line(&format!(
-                                                    "{} = {}",
-                                                    item_name, value_str
-                                                )),
-                                            );
+                                            current_value = value_str.parse::<i32>().unwrap_or(0);
+                                            output.push_str(&self.line(&format!(
+                                                "{} = {}",
+                                                item_name, current_value
+                                            )));
                                         } else {
-                                            output.push_str(
-                                                &self.line(&format!("{} = auto()", item_name)),
-                                            );
+                                            output.push_str(&self.line(&format!(
+                                                "{} = {}",
+                                                item_name, current_value
+                                            )));
                                         }
                                     } else {
                                         output.push_str(
-                                            &self.line(&format!("{} = auto()", item_name)),
+                                            &self.line(&format!(
+                                                "{} = {}",
+                                                item_name, current_value
+                                            )),
                                         );
                                     }
                                 } else if let Some(value_str) = value.as_str() {
                                     if value_str.chars().all(|c| c.is_ascii_digit()) {
+                                        current_value = value_str.parse::<i32>().unwrap_or(0);
                                         output.push_str(
-                                            &self.line(&format!("{} = {}", item_name, value_str)),
+                                            &self.line(&format!(
+                                                "{} = {}",
+                                                item_name, current_value
+                                            )),
                                         );
                                     } else {
                                         output.push_str(
-                                            &self.line(&format!("{} = auto()", item_name)),
+                                            &self.line(&format!(
+                                                "{} = {}",
+                                                item_name, current_value
+                                            )),
                                         );
                                     }
                                 } else if let Some(value_num) = value.as_i64() {
+                                    current_value = value_num as i32;
                                     output.push_str(
-                                        &self.line(&format!("{} = {}", item_name, value_num)),
+                                        &self.line(&format!("{} = {}", item_name, current_value)),
                                     );
                                 } else {
-                                    output.push_str(&self.line(&format!("{} = auto()", item_name)));
+                                    output.push_str(
+                                        &self.line(&format!("{} = {}", item_name, current_value)),
+                                    );
                                 }
                             } else {
-                                output.push_str(&self.line(&format!("{} = auto()", item_name)));
+                                output.push_str(
+                                    &self.line(&format!("{} = {}", item_name, current_value)),
+                                );
                             }
+
+                            enum_values.push(item_name.to_string());
+                            current_value += 1;
                         }
                     }
                 }
             } else if child.node_type == "Enumerator" {
                 if let Some(item_name) = child.attributes.get("name").and_then(|v| v.as_str()) {
                     enum_items_found = true;
-                    enum_values.push(item_name.to_string());
 
                     if let Some(value) = child.attributes.get("value") {
                         has_explicit_values = true;
@@ -3335,31 +3362,47 @@ impl PythonGenerator {
                             if let Some(value_str) = value_obj.get("value").and_then(|v| v.as_str())
                             {
                                 if value_str.chars().all(|c| c.is_ascii_digit()) {
+                                    current_value = value_str.parse::<i32>().unwrap_or(0);
                                     output.push_str(
-                                        &self.line(&format!("{} = {}", item_name, value_str)),
+                                        &self.line(&format!("{} = {}", item_name, current_value)),
                                     );
                                 } else {
-                                    output.push_str(&self.line(&format!("{} = auto()", item_name)));
+                                    output.push_str(
+                                        &self.line(&format!("{} = {}", item_name, current_value)),
+                                    );
                                 }
                             } else {
-                                output.push_str(&self.line(&format!("{} = auto()", item_name)));
+                                output.push_str(
+                                    &self.line(&format!("{} = {}", item_name, current_value)),
+                                );
                             }
                         } else if let Some(value_str) = value.as_str() {
                             if value_str.chars().all(|c| c.is_ascii_digit()) {
+                                current_value = value_str.parse::<i32>().unwrap_or(0);
                                 output.push_str(
-                                    &self.line(&format!("{} = {}", item_name, value_str)),
+                                    &self.line(&format!("{} = {}", item_name, current_value)),
                                 );
                             } else {
-                                output.push_str(&self.line(&format!("{} = auto()", item_name)));
+                                output.push_str(
+                                    &self.line(&format!("{} = {}", item_name, current_value)),
+                                );
                             }
                         } else if let Some(value_num) = value.as_i64() {
-                            output.push_str(&self.line(&format!("{} = {}", item_name, value_num)));
+                            current_value = value_num as i32;
+                            output.push_str(
+                                &self.line(&format!("{} = {}", item_name, current_value)),
+                            );
                         } else {
-                            output.push_str(&self.line(&format!("{} = auto()", item_name)));
+                            output.push_str(
+                                &self.line(&format!("{} = {}", item_name, current_value)),
+                            );
                         }
                     } else {
-                        output.push_str(&self.line(&format!("{} = auto()", item_name)));
+                        output.push_str(&self.line(&format!("{} = {}", item_name, current_value)));
                     }
+
+                    enum_values.push(item_name.to_string());
+                    current_value += 1;
                 }
             }
         }
@@ -3382,14 +3425,7 @@ impl PythonGenerator {
         Ok(output)
     }
 
-    fn is_enum_value(&self, name: &str) -> Option<String> {
-        for (enum_name, values) in &self.enum_info {
-            if values.contains(&name.to_string()) {
-                return Some(enum_name.clone());
-            }
-        }
-        None
-    }
+    // В классе Reference, который генерируется в методе generate_reference_class:
 
     fn generate_reference_class(&self) -> String {
         let mut output = String::new();
@@ -3397,7 +3433,11 @@ impl PythonGenerator {
         output.push_str("\n# Класс для имитации ссылок и указателей C\n");
         output.push_str("class Reference:\n");
         output.push_str("    def __init__(self, value):\n");
-        output.push_str("        self.value = value\n");
+        output.push_str("        # Если это значение перечисления, берем его числовое значение\n");
+        output.push_str("        if hasattr(value, 'value'):\n");
+        output.push_str("            self.value = value.value\n");
+        output.push_str("        else:\n");
+        output.push_str("            self.value = value\n");
         output.push_str("    \n");
         output.push_str("    def __repr__(self):\n");
         output.push_str("        return f\"Reference({self.value})\"\n");
