@@ -781,7 +781,6 @@ impl PythonGenerator {
                             Ok(format!("Reference({})", expr))
                         }
                     }
-                    // В методе generate_expression_internal, в обработке "UnaryOp" для оператора "*":
                     "*" => {
                         let deref_count = count_dereferences(node);
 
@@ -817,22 +816,44 @@ impl PythonGenerator {
                                         return Ok(format!("{}[0]", var_name));
                                     }
 
-                                    let mut result = var_name.to_string();
-                                    for i in 0..deref_count {
-                                        if i == deref_count - 1 {
-                                            // Последнее разыменование - получаем значение
-                                            result = format!("{}.get_final_value()", result);
+                                    // Проверяем, является ли это указателем на структуру
+                                    let is_struct_ptr =
+                                        self.struct_info.keys().any(|k| var_name.contains(k));
+
+                                    if deref_count == 1 {
+                                        // Одноразыменование
+                                        if is_struct_ptr {
+                                            // Для указателя на структуру возвращаем сам объект (без .value)
+                                            // так как ptr уже содержит ссылку на объект
+                                            return Ok(var_name.to_string());
                                         } else {
-                                            // Промежуточные - получаем ссылку
-                                            result = format!("{}.value", result);
+                                            // Для указателя на простой тип
+                                            return Ok(format!("{}.get_final_value()", var_name));
                                         }
+                                    } else {
+                                        // Многоразыменование
+                                        let mut result = var_name.to_string();
+                                        for i in 0..deref_count {
+                                            if i == deref_count - 1 {
+                                                // Последнее разыменование
+                                                if is_struct_ptr && i == 0 {
+                                                    result = format!("{}", result);
+                                                } else {
+                                                    result =
+                                                        format!("{}.get_final_value()", result);
+                                                }
+                                            } else {
+                                                // Промежуточные - получаем ссылку
+                                                result = format!("{}.value", result);
+                                            }
+                                        }
+                                        return Ok(result);
                                     }
-                                    return Ok(result);
                                 }
                             }
                         }
 
-                        // Для выражений
+                        // Для выражений, которые не являются простыми идентификаторами
                         let mut result = expr;
                         for _ in 0..deref_count {
                             result = format!("{}.get_final_value()", result);
@@ -2172,6 +2193,23 @@ impl PythonGenerator {
                 .and_then(|v| v.as_str())
                 .unwrap_or("=");
 
+            // В методе generate_assignment, при обработке присваивания через указатель:
+
+            if left_node.node_type == "StructRef" {
+                // Это доступ к полю структуры, например vec_ptr.x
+                let left = self.generate_expression(left_node)?;
+                let right = self.generate_expression(right_node)?;
+                let py_op = match op {
+                    "=" => "=",
+                    "+=" => "+=",
+                    "-=" => "-=",
+                    "*=" => "*=",
+                    "/=" => "/=",
+                    "%=" => "%=",
+                    _ => "=",
+                };
+                return Ok(self.line(&format!("{} {} {}", left, py_op, right)));
+            }
             // Проверяем, является ли левая часть обращением к элементу массива
             if left_node.node_type == "ArrayRef" && left_node.children.len() >= 2 {
                 let array_name_node = &left_node.children[0];
@@ -2228,13 +2266,11 @@ impl PythonGenerator {
             }
 
             // В методе generate_assignment, при обработке разыменования указателя:
-
             if left_node.node_type == "UnaryOp" {
                 if let Some(unary_op) = left_node.attributes.get("op").and_then(|v| v.as_str()) {
                     if unary_op == "*" && left_node.children.len() == 1 {
                         let inner = &left_node.children[0];
 
-                        // Функция для подсчета уровня разыменования
                         fn count_dereferences(node: &ASTNode) -> usize {
                             if node.node_type == "UnaryOp" {
                                 if let Some(op) = node.attributes.get("op").and_then(|v| v.as_str())
@@ -2260,6 +2296,10 @@ impl PythonGenerator {
                                     ptr_name, right_expr, deref_count
                                 );
 
+                                // Проверяем, является ли это указателем на структуру
+                                let is_struct_ptr =
+                                    self.struct_info.keys().any(|k| ptr_name.contains(k));
+
                                 if self.pointer_vars.contains(ptr_name)
                                     && self.array_vars.contains(ptr_name)
                                 {
@@ -2279,20 +2319,35 @@ impl PythonGenerator {
                                         _ => "=",
                                     };
 
-                                    // Для двойных указателей используем цепочку value
-                                    let result = match deref_count {
-                                        1 => format!("{}.value {} {}", ptr_name, py_op, right_expr),
-                                        2 => format!(
-                                            "{}.value.value {} {}",
+                                    // Для указателей на структуры
+                                    if is_struct_ptr && deref_count == 1 {
+                                        // Просто присваиваем самому указателю (заменяем объект)
+                                        return Ok(self.line(&format!(
+                                            "{} {} {}",
                                             ptr_name, py_op, right_expr
-                                        ),
-                                        3 => format!(
-                                            "{}.value.value.value {} {}",
-                                            ptr_name, py_op, right_expr
-                                        ),
-                                        _ => format!("{}.value {} {}", ptr_name, py_op, right_expr),
-                                    };
-                                    return Ok(self.line(&result));
+                                        )));
+                                    } else {
+                                        // Для двойных указателей используем цепочку value
+                                        let result = match deref_count {
+                                            1 => format!(
+                                                "{}.value {} {}",
+                                                ptr_name, py_op, right_expr
+                                            ),
+                                            2 => format!(
+                                                "{}.value.value {} {}",
+                                                ptr_name, py_op, right_expr
+                                            ),
+                                            3 => format!(
+                                                "{}.value.value.value {} {}",
+                                                ptr_name, py_op, right_expr
+                                            ),
+                                            _ => format!(
+                                                "{}.value {} {}",
+                                                ptr_name, py_op, right_expr
+                                            ),
+                                        };
+                                        return Ok(self.line(&result));
+                                    }
                                 }
                             }
                         } else if inner.node_type == "UnaryOp" {
@@ -2891,13 +2946,13 @@ impl PythonGenerator {
             let field_expr = self.generate_expression_internal(&node.children[1])?;
 
             let base_name = struct_expr.split('.').next().unwrap_or(&struct_expr);
+            let base_name = base_name.split('[').next().unwrap_or(base_name);
 
+            // Проверяем, является ли базовое выражение указателем
             if self.pointer_vars.contains(base_name) {
-                if struct_expr.contains(".value") {
-                    Ok(format!("{}.{}", struct_expr, field_expr))
-                } else {
-                    Ok(format!("{}.value.{}", struct_expr, field_expr))
-                }
+                // Для указателя на структуру используем прямой доступ к полю
+                // без .value, так как указатель уже содержит ссылку на объект
+                Ok(format!("{}.{}", struct_expr, field_expr))
             } else {
                 Ok(format!("{}.{}", struct_expr, field_expr))
             }
@@ -2905,7 +2960,6 @@ impl PythonGenerator {
             Ok("None".to_string())
         }
     }
-
     fn generate_union(&mut self, node: &ASTNode) -> Result<String> {
         let mut output = String::new();
 
@@ -3477,6 +3531,16 @@ impl PythonGenerator {
         output.push_str("            self.ref.value = new_value\n");
         output.push_str("        else:\n");
         output.push_str("            self.ref = new_value\n");
+        output.push_str("    \n");
+        output.push_str("    def __getattr__(self, name):\n");
+        output.push_str("        # Прямой доступ к полям объекта\n");
+        output.push_str("        return getattr(self.get_final_value(), name)\n");
+        output.push_str("    \n");
+        output.push_str("    def __setattr__(self, name, value):\n");
+        output.push_str("        if name in ['ref']:\n");
+        output.push_str("            super().__setattr__(name, value)\n");
+        output.push_str("        else:\n");
+        output.push_str("            setattr(self.get_final_value(), name, value)\n");
         output.push_str("    \n");
         output.push_str("    def get_final_value(self):\n");
         output.push_str("        # Получаем конечное значение по цепочке ссылок\n");
