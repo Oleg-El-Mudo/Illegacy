@@ -604,13 +604,25 @@ impl PythonGenerator {
     // В методе generate_expression_internal, замените обработку "FuncCall" на:
     fn generate_expression_internal(&mut self, node: &ASTNode) -> Result<String> {
         match node.node_type.as_str() {
+            // В методе generate_expression_internal, в обработке "Constant":
             "Constant" => {
                 if let Some(value) = node.attributes.get("value") {
                     if let Some(s) = value.as_str() {
                         if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
                             Ok(s.to_string())
                         } else if s.starts_with('\'') && s.ends_with('\'') && s.len() >= 3 {
-                            Ok(s.to_string())
+                            // Это символ в кавычках, например 'A'
+                            let char_content = &s[1..s.len() - 1];
+                            if char_content.len() == 1 {
+                                // Преобразуем символ в его ASCII код
+                                if let Some(c) = char_content.chars().next() {
+                                    Ok(format!("{}", c as u32))
+                                } else {
+                                    Ok(s.to_string())
+                                }
+                            } else {
+                                Ok(s.to_string())
+                            }
                         } else if s.parse::<i32>().is_ok() || s.parse::<f64>().is_ok() {
                             Ok(s.to_string())
                         } else {
@@ -2081,7 +2093,8 @@ impl PythonGenerator {
         Ok(())
     }
 
-    /// Обработка объявления обычной переменной
+    // В методе handle_regular_declaration:
+
     fn handle_regular_declaration(
         &mut self,
         name: &str,
@@ -2095,6 +2108,26 @@ impl PythonGenerator {
 
         if let Some(init) = init_node {
             let init_code = self.generate_expression(init)?;
+
+            // Проверяем, не является ли это символьной константой
+            if init.node_type == "Constant" {
+                if let Some(value) = init.attributes.get("value") {
+                    if let Some(s) = value.as_str() {
+                        if s.starts_with('\'') && s.ends_with('\'') && s.len() >= 3 {
+                            let char_content = &s[1..s.len() - 1];
+                            if char_content.len() == 1 {
+                                // Преобразуем символ в его ASCII код
+                                if let Some(c) = char_content.chars().next() {
+                                    output
+                                        .push_str(&self.line(&format!("{} = {}", name, c as u32)));
+                                    return Ok(());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             output.push_str(&self.line(&format!("{} = {}", name, init_code)));
         } else {
             output.push_str(&self.line(&format!("{} = None", name)));
@@ -2102,7 +2135,6 @@ impl PythonGenerator {
 
         Ok(())
     }
-
     fn generate_assignment(&mut self, node: &ASTNode) -> Result<String> {
         debug!("Генерация присваивания");
         debug!("  Детей у присваивания: {}", node.children.len());
