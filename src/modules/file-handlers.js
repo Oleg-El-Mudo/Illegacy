@@ -60,8 +60,6 @@ export function initFileHandlers() {
     });
 }
 
-// modules/file-handlers.js - добавьте в существующий файл
-
 // При загрузке файла:
 export async function openFile() {
     try {

@@ -1,4 +1,3 @@
-// modules/history.js
 import { elements } from './dom-elements.js';
 import { updateSyntaxHighlighting } from './syntax-highlight.js';
 
@@ -119,7 +118,7 @@ function applyState(state) {
     updateSyntaxHighlighting();
 }
 
-// Очистка истории (например, при новой сессии)
+// Очистка истории 
 export function clearHistory() {
     history = [];
     currentIndex = -1;
@@ -132,13 +131,11 @@ export function getCurrentState() {
     return history[currentIndex] || null;
 }
 
-// Обновление кнопок отмены (если добавим UI)
+// Обновление кнопок отмены 
 function updateUndoButtons() {
-    // Можно добавить disabled состояние для кнопок
     const canUndo = currentIndex > 0 || (history.length > 0 && currentIndex === 0);
     const canRedo = currentIndex < history.length - 1;
     
-    // Здесь можно обновить состояние кнопок, если они будут в интерфейсе
 }
 
 // Специальная обработка для Ctrl+Z после загрузки файла

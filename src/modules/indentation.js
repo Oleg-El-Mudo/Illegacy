@@ -1,4 +1,3 @@
-// modules/indentation.js
 import { elements } from './dom-elements.js';
 import { updateSyntaxHighlighting } from './syntax-highlight.js';
 
@@ -6,12 +5,12 @@ import { updateSyntaxHighlighting } from './syntax-highlight.js';
 const TAB_SIZE = 4; // Размер табуляции в пробелах
 const INDENT_REGEX = /^[\t ]+/; // Регулярка для поиска отступов в начале строки
 
-// Преобразование табуляций в пробелы (для отображения)
+// Преобразование табуляций в пробелы 
 export function tabsToSpaces(text) {
     return text.replace(/\t/g, ' '.repeat(TAB_SIZE));
 }
 
-// Преобразование пробелов в табуляции (для хранения)
+// Преобразование пробелов в табуляции 
 export function spacesToTabs(text) {
     return text.replace(new RegExp(' '.repeat(TAB_SIZE), 'g'), '\t');
 }
@@ -246,11 +245,8 @@ export function initIndentation() {
     
     // Опционально: обработка вставки текста для нормализации табуляций
     textarea.addEventListener('paste', (e) => {
-        // Даем браузеру вставить текст, затем обрабатываем
         setTimeout(() => {
             const value = textarea.value;
-            // Заменяем табуляции в вставленном тексте?
-            // Можно раскомментировать если нужно:
             // textarea.value = spacesToTabs(tabsToSpaces(value));
             updateSyntaxHighlighting();
         }, 0);

@@ -41,7 +41,6 @@ pub struct PythonGenerator {
     array_vars: HashSet<String>,
     array_element_types: HashMap<String, String>,
     pending_string_assignments: HashMap<String, Vec<(usize, String)>>,
-    // Новые поля для отслеживания импортов и используемых функций
     required_imports: HashSet<String>,
     used_functions: HashSet<String>,
     function_mappings: HashMap<String, FunctionMapping>,
@@ -121,7 +120,7 @@ impl PythonGenerator {
             FunctionMapping::new("fopen", "open({}, {})", None),
             FunctionMapping::new("fclose", "{}.close()", None),
             FunctionMapping::new("fprintf", "{}.write({})", None),
-            FunctionMapping::new("fscanf", "{}.read()", None), // Упрощенно
+            FunctionMapping::new("fscanf", "{}.read()", None),
             FunctionMapping::new("fgets", "{}.readline()", None),
             FunctionMapping::new("fputs", "{}.write({})", None),
             FunctionMapping::new("getchar", "sys.stdin.read(1)", Some("import sys")),
@@ -197,8 +196,7 @@ impl PythonGenerator {
 
     fn generate_imports(&self) -> String {
         let mut output = String::new();
-        let _imports: Vec<&String> = self.required_imports.iter().collect(); // Убрать mut
-                                                                             // imports.sort(); // Нельзя сортировать Vec<&String>
+        let _imports: Vec<&String> = self.required_imports.iter().collect(); 
 
         // Если нужна сортировка, собираем в Vec<String>
         let mut imports: Vec<String> = self.required_imports.iter().cloned().collect();
@@ -451,7 +449,6 @@ impl PythonGenerator {
             "While" => self.generate_while(node),
             "DoWhile" => self.generate_dowhile(node),
             "For" => self.generate_for(node),
-            // В методе generate_statement, в секции match
             "Assignment" => {
                 let mut stmt_output = String::new();
 
@@ -1050,7 +1047,6 @@ impl PythonGenerator {
                     Ok(format!("[{}]", values.join(", ")))
                 }
             }
-            // В generate_expression_internal для "TernaryOp"
             "TernaryOp" => {
                 if node.children.len() >= 3 {
                     let cond = self.generate_expression_internal(&node.children[0])?;
@@ -2136,8 +2132,6 @@ impl PythonGenerator {
         Ok(())
     }
 
-    // В методе handle_regular_declaration:
-
     fn handle_regular_declaration(
         &mut self,
         name: &str,
@@ -2192,8 +2186,6 @@ impl PythonGenerator {
                 .get("op")
                 .and_then(|v| v.as_str())
                 .unwrap_or("=");
-
-            // В методе generate_assignment, при обработке присваивания через указатель:
 
             if left_node.node_type == "StructRef" {
                 // Это доступ к полю структуры, например vec_ptr.x
@@ -2265,7 +2257,6 @@ impl PythonGenerator {
                 }
             }
 
-            // В методе generate_assignment, при обработке разыменования указателя:
             if left_node.node_type == "UnaryOp" {
                 if let Some(unary_op) = left_node.attributes.get("op").and_then(|v| v.as_str()) {
                     if unary_op == "*" && left_node.children.len() == 1 {
@@ -3592,7 +3583,6 @@ impl PythonGenerator {
     }
 }
 
-// В методе generate, после импорта sys и os, добавьте:
 impl Generator for PythonGenerator {
     type Output = String;
 

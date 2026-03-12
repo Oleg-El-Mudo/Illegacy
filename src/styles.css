@@ -166,8 +166,6 @@ body {
     pointer-events: none;
 }
 
-/* styles.css - добавить в конец файла */
-
 /* Анимация для изменения размера шрифта */
 .code-textarea,
 .code-preview,
@@ -175,7 +173,7 @@ body {
     transition: font-size 0.05s ease;
 }
 
-/* Индикатор текущего масштаба (опционально - можно добавить потом) */
+/* Индикатор текущего масштаба*/
 .zoom-indicator {
     position: fixed;
     bottom: 20px;
@@ -195,7 +193,7 @@ body {
     opacity: 1;
 }
 
-/* Делаем табуляции видимыми (опционально) */
+/* Делаем табуляции видимыми */
 .code-textarea,
 .code-preview {
     tab-size: 4;
@@ -204,7 +202,6 @@ body {
     -webkit-tab-size: 4;
 }
 
-/* Можно добавить подсветку для отладки отступов */
 .code-textarea::selection,
 .code-preview::selection {
     background: rgba(255, 255, 255, 0.2);

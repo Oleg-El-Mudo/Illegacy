@@ -350,8 +350,6 @@ impl CParser {
                             // Если нет типа, но есть инициализатор
                             node.children.push(init);
                         }
-
-                        // ВАЖНО: НЕ добавляем init_node ещё раз здесь!
                     }
                     "IdentifierType" => {
                         // Для идентификаторов типов
@@ -369,7 +367,6 @@ impl CParser {
                         }
                     }
 
-                    // В c_parser.rs, в обработке "Constant":
                     "Constant" => {
                         // Для констант
                         if let Some(value) = obj.get("value") {
@@ -466,7 +463,6 @@ impl CParser {
                         }
                     }
 
-                    // В методе parse_ast_node, в секции match для "FuncCall"
                     "FuncCall" => {
                         // Для вызова функции
                         debug!("Обработка вызова функции");
@@ -648,8 +644,6 @@ impl CParser {
                             }
                         }
                     }
-
-                    // В методе parse_ast_node, для "Case":
                     "Case" => {
                         debug!("Обработка CASE узла");
                         debug!("Содержимое CASE: {:#?}", obj);
@@ -667,7 +661,6 @@ impl CParser {
                         }
 
                         // Обрабатываем операторы в case (stmts)
-                        // В pycparser stmts может быть массивом или отдельными полями stmts[0], stmts[1] и т.д.
                         if let Some(stmts) = obj.get("stmts") {
                             debug!("Операторы CASE: {:#?}", stmts);
 
@@ -740,7 +733,6 @@ impl CParser {
                         }
                     }
 
-                    // В методе parse_ast_node, в секции match node_type, добавьте обработку для "ArrayDecl" и "ArrayRef":
                     "ArrayDecl" => {
                         debug!("Обработка объявления массива");
                         debug!("Содержимое ArrayDecl: {:#?}", obj);
@@ -849,7 +841,6 @@ impl CParser {
                         );
                     }
 
-                    // В методе parse_ast_node, в секции match node_type, добавьте после обработки "InitList":
                     "NamedInitializer" => {
                         debug!("Обработка NamedInitializer (именованного инициализатора)");
                         debug!("Содержимое NamedInitializer: {:#?}", obj);
@@ -909,7 +900,6 @@ impl CParser {
                         }
                     }
 
-                    // В методе parse_ast_node, в секции match node_type добавьте:
                     "TernaryOp" => {
                         debug!("Обработка TernaryOp узла");
                         debug!("Содержимое TernaryOp: {:#?}", obj);
@@ -942,7 +932,6 @@ impl CParser {
                             }
                         }
                     }
-                    // В методе parse_ast_node, в секции match node_type, добавьте:
                     "Return" => {
                         debug!("Обработка RETURN узла");
                         debug!("Содержимое Return: {:#?}", obj);
@@ -976,7 +965,6 @@ impl CParser {
                                 }
                             }
                         } else {
-                            // Альтернативный формат: могут быть отдельные поля
                             debug!("Ищем отдельные поля в Compound");
                             let mut i = 0;
                             loop {
@@ -999,7 +987,6 @@ impl CParser {
                         );
                     }
 
-                    // В методе parse_ast_node, в секции match node_type добавьте:
                     "While" => {
                         debug!("Обработка WHILE узла");
                         debug!("Содержимое WHILE: {:#?}", obj);
@@ -1026,7 +1013,6 @@ impl CParser {
                         }
                     }
 
-                    // В методе parse_ast_node, в секции match node_type добавьте:
                     "DoWhile" => {
                         debug!("Обработка DO-WHILE узла");
                         debug!("Содержимое DO-WHILE: {:#?}", obj);
@@ -1052,7 +1038,6 @@ impl CParser {
                         }
                     }
 
-                    // В методе parse_ast_node, в секции match node_type добавьте:
                     "For" => {
                         debug!("Обработка FOR узла");
                         debug!("ПОЛНОЕ содержимое FOR узла: {:#?}", obj);
@@ -1153,7 +1138,6 @@ impl CParser {
                         }
                     }
 
-                    // Добавьте этот блок в match после обработки "Decl" или перед "_"
                     "TypeDecl" => {
                         debug!("Обработка TypeDecl узла");
                         debug!("Содержимое TypeDecl: {:#?}", obj);
@@ -1215,7 +1199,6 @@ impl CParser {
                         }
                     }
 
-                    // В методе parse_ast_node, в секции "Union":
                     "Union" => {
                         debug!("Обработка UNION узла");
                         debug!("ПОЛНОЕ содержимое UNION: {:#?}", obj);
@@ -1346,10 +1329,10 @@ impl CParser {
         || key == "params"
         || key == "init"
         || key == "args"
-        || key == "cond"        // Добавлено для While и If
+        || key == "cond"        
         || key == "iftrue"
         || key == "iffalse"
-        || key == "stmt"        // Добавлено для While
+        || key == "stmt"        
         || key == "value"
         || key == "stmts"
         || key == "expr"

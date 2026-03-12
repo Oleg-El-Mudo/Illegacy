@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""
-Микросервис для парсинга C кода с использованием pycparser.
-Поддерживает стандартные библиотеки C.
-"""
+
 from flask import Flask, request, jsonify
 from pycparser import c_parser, c_ast
 import json

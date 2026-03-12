@@ -326,7 +326,6 @@ async fn get_supported_languages() -> serde_json::Value {
     })
 }
 
-/// Простая транспиляция без AST (для тестирования)
 #[tauri::command]
 async fn simple_transpile(
     code: String,

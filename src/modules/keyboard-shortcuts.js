@@ -1,4 +1,3 @@
-// modules/keyboard-shortcuts.js
 import { elements } from './dom-elements.js';
 import { undo, redo, handleUndoAfterFileLoad } from './history.js';
 
@@ -27,11 +26,11 @@ function handleKeyDown(e) {
     // Не обрабатываем комбинации, если пользователь печатает в поле
     const isTyping = e.target.matches('textarea, input, [contenteditable="true"]');
     
-    // Глобальные комбинации (работают везде)
+    // Глобальные комбинации
     if (ctrlPressed) {
         switch (e.key.toLowerCase()) {
             case 's':
-                // Ctrl+S - экспорт файла (вызываем клик по кнопке экспорта)
+                // Ctrl+S - экспорт файла
                 e.preventDefault();
                 if (elements.exportFile) {
                     elements.exportFile.click(); // Просто кликаем по кнопке
@@ -39,7 +38,7 @@ function handleKeyDown(e) {
                 break;
                 
             case 'o':
-                // Ctrl+O - открыть файл (клик по кнопке открытия)
+                // Ctrl+O - открыть файл
                 e.preventDefault();
                 if (elements.openFile) {
                     elements.openFile.click();
@@ -52,7 +51,6 @@ function handleKeyDown(e) {
     if (isTyping && e.target === elements.inputCode) {
         handleInputShortcuts(e);
     }
-    // Для output поля не добавляем специальных комбинаций
 }
 
 // Обработка комбинаций для поля ввода

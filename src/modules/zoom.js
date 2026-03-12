@@ -1,4 +1,3 @@
-// modules/zoom.js
 import { elements } from './dom-elements.js';
 import { updateSyntaxHighlighting } from './syntax-highlight.js';
 
@@ -61,7 +60,7 @@ export function applyFontSize(size) {
     elements.inputCode.style.fontSize = fontSizePx;
     elements.outputCode.style.fontSize = fontSizePx;
     
-    // Preview элементы (нужно через style, так как они pre)
+    // Preview элементы 
     const inputPreview = elements.inputCodePreview.closest('pre');
     const outputPreview = elements.outputCodePreview.closest('pre');
     

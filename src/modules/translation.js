@@ -34,7 +34,7 @@ function removeCComments(code) {
         }
         // Проверяем начало однострочного комментария //
         else if (char === '/' && nextChar === '/') {
-            i += 2; // Пропускаем //
+            i += 2;
             
             // Пропускаем все до конца строки
             while (i < len && code[i] !== '\n' && code[i] !== '\r') {
@@ -89,8 +89,6 @@ function removeCommentsByLanguage(code, language) {
         case 'typescript':
             return removeCComments(code);
         case 'python':
-            // Для Python можно добавить удаление #
-            // Но пока не нужно
             return code;
         default:
             return code;
@@ -110,7 +108,6 @@ function cleanCode(code, language) {
     // Сохраняем оригинал для отладки
     const original = code;
     
-    // Удаляем комментарии
     let cleaned = removeCommentsByLanguage(code, language);
     
     // Для C языка также удаляем строки с #include
@@ -279,7 +276,7 @@ function addDebugButton() {
     container.appendChild(debugBtn);
 }
 
-// Опционально: проверка статуса Docker
+// проверка статуса Docker
 export async function checkDockerStatus() {
     try {
         const status = await invoke('check_parser_status');
