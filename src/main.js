@@ -8,6 +8,19 @@ import { initIndentation } from './modules/indentation.js';
 import { initHistory } from './modules/history.js';
 import { initKeyboardShortcuts } from './modules/keyboard-shortcuts.js';
 
+// Применение сохранённой темы при загрузке
+const THEME_KEY = 'illegacy-theme';
+function applySavedTheme() {
+    const savedTheme = localStorage.getItem(THEME_KEY) || 'dark';
+    if (savedTheme === 'auto') {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.setAttribute('data-bs-theme', prefersDark ? 'dark' : 'light');
+    } else {
+        document.documentElement.setAttribute('data-bs-theme', savedTheme);
+    }
+}
+applySavedTheme();
+
 // Инициализация DOM-элементов
 const domElements = getDOMElements();
 setElements(domElements);

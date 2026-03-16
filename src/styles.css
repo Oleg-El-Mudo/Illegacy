@@ -1,3 +1,51 @@
+/* CSS-переменные для тем */
+:root {
+    --code-bg-dark: #1e1e1e;
+    --code-bg-light: #ffffff;
+    --code-text-dark: #d4d4d4;
+    --code-text-light: #1e1e1e;
+    --border-dark: #444;
+    --border-light: #dee2e6;
+    --scrollbar-track-dark: #2d2d2d;
+    --scrollbar-track-light: #f1f1f1;
+    --scrollbar-thumb-dark: #666;
+    --scrollbar-thumb-light: #c1c1c1;
+    --placeholder-dark: #666;
+    --placeholder-light: #aaa;
+    --selection-dark: rgba(255, 255, 255, 0.2);
+    --selection-light: rgba(0, 0, 0, 0.1);
+    --caret-dark: white;
+    --caret-light: black;
+    --resizer-dark: #999;
+    --resizer-light: #666;
+}
+
+/* Тёмная тема (по умолчанию) */
+[data-bs-theme="dark"] {
+    --code-bg: var(--code-bg-dark);
+    --code-text: var(--code-text-dark);
+    --border: var(--border-dark);
+    --scrollbar-track: var(--scrollbar-track-dark);
+    --scrollbar-thumb: var(--scrollbar-thumb-dark);
+    --placeholder: var(--placeholder-dark);
+    --selection: var(--selection-dark);
+    --caret: var(--caret-dark);
+    --resizer: var(--resizer-dark);
+}
+
+/* Светлая тема */
+[data-bs-theme="light"] {
+    --code-bg: var(--code-bg-light);
+    --code-text: var(--code-text-light);
+    --border: var(--border-light);
+    --scrollbar-track: var(--scrollbar-track-light);
+    --scrollbar-thumb: var(--scrollbar-thumb-light);
+    --placeholder: var(--placeholder-light);
+    --selection: var(--selection-light);
+    --caret: var(--caret-light);
+    --resizer: var(--resizer-light);
+}
+
 body {
     margin: 0;
     padding: 0;
@@ -45,9 +93,9 @@ body {
     flex: 1 1 auto;
     min-height: 0;
     overflow: hidden;
-    border: 1px solid #444;
+    border: 1px solid var(--border);
     border-radius: 4px;
-    background-color: #1e1e1e;
+    background-color: var(--code-bg);
 }
 
 /* Общие стили для textarea и pre */
@@ -75,7 +123,7 @@ body {
     padding: 10px;
     background: transparent;
     color: transparent; /* Делаем текст невидимым */
-    caret-color: white; /* Но курсор оставляем видимым */
+    caret-color: var(--caret);
     resize: none;
     z-index: 2;
 }
@@ -85,7 +133,7 @@ body {
     padding: 0;
     pointer-events: none; /* Чтобы не мешать вводу */
     z-index: 1;
-    background-color: #1e1e1e;
+    background-color: var(--code-bg);
     overflow: auto;
 }
 
@@ -99,6 +147,7 @@ body {
     min-height: 100%;
     width: fit-content;
     min-width: 100%;
+    color: var(--code-text);
 }
 
 /* Стили для скроллбара - одинаковые для обоих элементов */
@@ -110,12 +159,12 @@ body {
 
 .code-textarea::-webkit-scrollbar-track,
 .code-preview::-webkit-scrollbar-track {
-    background: #2d2d2d;
+    background: var(--scrollbar-track);
 }
 
 .code-textarea::-webkit-scrollbar-thumb,
 .code-preview::-webkit-scrollbar-thumb {
-    background: #666;
+    background: var(--scrollbar-thumb);
     border-radius: 5px;
 }
 
@@ -136,12 +185,12 @@ body {
 
 /* Стили для placeholder */
 .code-textarea::placeholder {
-    color: #666;
+    color: var(--placeholder);
     opacity: 1;
 }
 
 #resizer {
-    background-color: #ccc;
+    background-color: var(--resizer);
     cursor: col-resize;
     width: 5px;
     height: 100%;
@@ -204,5 +253,5 @@ body {
 
 .code-textarea::selection,
 .code-preview::selection {
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--selection);
 }
