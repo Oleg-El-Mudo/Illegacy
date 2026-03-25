@@ -1,5 +1,5 @@
-import { elements } from './dom-elements.js';
-import { MIN_COLUMN_WIDTH } from './constants.js';
+import { elements } from '../core/dom.js';
+import { MIN_COLUMN_WIDTH } from '../core/constants.js';
 
 let isResizing = false;
 let startX = 0;

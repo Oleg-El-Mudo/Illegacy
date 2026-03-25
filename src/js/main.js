@@ -1,12 +1,12 @@
-import { getDOMElements, setElements, elements } from './modules/dom-elements.js';
-import { initResizer, setInitialWidths } from './modules/resizer.js';
-import { initSyntaxHighlighting, updateSyntaxHighlighting } from './modules/syntax-highlight.js';
-import { initFileHandlers } from './modules/file-handlers.js';
-import { initTranslation, checkDockerStatus } from './modules/translation.js';
-import { initZoom } from './modules/zoom.js';
-import { initIndentation } from './modules/indentation.js';
-import { initHistory } from './modules/history.js';
-import { initKeyboardShortcuts } from './modules/keyboard-shortcuts.js';
+import { getDOMElements, setElements, elements } from './core/dom.js';
+import { initResizer, setInitialWidths } from './ui/resizer.js';
+import { initSyntaxHighlighting, updateSyntaxHighlighting } from './editor/syntax-highlight.js';
+import { initFileHandlers } from './features/file-handlers.js';
+import { initTranslation, checkDockerStatus } from './features/translation.js';
+import { initZoom } from './editor/zoom.js';
+import { initIndentation } from './editor/indentation.js';
+import { initHistory } from './editor/history.js';
+import { initKeyboardShortcuts } from './ui/keyboard-shortcuts.js';
 
 // Применение сохранённой темы при загрузке
 const THEME_KEY = 'illegacy-theme';

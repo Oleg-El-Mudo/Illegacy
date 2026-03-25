@@ -1,5 +1,5 @@
-import { elements } from './dom-elements.js';
-import { updateSyntaxHighlighting } from './syntax-highlight.js';
+import { elements } from '../core/dom.js';
+import { updateSyntaxHighlighting } from '../editor/syntax-highlight.js';
 
 const { invoke } = window.__TAURI__.core;
 
