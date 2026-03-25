@@ -1,4 +1,4 @@
-import { elements } from './dom-elements.js';
+import { elements } from '../core/dom.js';
 import { updateSyntaxHighlighting } from './syntax-highlight.js';
 
 // Константы

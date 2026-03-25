@@ -1,6 +1,6 @@
-import { languageMap } from './constants.js';
-import { escapeHtml } from './utils.js';
-import { elements } from './dom-elements.js';
+import { languageMap } from '../core/constants.js';
+import { escapeHtml } from '../core/utils.js';
+import { elements } from '../core/dom.js';
 
 // Загружаем Highlight.js из глобальной переменной
 const hljs = window.hljs;

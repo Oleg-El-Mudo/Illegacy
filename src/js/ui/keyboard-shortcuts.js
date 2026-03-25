@@ -1,5 +1,5 @@
-import { elements } from './dom-elements.js';
-import { undo, redo, handleUndoAfterFileLoad } from './history.js';
+import { elements } from '../core/dom.js';
+import { undo, redo, handleUndoAfterFileLoad } from '../editor/history.js';
 
 // Состояние клавиш-модификаторов
 let ctrlPressed = false;

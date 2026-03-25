@@ -1,0 +1,30 @@
+.status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 28px;
+    padding: 0 var(--jb-spacing-md);
+    background: var(--gradient-subtle);
+    border-top: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+    font-size: var(--jb-font-size-xs);
+    color: var(--text-secondary);
+}
+
+.status-bar-left,
+.status-bar-right {
+    display: flex;
+    align-items: center;
+    gap: var(--jb-spacing-md);
+}
+
+.status-bar-item {
+    display: flex;
+    align-items: center;
+    gap: var(--jb-spacing-xs);
+}
+
+.status-bar-item svg {
+    width: 12px;
+    height: 12px;
+}

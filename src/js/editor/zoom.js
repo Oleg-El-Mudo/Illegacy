@@ -1,4 +1,4 @@
-import { elements } from './dom-elements.js';
+import { elements } from '../core/dom.js';
 import { updateSyntaxHighlighting } from './syntax-highlight.js';
 
 // Константы для масштабирования
@@ -42,49 +42,52 @@ export function saveFontSize(size) {
 export function applyFontSize(size) {
     // Ограничиваем размер
     size = Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, size));
-    
+
     if (size === currentFontSize) return;
-    
+
     currentFontSize = size;
-    
+
     // Сохраняем позиции скролла перед изменением
     const scrollPositions = {
         input: { top: elements.inputCode.scrollTop, left: elements.inputCode.scrollLeft },
         output: { top: elements.outputCode.scrollTop, left: elements.outputCode.scrollLeft }
     };
-    
+
     // Применяем размер шрифта ко всем текстовым элементам
     const fontSizePx = `${size}px`;
-    
+
     // Textarea для ввода
     elements.inputCode.style.fontSize = fontSizePx;
     elements.outputCode.style.fontSize = fontSizePx;
-    
-    // Preview элементы 
+
+    // Preview элементы
     const inputPreview = elements.inputCodePreview.closest('pre');
     const outputPreview = elements.outputCodePreview.closest('pre');
-    
+
     if (inputPreview) {
         inputPreview.style.fontSize = fontSizePx;
     }
     if (outputPreview) {
         outputPreview.style.fontSize = fontSizePx;
     }
-    
+
     // Также обновляем сам code элемент внутри preview
     elements.inputCodePreview.style.fontSize = fontSizePx;
     elements.outputCodePreview.style.fontSize = fontSizePx;
-    
+
     // Сохраняем в localStorage
     saveFontSize(size);
-    
+
+    // Обновляем индикатор масштаба
+    updateZoomIndicator();
+
     // Восстанавливаем позиции скролла
     requestAnimationFrame(() => {
         elements.inputCode.scrollTop = scrollPositions.input.top;
         elements.inputCode.scrollLeft = scrollPositions.input.left;
         elements.outputCode.scrollTop = scrollPositions.output.top;
         elements.outputCode.scrollLeft = scrollPositions.output.left;
-        
+
         // Обновляем подсветку для корректного отображения
         updateSyntaxHighlighting();
     });
@@ -108,6 +111,27 @@ export function zoomReset() {
 // Получение текущего размера шрифта
 export function getCurrentFontSize() {
     return currentFontSize;
+}
+
+// Обновление индикатора масштаба
+export function updateZoomIndicator() {
+    const zoomPercent = Math.round((currentFontSize / DEFAULT_FONT_SIZE) * 100);
+    
+    // Обновляем индикатор в статус-баре
+    if (elements.statusZoom) {
+        elements.statusZoom.textContent = `${zoomPercent}%`;
+    }
+    
+    // Обновляем всплывающий индикатор
+    if (elements.zoomIndicator) {
+        elements.zoomIndicator.textContent = `${zoomPercent}%`;
+        elements.zoomIndicator.classList.add('show');
+        
+        // Скрываем через 1.5 секунды
+        setTimeout(() => {
+            elements.zoomIndicator.classList.remove('show');
+        }, 1500);
+    }
 }
 
 // Инициализация обработчиков масштабирования

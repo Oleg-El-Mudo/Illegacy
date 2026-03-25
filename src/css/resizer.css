@@ -1,0 +1,47 @@
+.resizer {
+    width: 4px;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-subtle);
+    box-sizing: border-box;
+    cursor: col-resize;
+    flex-shrink: 0;
+    z-index: 10;
+    transition: background-color var(--jb-transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--jb-radius-sm);
+}
+
+.resizer::after {
+    content: '';
+    width: 2px;
+    height: 32px;
+    background: var(--gradient-primary);
+    border-radius: var(--jb-radius-full);
+    transition: all var(--jb-transition-fast);
+    opacity: 0.3;
+}
+
+.resizer:hover,
+.resizer:active {
+    background-color: var(--bg-hover);
+    border-color: var(--border-default);
+}
+
+.resizer:hover::after,
+.resizer:active::after {
+    opacity: 1;
+    height: 48px;
+}
+
+/* Класс для режима ресайза */
+.resizing {
+    user-select: none;
+    cursor: col-resize;
+}
+
+.resizing .code-textarea,
+.resizing .code-preview {
+    pointer-events: none;
+}

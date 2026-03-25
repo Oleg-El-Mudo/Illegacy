@@ -1,5 +1,5 @@
-import { elements } from './dom-elements.js';
-import { updateSyntaxHighlighting } from './syntax-highlight.js';
+import { elements } from '../core/dom.js';
+import { updateSyntaxHighlighting } from '../editor/syntax-highlight.js';
 
 const { invoke } = window.__TAURI__.core;
 
@@ -143,28 +143,36 @@ export async function translateCode() {
     const inputLang = elements.inputLangSelect.value;
     const outputLang = elements.outputLangSelect.value;
     let code = elements.inputCode.value;
-    
+
     if (!code || !code.trim()) {
         alert('Введите код для перевода');
         return;
     }
-    
+
     // Сохраняем оригинал для отладки
     const originalCode = code;
-    
-    if (inputLang !== 'c' || outputLang !== 'python') {
-        const errorMsg = `// Транспиляция из ${inputLang} в ${outputLang} пока не поддерживается\n// Доступно: C -> Python`;
+
+    // Проверяем поддерживаемую пару языков
+    if (inputLang === 'c' && outputLang === 'python') {
+        await translateCToPython(code);
+    } else if (inputLang === 'fortran' && outputLang === 'python') {
+        await translateFortranToPython(code);
+    } else {
+        const errorMsg = `// Транспиляция из ${inputLang} в ${outputLang} пока не поддерживается\n// Доступно: C -> Python, Fortran -> Python`;
         elements.outputCode.value = errorMsg;
         updateSyntaxHighlighting();
-        alert(`Пара языков ${inputLang} -> ${outputLang} пока не поддерживается. Доступно: C -> Python`);
+        alert(`Пара языков ${inputLang} -> ${outputLang} пока не поддерживается. Доступно: C -> Python, Fortran -> Python`);
         return;
     }
-    
+}
+
+
+async function translateCToPython(code) {
     // Удаляем комментарии ТОЛЬКО для C кода
     console.log('Обработка C кода - удаление комментариев');
     const cleaned = cleanCode(code, 'c');
     code = cleaned.cleaned;
-    
+
     // Если после удаления комментариев код стал пустым
     if (!code || !code.trim()) {
         elements.outputCode.value = '# Пустой код после удаления комментариев';
@@ -172,46 +180,54 @@ export async function translateCode() {
         alert('Код содержит только комментарии. Нечего транслировать.');
         return;
     }
-    
+
+    await performTranslation(code, 'C', 'Python');
+}
+
+async function translateFortranToPython(code) {
+    console.log('Запуск транспиляции Fortran -> Python (через C)');
+    console.log('Исходный код Fortran:');
+    console.log(code);
+
+    // Для Fortran не удаляем комментарии - f2c сервис сам обработает
+    await performTranslation(code, 'Fortran', 'Python');
+}
+
+async function performTranslation(code, fromLang, toLang) {
     const originalText = elements.translateBtn.textContent;
     elements.translateBtn.textContent = 'Перевод...';
     elements.translateBtn.style.opacity = '0.7';
     elements.translateBtn.style.pointerEvents = 'none';
-    
+
     try {
-        console.log('Запуск транспиляции C -> Python');
+        console.log(`Запуск транспиляции ${fromLang} -> ${toLang}`);
         console.log('Код для отправки (первые 200 символов):');
         console.log(code.substring(0, 200));
-        
-        const result = await invoke('transpile_c_to_python', { code });
-        
+
+        // Выбираем команду в зависимости от языка
+        const command = fromLang === 'C' ? 'transpile_c_to_python' : 'transpile_fortran_to_python';
+        const result = await invoke(command, { code });
+
         if (result.success) {
             elements.outputCode.value = result.output;
             updateSyntaxHighlighting();
-            
+
             console.log('Транспиляция успешна');
             console.log(`Сгенерировано ${result.output.split('\n').length} строк кода`);
-            
+
             if (result.ast_json) {
                 console.log('AST получен, размер:', JSON.stringify(result.ast_json).length);
             }
-            
+
             // Показываем статистику
             console.log('Статистика транспиляции:');
-            console.log(`  Исходный код: ${originalCode.length} символов`);
-            console.log(`  После удаления комментариев: ${code.length} символов`);
+            console.log(`  Исходный код: ${code.length} символов`);
             console.log(`  Сгенерировано: ${result.output.length} символов`);
         } else {
             elements.outputCode.value = '';
             updateSyntaxHighlighting();
             console.error('Ошибка транспиляции:', result.error);
-            
-            // Пытаемся определить, связана ли ошибка с комментариями
-            if (result.error && result.error.includes('comment')) {
-                alert('Ошибка связана с комментариями. Попробуйте удалить комментарии вручную.');
-            } else {
-                alert('Ошибка транспиляции: ' + result.error);
-            }
+            alert('Ошибка транспиляции: ' + result.error);
         }
     } catch (error) {
         console.error('Ошибка при переводе:', error);
@@ -244,9 +260,6 @@ export function initTranslation() {
     addDebugButton();
 }
 
-/**
- * Добавляет отладочную кнопку для проверки удаления комментариев
- */
 function addDebugButton() {
     // Проверяем, не добавлена ли уже кнопка
     if (document.getElementById('debug-comments-btn')) return;
@@ -276,19 +289,55 @@ function addDebugButton() {
     container.appendChild(debugBtn);
 }
 
-// проверка статуса Docker
+// проверка статуса Docker и f2c сервисов
 export async function checkDockerStatus() {
     try {
-        const status = await invoke('check_parser_status');
-        console.log('Статус Docker:', status.docker_available ? 'Доступен' : 'Не доступен');
-        
-        if (!status.docker_available) {
-            console.warn('Docker не запущен. Транспиляция может не работать.');
+        // Проверяем основной парсер C
+        const cStatus = await invoke('check_parser_status');
+        console.log('Статус C парсера:', cStatus.docker_available ? 'Доступен' : 'Не доступен');
+
+        // Проверяем f2c сервис для Fortran
+        const f2cStatus = await invoke('check_f2c_status');
+        console.log('Статус f2c сервиса:', f2cStatus.available ? 'Доступен' : 'Не доступен');
+
+        if (!cStatus.docker_available) {
+            console.warn('Docker не запущен. Транспиляция C может не работать.');
         }
-        
-        return status;
+
+        if (!f2cStatus.available || !f2cStatus.f2c_available) {
+            console.warn('f2c сервис не запущен. Транспиляция Fortran может не работать.');
+            console.warn('Для запуска выполните: cd src-tauri/docker && docker run -d -p 5001:5001 f2c-service');
+        }
+
+        // Обновляем статус-бар
+        updateDockerStatus(cStatus.docker_available, f2cStatus.available && f2cStatus.f2c_available);
+
+        return {
+            c_parser: cStatus.docker_available,
+            f2c_service: f2cStatus.available && f2cStatus.f2c_available
+        };
     } catch (error) {
-        console.error('Ошибка при проверке Docker:', error);
-        return { docker_available: false, error: error.toString() };
+        console.error('Ошибка при проверке сервисов:', error);
+        
+        // Обновляем статус-бар с ошибкой
+        updateDockerStatus(false, false);
+        
+        return {
+            c_parser: false,
+            f2c_service: false,
+            error: error.toString()
+        };
+    }
+}
+
+function updateDockerStatus(cParserReady, f2cReady) {
+    if (!elements.statusDocker) return;
+    
+    if (cParserReady && f2cReady) {
+        elements.statusDocker.innerHTML = 'Docker: <span style="color: var(--success)">Готов</span>';
+    } else if (cParserReady || f2cReady) {
+        elements.statusDocker.innerHTML = 'Docker: <span style="color: var(--warning)">Частично</span>';
+    } else {
+        elements.statusDocker.innerHTML = 'Docker: <span style="color: var(--error)">Не готов</span>';
     }
 }
