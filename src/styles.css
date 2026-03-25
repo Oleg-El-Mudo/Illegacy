@@ -198,7 +198,6 @@ body {
     width: 100%;
     overflow: hidden;
     background-color: var(--bg-primary);
-    padding-left: var(--jb-spacing-sm);
     padding-right: var(--jb-spacing-sm);
     padding-bottom: var(--jb-spacing-sm);
     box-sizing: border-box;
