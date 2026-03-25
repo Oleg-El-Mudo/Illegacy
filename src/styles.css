@@ -1,101 +1,322 @@
-/* CSS-переменные для тем */
-:root {
-    --code-bg-dark: #1e1e1e;
-    --code-bg-light: #ffffff;
-    --code-text-dark: #d4d4d4;
-    --code-text-light: #1e1e1e;
-    --border-dark: #444;
-    --border-light: #dee2e6;
-    --scrollbar-track-dark: #2d2d2d;
-    --scrollbar-track-light: #f1f1f1;
-    --scrollbar-thumb-dark: #666;
-    --scrollbar-thumb-light: #c1c1c1;
-    --placeholder-dark: #666;
-    --placeholder-light: #aaa;
-    --selection-dark: rgba(255, 255, 255, 0.2);
-    --selection-light: rgba(0, 0, 0, 0.1);
-    --caret-dark: white;
-    --caret-light: black;
-    --resizer-dark: #999;
-    --resizer-light: #666;
-}
+/* ==========================================================================
+   IlLegacy - JetBrains New UI Styles
+   ========================================================================== */
 
-/* Тёмная тема (по умолчанию) */
-[data-bs-theme="dark"] {
-    --code-bg: var(--code-bg-dark);
-    --code-text: var(--code-text-dark);
-    --border: var(--border-dark);
-    --scrollbar-track: var(--scrollbar-track-dark);
-    --scrollbar-thumb: var(--scrollbar-thumb-dark);
-    --placeholder: var(--placeholder-dark);
-    --selection: var(--selection-dark);
-    --caret: var(--caret-dark);
-    --resizer: var(--resizer-dark);
-}
+@import './jetbrains-variables.css';
 
-/* Светлая тема */
-[data-bs-theme="light"] {
-    --code-bg: var(--code-bg-light);
-    --code-text: var(--code-text-light);
-    --border: var(--border-light);
-    --scrollbar-track: var(--scrollbar-track-light);
-    --scrollbar-thumb: var(--scrollbar-thumb-light);
-    --placeholder: var(--placeholder-light);
-    --selection: var(--selection-light);
-    --caret: var(--caret-light);
-    --resizer: var(--resizer-light);
+/* ==========================================================================
+   БАЗОВЫЕ СТИЛИ
+   ========================================================================== */
+
+* {
+    box-sizing: border-box;
 }
 
 body {
     margin: 0;
     padding: 0;
-    font-family: Arial, sans-serif;
+    font-family: var(--jb-font-family-ui);
+    font-size: var(--jb-font-size-md);
+    line-height: var(--jb-line-height-normal);
+    color: var(--text-primary);
+    background-color: var(--page-bg);
     height: 100vh;
     overflow: hidden;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
-.navbar {
-    flex-shrink: 0;
-}
+/* ==========================================================================
+   ГЛАВНЫЙ LAYOUT
+   ========================================================================== */
 
-.grid-container {
-    display: flex;
-    height: calc(100vh - 56px); /* Высота окна минус высота navbar */
-    width: 100vw;
-    overflow: hidden;
-}
-
-.column {
+.app-container {
     display: flex;
     flex-direction: column;
-    height: 100%;
-    padding: 1rem;
-    box-sizing: border-box;
+    height: 100vh;
     overflow: hidden;
-    flex: 1 1 0; /* Позволяет колонкам сжиматься/растягиваться */
-    min-width: 200px;
+    overflow-x: hidden;
 }
 
-.select-wrapper {
+/* ==========================================================================
+   TOOLBAR (Главная панель инструментов)
+   ========================================================================== */
+
+.main-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 48px;
+    padding: 0 var(--jb-spacing-md);
+    background: var(--gradient-subtle);
+    border-bottom: 1px solid var(--border-subtle);
     flex-shrink: 0;
-    margin-bottom: 1rem;
+    gap: var(--jb-spacing-md);
 }
 
-.select-wrapper select {
-    width: 100%;
-    padding: 0.5rem;
-    margin-top: 0.25rem;
+.toolbar-left,
+.toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: var(--jb-spacing-sm);
 }
+
+.toolbar-brand {
+    display: flex;
+    align-items: center;
+    gap: var(--jb-spacing-sm);
+    font-size: var(--jb-font-size-lg);
+    font-weight: var(--jb-font-weight-semibold);
+    color: var(--text-primary);
+    padding-right: var(--jb-spacing-md);
+    margin-right: var(--jb-spacing-sm);
+    border-right: 1px solid var(--border-subtle);
+}
+
+.toolbar-brand-icon {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent-primary);
+}
+
+.toolbar-brand span {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* ==========================================================================
+   КНОПКИ В СТИЛЕ JETBRAINS
+   ========================================================================== */
+
+.jb-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--jb-spacing-sm);
+    height: var(--jb-component-height-md);
+    padding: 0 var(--jb-spacing-md);
+    font-family: var(--jb-font-family-ui);
+    font-size: var(--jb-font-size-md);
+    font-weight: var(--jb-font-weight-medium);
+    border-radius: var(--jb-radius-sm);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all var(--jb-transition-fast);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.jb-button:focus {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+}
+
+.jb-button:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+}
+
+/* Primary button */
+.jb-button-primary {
+    background: var(--gradient-primary);
+    color: #FFFFFF;
+    border-color: transparent;
+    box-shadow: var(--shadow-sm);
+}
+
+.jb-button-primary:hover {
+    background: var(--gradient-primary-hover);
+    border-color: transparent;
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.jb-button-primary:active {
+    transform: translateY(0);
+}
+
+/* Secondary button */
+.jb-button-secondary {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-color: var(--border-subtle);
+}
+
+.jb-button-secondary:hover {
+    background-color: var(--bg-hover);
+    border-color: var(--border-default);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Tertiary button (text-only) */
+.jb-button-tertiary {
+    background-color: transparent;
+    color: var(--text-primary);
+    border-color: transparent;
+    padding: 0 var(--jb-spacing-sm);
+}
+
+.jb-button-tertiary:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+/* Icon button */
+.jb-button-icon {
+    width: var(--jb-component-height-md);
+    height: var(--jb-component-height-md);
+    padding: 0;
+    background-color: transparent;
+    color: var(--text-primary);
+    border-color: transparent;
+    border-radius: var(--jb-radius-sm);
+}
+
+.jb-button-icon:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.jb-button-icon svg {
+    width: var(--jb-icon-size-md);
+    height: var(--jb-icon-size-md);
+}
+
+/* ==========================================================================
+   MAIN CONTENT AREA
+   ========================================================================== */
+
+.main-content {
+    display: flex;
+    flex: 1;
+    width: 100%;
+    overflow: hidden;
+    background-color: var(--bg-primary);
+    padding-left: var(--jb-spacing-sm);
+    padding-right: var(--jb-spacing-sm);
+    padding-bottom: var(--jb-spacing-sm);
+    box-sizing: border-box;
+}
+
+/* ==========================================================================
+   EDITOR PANELS
+   ========================================================================== */
+
+.editor-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    background-color: var(--editor-bg);
+    border-radius: var(--jb-radius-md);
+    box-shadow: var(--shadow-sm);
+    box-sizing: border-box;
+}
+
+.editor-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 36px;
+    padding: 0 var(--jb-spacing-md);
+    background: var(--gradient-subtle);
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+    border-radius: var(--jb-radius-md) var(--jb-radius-md) 0 0;
+}
+
+.editor-panel-title {
+    display: flex;
+    align-items: center;
+    gap: var(--jb-spacing-sm);
+    font-size: var(--jb-font-size-sm);
+    font-weight: var(--jb-font-weight-medium);
+    color: var(--text-primary);
+}
+
+.editor-panel-title svg {
+    width: var(--jb-icon-size-md);
+    height: var(--jb-icon-size-md);
+    color: var(--text-secondary);
+}
+
+.editor-panel-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--jb-spacing-xs);
+}
+
+/* ==========================================================================
+   LANGUAGE SELECTOR
+   ========================================================================== */
+
+.language-selector {
+    display: flex;
+    align-items: center;
+    gap: var(--jb-spacing-sm);
+}
+
+.language-selector-label {
+    font-size: var(--jb-font-size-sm);
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.jb-select {
+    height: var(--jb-component-height-sm);
+    padding: 0 var(--jb-spacing-sm);
+    font-family: var(--jb-font-family-ui);
+    font-size: var(--jb-font-size-sm);
+    color: var(--text-primary);
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--jb-radius-sm);
+    cursor: pointer;
+    transition: all var(--jb-transition-fast);
+    min-width: 120px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238C8C8C' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    padding-right: 28px;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+}
+
+.jb-select:hover {
+    border-color: var(--border-default);
+    background-color: var(--bg-hover);
+}
+
+.jb-select:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: var(--shadow-focus);
+}
+
+/* Light theme arrow */
+[data-bs-theme="light"] .jb-select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236E6E6E' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+}
+
+/* ==========================================================================
+   CODE CONTAINER
+   ========================================================================== */
 
 .code-container {
     position: relative;
-    width: 100%;
-    flex: 1 1 auto;
-    min-height: 0;
+    flex: 1;
     overflow: hidden;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    background-color: var(--code-bg);
+    background-color: var(--editor-bg);
+    border-radius: 0 0 var(--jb-radius-md) var(--jb-radius-md);
 }
 
 /* Общие стили для textarea и pre */
@@ -107,50 +328,63 @@ body {
     width: 100%;
     height: 100%;
     margin: 0;
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
-    font-size: 14px;
-    line-height: 1.5;
+    font-family: var(--jb-font-family-code);
+    font-size: var(--jb-font-size-lg);
+    line-height: 1.6;
     white-space: pre;
     word-wrap: normal;
     overflow: auto;
     box-sizing: border-box;
     border: none;
     outline: none;
+    tab-size: 4;
+    -moz-tab-size: 4;
+    -o-tab-size: 4;
+    -webkit-tab-size: 4;
 }
 
-/* Textarea для ввода - добавляем отступы */
+/* Textarea для ввода */
 .code-textarea {
-    padding: 10px;
+    padding: var(--jb-spacing-md);
     background: transparent;
-    color: transparent; /* Делаем текст невидимым */
-    caret-color: var(--caret);
+    color: transparent;
+    caret-color: var(--editor-caret);
     resize: none;
     z-index: 2;
 }
 
-/* Pre для подсветки - без отступов */
+.code-textarea::placeholder {
+    color: var(--editor-placeholder);
+    opacity: 1;
+}
+
+.code-textarea::selection {
+    background: var(--editor-selection);
+}
+
+/* Pre для подсветки */
 .code-preview {
     padding: 0;
-    pointer-events: none; /* Чтобы не мешать вводу */
+    pointer-events: none;
     z-index: 1;
-    background-color: var(--code-bg);
+    background-color: var(--editor-bg);
     overflow: auto;
 }
 
 .code-preview code {
-    font-family: inherit;
+    font-family: var(--jb-font-family-code);
     background: transparent !important;
-    padding: 0;
+    padding: var(--jb-spacing-md);
     margin: 0;
     display: block;
     box-sizing: border-box;
     min-height: 100%;
     width: fit-content;
     min-width: 100%;
-    color: var(--code-text);
+    color: var(--text-primary);
 }
 
-/* Стили для скроллбара - одинаковые для обоих элементов */
+/* Скроллбары в стиле JetBrains */
 .code-textarea::-webkit-scrollbar,
 .code-preview::-webkit-scrollbar {
     width: 10px;
@@ -165,43 +399,63 @@ body {
 .code-textarea::-webkit-scrollbar-thumb,
 .code-preview::-webkit-scrollbar-thumb {
     background: var(--scrollbar-thumb);
-    border-radius: 5px;
+    border-radius: var(--jb-radius-sm);
+    border: 2px solid var(--scrollbar-track);
 }
 
 .code-textarea::-webkit-scrollbar-thumb:hover,
 .code-preview::-webkit-scrollbar-thumb:hover {
-    background: #888;
+    background: var(--scrollbar-thumb-hover);
 }
 
-/* Скрываем скроллбар у preview, чтобы не мешал */
+/* Скрываем скроллбар у preview */
 .code-preview::-webkit-scrollbar {
     display: none;
 }
 
-/* Для Firefox */
 .code-preview {
     scrollbar-width: none;
 }
 
-/* Стили для placeholder */
-.code-textarea::placeholder {
-    color: var(--placeholder);
-    opacity: 1;
-}
+/* ==========================================================================
+   RESIZER (Разделитель панелей)
+   ========================================================================== */
 
-#resizer {
-    background-color: var(--resizer);
+.resizer {
+    width: 4px;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-subtle);
+    box-sizing: border-box;
     cursor: col-resize;
-    width: 5px;
-    height: 100%;
     flex-shrink: 0;
     z-index: 10;
-    transition: background-color 0.2s;
+    transition: background-color var(--jb-transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--jb-radius-sm);
 }
 
-#resizer:hover,
-#resizer:active {
-    background-color: #999;
+.resizer::after {
+    content: '';
+    width: 2px;
+    height: 32px;
+    background: var(--gradient-primary);
+    border-radius: var(--jb-radius-full);
+    transition: all var(--jb-transition-fast);
+    opacity: 0.3;
+}
+
+.resizer:hover,
+.resizer:active {
+    background-color: var(--bg-hover);
+    border-color: var(--border-default);
+}
+
+.resizer:hover::after,
+.resizer:active::after {
+    opacity: 1;
+    height: 48px;
 }
 
 /* Класс для режима ресайза */
@@ -215,43 +469,266 @@ body {
     pointer-events: none;
 }
 
-/* Анимация для изменения размера шрифта */
-.code-textarea,
-.code-preview,
-.code-preview code {
-    transition: font-size 0.05s ease;
+/* ==========================================================================
+   STATUS BAR
+   ========================================================================== */
+
+.status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 28px;
+    padding: 0 var(--jb-spacing-md);
+    background: var(--gradient-subtle);
+    border-top: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+    font-size: var(--jb-font-size-xs);
+    color: var(--text-secondary);
 }
 
-/* Индикатор текущего масштаба*/
+.status-bar-left,
+.status-bar-right {
+    display: flex;
+    align-items: center;
+    gap: var(--jb-spacing-md);
+}
+
+.status-bar-item {
+    display: flex;
+    align-items: center;
+    gap: var(--jb-spacing-xs);
+}
+
+.status-bar-item svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* ==========================================================================
+   ZOOM INDICATOR
+   ========================================================================== */
+
 .zoom-indicator {
     position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
-    padding: 5px 10px;
-    border-radius: 4px;
-    font-size: 12px;
+    bottom: 40px;
+    right: var(--jb-spacing-lg);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    padding: var(--jb-spacing-xs) var(--jb-spacing-sm);
+    border-radius: var(--jb-radius-sm);
+    font-size: var(--jb-font-size-xs);
     z-index: 1000;
     opacity: 0;
-    transition: opacity 0.2s;
+    transition: opacity var(--jb-transition-normal);
     pointer-events: none;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-subtle);
 }
 
 .zoom-indicator.show {
     opacity: 1;
 }
 
-/* Делаем табуляции видимыми */
-.code-textarea,
-.code-preview {
-    tab-size: 4;
-    -moz-tab-size: 4;
-    -o-tab-size: 4;
-    -webkit-tab-size: 4;
+/* ==========================================================================
+   HIGHLIGHT.JS СТИЛИ (адаптация под JetBrains)
+   ========================================================================== */
+
+/* Базовые стили для hljs в темной теме */
+[data-bs-theme="dark"] .hljs {
+    background: transparent;
+    color: var(--text-primary);
 }
 
-.code-textarea::selection,
-.code-preview::selection {
-    background: var(--selection);
+[data-bs-theme="dark"] .hljs-comment,
+[data-bs-theme="dark"] .hljs-quote {
+    color: #808080;
+    font-style: italic;
+}
+
+[data-bs-theme="dark"] .hljs-keyword,
+[data-bs-theme="dark"] .hljs-selector-tag,
+[data-bs-theme="dark"] .hljs-meta-keyword {
+    color: #CC7832;
+}
+
+[data-bs-theme="dark"] .hljs-string,
+[data-bs-theme="dark"] .hljs-doctag {
+    color: #6A8759;
+}
+
+[data-bs-theme="dark"] .hljs-title,
+[data-bs-theme="dark"] .hljs-section,
+[data-bs-theme="dark"] .hljs-selector-id {
+    color: #FFC66D;
+}
+
+[data-bs-theme="dark"] .hljs-subst {
+    color: var(--text-primary);
+}
+
+[data-bs-theme="dark"] .hljs-tag,
+[data-bs-theme="dark"] .hljs-name {
+    color: #E8BF6A;
+}
+
+[data-bs-theme="dark"] .hljs-attr {
+    color: #9876AA;
+}
+
+[data-bs-theme="dark"] .hljs-attribute,
+[data-bs-theme="dark"] .hljs-variable,
+[data-bs-theme="dark"] .hljs-template-variable {
+    color: #9876AA;
+}
+
+[data-bs-theme="dark"] .hljs-number,
+[data-bs-theme="dark"] .hljs-regexp,
+[data-bs-theme="dark"] .hljs-literal,
+[data-bs-theme="dark"] .hljs-type {
+    color: #6897BB;
+}
+
+[data-bs-theme="dark"] .hljs-symbol,
+[data-bs-theme="dark"] .hljs-bullet {
+    color: #9876AA;
+}
+
+[data-bs-theme="dark"] .hljs-built_in,
+[data-bs-theme="dark"] .hljs-builtin-name {
+    color: #E8BF6A;
+}
+
+[data-bs-theme="dark"] .hljs-deletion {
+    background: #501e18;
+}
+
+[data-bs-theme="dark"] .hljs-addition {
+    background: #1e3a1e;
+}
+
+/* Светлая тема */
+[data-bs-theme="light"] .hljs {
+    background: transparent;
+    color: var(--text-primary);
+}
+
+[data-bs-theme="light"] .hljs-comment,
+[data-bs-theme="light"] .hljs-quote {
+    color: #808080;
+    font-style: italic;
+}
+
+[data-bs-theme="light"] .hljs-keyword,
+[data-bs-theme="light"] .hljs-selector-tag,
+[data-bs-theme="light"] .hljs-meta-keyword {
+    color: #000080;
+}
+
+[data-bs-theme="light"] .hljs-string,
+[data-bs-theme="light"] .hljs-doctag {
+    color: #008000;
+}
+
+[data-bs-theme="light"] .hljs-title,
+[data-bs-theme="light"] .hljs-section,
+[data-bs-theme="light"] .hljs-selector-id {
+    color: #AA6B00;
+}
+
+[data-bs-theme="light"] .hljs-subst {
+    color: var(--text-primary);
+}
+
+[data-bs-theme="light"] .hljs-tag,
+[data-bs-theme="light"] .hljs-name {
+    color: #0000FF;
+}
+
+[data-bs-theme="light"] .hljs-attr {
+    color: #800080;
+}
+
+[data-bs-theme="light"] .hljs-attribute,
+[data-bs-theme="light"] .hljs-variable,
+[data-bs-theme="light"] .hljs-template-variable {
+    color: #660E7A;
+}
+
+[data-bs-theme="light"] .hljs-number,
+[data-bs-theme="light"] .hljs-regexp,
+[data-bs-theme="light"] .hljs-literal,
+[data-bs-theme="light"] .hljs-type {
+    color: #0000FF;
+}
+
+[data-bs-theme="light"] .hljs-symbol,
+[data-bs-theme="light"] .hljs-bullet {
+    color: #0000FF;
+}
+
+[data-bs-theme="light"] .hljs-built_in,
+[data-bs-theme="light"] .hljs-builtin-name {
+    color: #660E7A;
+}
+
+/* ==========================================================================
+   АНИМАЦИИ
+   ========================================================================== */
+
+.code-textarea,
+.code-preview,
+.code-preview code {
+    transition: font-size var(--jb-transition-normal);
+}
+
+/* ==========================================================================
+   АДАПТИВНОСТЬ
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    .main-toolbar {
+        height: 40px;
+        padding: 0 var(--jb-spacing-sm);
+    }
+    
+    .toolbar-brand {
+        display: none;
+    }
+    
+    .jb-button {
+        padding: 0 var(--jb-spacing-sm);
+    }
+    
+    .language-selector-label {
+        display: none;
+    }
+    
+    .editor-panel-header {
+        height: 32px;
+        padding: 0 var(--jb-spacing-sm);
+    }
+    
+    .status-bar {
+        height: 22px;
+        font-size: 10px;
+    }
+}
+
+/* ==========================================================================
+   УТИЛИТЫ
+   ========================================================================== */
+
+.text-secondary {
+    color: var(--text-secondary);
+}
+
+.text-muted {
+    color: var(--text-disabled);
+}
+
+.divider {
+    width: 1px;
+    height: 20px;
+    background-color: var(--border-subtle);
+    margin: 0 var(--jb-spacing-sm);
 }

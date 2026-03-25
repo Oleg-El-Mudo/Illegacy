@@ -320,16 +320,38 @@ export async function checkDockerStatus() {
             console.warn('Для запуска выполните: cd src-tauri/docker && docker run -d -p 5001:5001 f2c-service');
         }
 
+        // Обновляем статус-бар
+        updateDockerStatus(cStatus.docker_available, f2cStatus.available && f2cStatus.f2c_available);
+
         return {
             c_parser: cStatus.docker_available,
             f2c_service: f2cStatus.available && f2cStatus.f2c_available
         };
     } catch (error) {
         console.error('Ошибка при проверке сервисов:', error);
-        return { 
-            c_parser: false, 
+        
+        // Обновляем статус-бар с ошибкой
+        updateDockerStatus(false, false);
+        
+        return {
+            c_parser: false,
             f2c_service: false,
-            error: error.toString() 
+            error: error.toString()
         };
+    }
+}
+
+/**
+ * Обновляет статус Docker в статус-баре
+ */
+function updateDockerStatus(cParserReady, f2cReady) {
+    if (!elements.statusDocker) return;
+    
+    if (cParserReady && f2cReady) {
+        elements.statusDocker.innerHTML = 'Docker: <span style="color: var(--success)">Готов</span>';
+    } else if (cParserReady || f2cReady) {
+        elements.statusDocker.innerHTML = 'Docker: <span style="color: var(--warning)">Частично</span>';
+    } else {
+        elements.statusDocker.innerHTML = 'Docker: <span style="color: var(--error)">Не готов</span>';
     }
 }

@@ -8,56 +8,70 @@ export function initFileHandlers() {
         e.preventDefault();
         elements.inputCode.value = '';
         updateSyntaxHighlighting();
+        updateStatusBar('Готов к работе');
     });
 
     elements.openFile.addEventListener('click', async function(e){
         e.preventDefault();
-        
+
         try {
             const selectedLang = elements.inputLangSelect.value;
             const fileContent = await invoke('open_file_with_filter', { lang: selectedLang });
-            
+
             if (fileContent) {
                 elements.inputCode.value = fileContent;
                 updateSyntaxHighlighting();
                 console.log('Файл успешно загружен');
+                updateStatusBar('Файл загружен');
             }
         } catch (error) {
             console.error('Ошибка при открытии файла:', error);
             if (!error.includes("Файл не выбран")) {
                 alert('Ошибка при открытии файла: ' + error);
             }
+            updateStatusBar('Ошибка при открытии файла');
         }
     });
 
     elements.exportFile.addEventListener('click', async function(e){
         e.preventDefault();
-        
+
         const contentToExport = elements.outputCode.value || elements.inputCode.value;
-        
+
         if (!contentToExport.trim()) {
             alert('Нет содержимого для экспорта');
             return;
         }
-        
+
         try {
             const selectedLang = elements.outputLangSelect.value;
-            const savedPath = await invoke('save_file_with_filter', { 
+            const savedPath = await invoke('save_file_with_filter', {
                 content: contentToExport,
-                lang: selectedLang 
+                lang: selectedLang
             });
-            
+
             if (savedPath) {
                 console.log('Файл успешно сохранен:', savedPath);
                 alert(`Файл успешно сохранен: ${savedPath}`);
+                updateStatusBar(`Файл сохранен: ${savedPath.split('/').pop() || savedPath.split('\\').pop()}`);
             }
         } catch (error) {
             console.error('Ошибка при сохранении файла:', error);
             if (!error.includes("Сохранение отменено")) {
                 alert('Ошибка при сохранении файла: ' + error);
             }
+            updateStatusBar('Ошибка при сохранении файла');
         }
     });
+}
+
+/**
+ * Обновляет статус-бар
+ */
+function updateStatusBar(message) {
+    if (elements.statusFile) {
+        elements.statusFile.textContent = message;
+    }
 }
 
 // При загрузке файла:

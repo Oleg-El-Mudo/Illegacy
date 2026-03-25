@@ -1,0 +1,335 @@
+/* ==========================================================================
+   JetBrains New UI Design System - CSS Variables
+   ========================================================================== */
+
+:root {
+    /* ======================================================================
+       ЦВЕТОВАЯ ПАЛИТРА - DARK ТЕМА (по умолчанию)
+       ====================================================================== */
+    
+    /* Основные фоны */
+    --jb-bg-primary: #2B2B2B;           /* Основной фон окна */
+    --jb-bg-secondary: #3C3F41;         /* Панели, toolbars */
+    --jb-bg-tertiary: #45494B;          /* Вторичные поверхности, карточки */
+    --jb-bg-hover: #4C5052;             /* Hover состояние */
+    --jb-bg-selected: #365880;          /* Выделенные элементы */
+    --jb-bg-selected-hover: #406896;    /* Выделенные hover */
+    
+    /* Границы */
+    --jb-border-default: #5F6368;       /* Основные границы */
+    --jb-border-subtle: #4A4D50;        /* Тонкие границы */
+    --jb-border-strong: #6F7378;        /* Акцентные границы */
+    
+    /* Текст */
+    --jb-text-primary: #D0D0D0;         /* Основной текст */
+    --jb-text-secondary: #8C8C8C;       /* Вторичный текст, подсказки */
+    --jb-text-disabled: #6A6A6A;        /* Неактивный текст */
+    --jb-text-link: #4C8DFF;            /* Ссылки */
+    --jb-text-link-hover: #6FA3FF;      /* Ссылки hover */
+    
+    /* Акцентные цвета */
+    --jb-accent-primary: #4C8DFF;       /* Основной акцент (синий) */
+    --jb-accent-primary-hover: #6FA3FF; /* Акцент hover */
+    --jb-accent-focus: #4C8DFF;         /* Focus ring */
+    
+    /* Градиенты для акцентов */
+    --jb-gradient-primary: linear-gradient(135deg, #4C8DFF 0%, #6FA3FF 100%);
+    --jb-gradient-primary-hover: linear-gradient(135deg, #6FA3FF 0%, #8FB8FF 100%);
+    --jb-gradient-subtle: linear-gradient(180deg, rgba(76, 141, 255, 0.1) 0%, rgba(76, 141, 255, 0.05) 100%);
+    
+    /* Семантические цвета */
+    --jb-success: #00C853;
+    --jb-success-bg: rgba(0, 200, 83, 0.15);
+    --jb-warning: #FFB300;
+    --jb-warning-bg: rgba(255, 179, 0, 0.15);
+    --jb-error: #FF5252;
+    --jb-error-bg: rgba(255, 82, 82, 0.15);
+    --jb-info: #4C8DFF;
+    --jb-info-bg: rgba(76, 141, 255, 0.15);
+    
+    /* Скроллбары */
+    --jb-scrollbar-track: #2D2D2D;
+    --jb-scrollbar-thumb: #5A5A5A;
+    --jb-scrollbar-thumb-hover: #7A7A7A;
+    
+    /* Тени */
+    --jb-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --jb-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --jb-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
+    --jb-shadow-focus: 0 0 0 2px rgba(76, 141, 255, 0.4);
+    
+    /* Редактор кода */
+    --jb-editor-bg: #2B2B2B;
+    --jb-editor-gutter-bg: #313335;
+    --jb-editor-line-number: #606366;
+    --jb-editor-selection: rgba(76, 141, 255, 0.3);
+    --jb-editor-caret: #D0D0D0;
+    --jb-editor-placeholder: #6A6A6A;
+    
+    /* ======================================================================
+       ЦВЕТОВАЯ ПАЛИТРА - LIGHT ТЕМА
+       ====================================================================== */
+    
+    /* Основные фоны */
+    --jb-light-bg-primary: #F6F6F6;
+    --jb-light-bg-secondary: #FFFFFF;
+    --jb-light-bg-tertiary: #F0F0F0;
+    --jb-light-bg-hover: #E8E8E8;
+    --jb-light-bg-selected: #D4E5FF;
+    --jb-light-bg-selected-hover: #C2D8FF;
+    
+    /* Границы */
+    --jb-light-border-default: #D0D0D0;
+    --jb-light-border-subtle: #E0E0E0;
+    --jb-light-border-strong: #B0B0B0;
+    
+    /* Текст */
+    --jb-light-text-primary: #2B2B2B;
+    --jb-light-text-secondary: #6E6E6E;
+    --jb-light-text-disabled: #9A9A9A;
+    --jb-light-text-link: #4078C0;
+    --jb-light-text-link-hover: #3060A0;
+    
+    /* Акцентные цвета */
+    --jb-light-accent-primary: #4078C0;
+    --jb-light-accent-primary-hover: #3060A0;
+    --jb-light-accent-focus: #4078C0;
+    
+    /* Градиенты для светлой темы */
+    --jb-light-gradient-primary: linear-gradient(135deg, #4078C0 0%, #5A95D9 100%);
+    --jb-light-gradient-primary-hover: linear-gradient(135deg, #5A95D9 0%, #74A8E6 100%);
+    --jb-light-gradient-subtle: linear-gradient(180deg, rgba(64, 120, 192, 0.15) 0%, rgba(64, 120, 192, 0.05) 100%);
+    
+    /* Скроллбары */
+    --jb-light-scrollbar-track: #F1F1F1;
+    --jb-light-scrollbar-thumb: #C1C1C1;
+    --jb-light-scrollbar-thumb-hover: #A1A1A1;
+    
+    /* Тени */
+    --jb-light-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
+    --jb-light-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.12);
+    --jb-light-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.16);
+    --jb-light-shadow-focus: 0 0 0 2px rgba(64, 120, 192, 0.3);
+    
+    /* Редактор кода */
+    --jb-light-editor-bg: #FFFFFF;
+    --jb-light-editor-gutter-bg: #F5F5F5;
+    --jb-light-editor-line-number: #9A9A9A;
+    --jb-light-editor-selection: rgba(64, 120, 192, 0.25);
+    --jb-light-editor-caret: #2B2B2B;
+    --jb-light-editor-placeholder: #B0B0B0;
+    
+    /* ======================================================================
+       ТИПОГРАФИКА
+       ====================================================================== */
+    
+    /* Шрифты */
+    --jb-font-family-ui: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --jb-font-family-code: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', monospace;
+    
+    /* Размеры шрифтов */
+    --jb-font-size-xs: 11px;
+    --jb-font-size-sm: 12px;
+    --jb-font-size-md: 13px;
+    --jb-font-size-lg: 14px;
+    --jb-font-size-xl: 16px;
+    --jb-font-size-2xl: 20px;
+    --jb-font-size-3xl: 24px;
+    
+    /* Веса шрифтов */
+    --jb-font-weight-regular: 400;
+    --jb-font-weight-medium: 500;
+    --jb-font-weight-semibold: 600;
+    --jb-font-weight-bold: 700;
+    
+    /* Межстрочные интервалы */
+    --jb-line-height-tight: 1.3;
+    --jb-line-height-normal: 1.45;
+    --jb-line-height-relaxed: 1.6;
+    
+    /* ======================================================================
+       ОТСТУПЫ И РАЗМЕРЫ (8px grid)
+       ====================================================================== */
+    
+    --jb-spacing-xs: 4px;
+    --jb-spacing-sm: 8px;
+    --jb-spacing-md: 12px;
+    --jb-spacing-lg: 16px;
+    --jb-spacing-xl: 20px;
+    --jb-spacing-2xl: 24px;
+    --jb-spacing-3xl: 32px;
+    
+    /* Размеры компонентов */
+    --jb-component-height-sm: 28px;
+    --jb-component-height-md: 32px;
+    --jb-component-height-lg: 36px;
+    
+    /* Радиусы скругления */
+    --jb-radius-sm: 6px;
+    --jb-radius-md: 8px;
+    --jb-radius-lg: 10px;
+    --jb-radius-xl: 14px;
+    --jb-radius-full: 9999px;
+    
+    /* ======================================================================
+       АНИМАЦИИ
+       ====================================================================== */
+    
+    --jb-transition-fast: 80ms ease-out;
+    --jb-transition-normal: 150ms ease-out;
+    --jb-transition-slow: 250ms ease-out;
+    
+    /* Иконки */
+    --jb-icon-size-sm: 14px;
+    --jb-icon-size-md: 16px;
+    --jb-icon-size-lg: 20px;
+    --jb-icon-size-xl: 24px;
+}
+
+/* ======================================================================
+   DARK ТЕМА (по умолчанию)
+   ====================================================================== */
+[data-bs-theme="dark"] {
+    /* Фоны */
+    --bg-primary: var(--jb-bg-primary);
+    --bg-secondary: var(--jb-bg-secondary);
+    --bg-tertiary: var(--jb-bg-tertiary);
+    --bg-hover: var(--jb-bg-hover);
+    --bg-selected: var(--jb-bg-selected);
+    --bg-selected-hover: var(--jb-bg-selected-hover);
+    
+    /* Границы */
+    --border-default: var(--jb-border-default);
+    --border-subtle: var(--jb-border-subtle);
+    --border-strong: var(--jb-border-strong);
+    
+    /* Текст */
+    --text-primary: var(--jb-text-primary);
+    --text-secondary: var(--jb-text-secondary);
+    --text-disabled: var(--jb-text-disabled);
+    --text-link: var(--jb-text-link);
+    --text-link-hover: var(--jb-text-link-hover);
+    
+    /* Акценты */
+    --accent-primary: var(--jb-accent-primary);
+    --accent-primary-hover: var(--jb-accent-primary-hover);
+    --accent-focus: var(--jb-accent-focus);
+    
+    /* Градиенты */
+    --gradient-primary: var(--jb-gradient-primary);
+    --gradient-primary-hover: var(--jb-gradient-primary-hover);
+    --gradient-subtle: var(--jb-gradient-subtle);
+    
+    /* Семантика */
+    --success: var(--jb-success);
+    --success-bg: var(--jb-success-bg);
+    --warning: var(--jb-warning);
+    --warning-bg: var(--jb-warning-bg);
+    --error: var(--jb-error);
+    --error-bg: var(--jb-error-bg);
+    --info: var(--jb-info);
+    --info-bg: var(--jb-info-bg);
+    
+    /* Скроллбары */
+    --scrollbar-track: var(--jb-scrollbar-track);
+    --scrollbar-thumb: var(--jb-scrollbar-thumb);
+    --scrollbar-thumb-hover: var(--jb-scrollbar-thumb-hover);
+    
+    /* Тени */
+    --shadow-sm: var(--jb-shadow-sm);
+    --shadow-md: var(--jb-shadow-md);
+    --shadow-lg: var(--jb-shadow-lg);
+    --shadow-focus: var(--jb-shadow-focus);
+    
+    /* Редактор */
+    --editor-bg: var(--jb-editor-bg);
+    --editor-gutter-bg: var(--jb-editor-gutter-bg);
+    --editor-line-number: var(--jb-editor-line-number);
+    --editor-selection: var(--jb-editor-selection);
+    --editor-caret: var(--jb-editor-caret);
+    --editor-placeholder: var(--jb-editor-placeholder);
+    
+    /* Фон страницы */
+    --page-bg: var(--jb-bg-primary);
+}
+
+/* ======================================================================
+   LIGHT ТЕМА
+   ====================================================================== */
+[data-bs-theme="light"] {
+    /* Фоны */
+    --bg-primary: var(--jb-light-bg-primary);
+    --bg-secondary: var(--jb-light-bg-secondary);
+    --bg-tertiary: var(--jb-light-bg-tertiary);
+    --bg-hover: var(--jb-light-bg-hover);
+    --bg-selected: var(--jb-light-bg-selected);
+    --bg-selected-hover: var(--jb-light-bg-selected-hover);
+    
+    /* Границы */
+    --border-default: var(--jb-light-border-default);
+    --border-subtle: var(--jb-light-border-subtle);
+    --border-strong: var(--jb-light-border-strong);
+    
+    /* Текст */
+    --text-primary: var(--jb-light-text-primary);
+    --text-secondary: var(--jb-light-text-secondary);
+    --text-disabled: var(--jb-light-text-disabled);
+    --text-link: var(--jb-light-text-link);
+    --text-link-hover: var(--jb-light-text-link-hover);
+    
+    /* Акценты */
+    --accent-primary: var(--jb-light-accent-primary);
+    --accent-primary-hover: var(--jb-light-accent-primary-hover);
+    --accent-focus: var(--jb-light-accent-focus);
+    
+    /* Градиенты */
+    --gradient-primary: var(--jb-light-gradient-primary);
+    --gradient-primary-hover: var(--jb-light-gradient-primary-hover);
+    --gradient-subtle: var(--jb-light-gradient-subtle);
+    
+    /* Семантика */
+    --success: var(--jb-success);
+    --success-bg: var(--jb-success-bg);
+    --warning: var(--jb-warning);
+    --warning-bg: var(--jb-warning-bg);
+    --error: var(--jb-error);
+    --error-bg: var(--jb-error-bg);
+    --info: var(--jb-info);
+    --info-bg: var(--jb-info-bg);
+    
+    /* Скроллбары */
+    --scrollbar-track: var(--jb-light-scrollbar-track);
+    --scrollbar-thumb: var(--jb-light-scrollbar-thumb);
+    --scrollbar-thumb-hover: var(--jb-light-scrollbar-thumb-hover);
+    
+    /* Тени */
+    --shadow-sm: var(--jb-light-shadow-sm);
+    --shadow-md: var(--jb-light-shadow-md);
+    --shadow-lg: var(--jb-light-shadow-lg);
+    --shadow-focus: var(--jb-light-shadow-focus);
+    
+    /* Редактор */
+    --editor-bg: var(--jb-light-editor-bg);
+    --editor-gutter-bg: var(--jb-light-editor-gutter-bg);
+    --editor-line-number: var(--jb-light-editor-line-number);
+    --editor-selection: var(--jb-light-editor-selection);
+    --editor-caret: var(--jb-light-editor-caret);
+    --editor-placeholder: var(--jb-light-editor-placeholder);
+    
+    /* Фон страницы */
+    --page-bg: var(--jb-light-bg-primary);
+}
+
+/* ======================================================================
+   COMPACT MODE (опционально - для маленьких экранов)
+   ====================================================================== */
+[data-compact-mode="true"] {
+    --jb-font-size-md: 12px;
+    --jb-font-size-lg: 13px;
+    --jb-component-height-sm: 24px;
+    --jb-component-height-md: 28px;
+    --jb-component-height-lg: 32px;
+    --jb-spacing-sm: 6px;
+    --jb-spacing-md: 10px;
+    --jb-spacing-lg: 14px;
+}
