@@ -29,6 +29,15 @@ struct TranspileResult {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+struct F2CResult {
+    success: bool,
+    c_code: Option<String>,
+    error: Option<String>,
+    original_length: Option<usize>,
+    converted_length: Option<usize>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct ParserStatus {
     docker_available: bool,
     parsers: Vec<String>,
@@ -310,6 +319,56 @@ async fn check_parser_status() -> ParserStatus {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct F2CStatus {
+    available: bool,
+    f2c_available: bool,
+}
+
+/// Проверка статуса f2c-сервиса (Fortran -> C)
+#[tauri::command]
+async fn check_f2c_status() -> Result<F2CStatus, String> {
+    info!("Проверка статуса f2c-сервиса");
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| format!("Ошибка создания клиента: {}", e))?;
+
+    match client
+        .get("http://localhost:5001/health")
+        .send()
+        .await
+    {
+        Ok(response) => {
+            if response.status().is_success() {
+                match response.json::<serde_json::Value>().await {
+                    Ok(json) => Ok(F2CStatus {
+                        available: true,
+                        f2c_available: json
+                            .get("f2c_available")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false),
+                    }),
+                    Err(_) => Ok(F2CStatus {
+                        available: true,
+                        f2c_available: false,
+                    }),
+                }
+            } else {
+                Ok(F2CStatus {
+                    available: false,
+                    f2c_available: false,
+                })
+            }
+        }
+        Err(_) => Ok(F2CStatus {
+            available: false,
+            f2c_available: false,
+        }),
+    }
+}
+
 /// Получение информации о поддерживаемых языках
 #[tauri::command]
 async fn get_supported_languages() -> serde_json::Value {
@@ -320,6 +379,7 @@ async fn get_supported_languages() -> serde_json::Value {
         "output": ["python", "java", "go"],
         "pairs": [
             {"from": "c", "to": "python"},
+            {"from": "fortran", "to": "python"},
             {"from": "c", "to": "java"},
             {"from": "c", "to": "go"}
         ]
@@ -353,6 +413,238 @@ async fn simple_transpile(
             from_lang, to_lang
         ))
     }
+}
+
+/// Конвертация Fortran -> C через f2c сервис
+#[tauri::command]
+async fn transpile_fortran_to_c(fortran_code: String) -> Result<F2CResult, String> {
+    info!(
+        "Запуск конвертации Fortran -> C, длина кода: {} символов",
+        fortran_code.len()
+    );
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("Ошибка создания клиента: {}", e))?;
+
+    // Отправляем запрос на f2c сервис
+    let response = client
+        .post("http://localhost:5001/convert")
+        .json(&serde_json::json!({
+            "code": fortran_code,
+            "clean": true  // Очищаем от заголовков f2c
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Ошибка запроса к f2c сервису: {}", e))?;
+
+    let status = response.status();
+    
+    if !status.is_success() {
+        let error_body = response.text().await.unwrap_or_else(|_| "Неизвестная ошибка".to_string());
+        return Ok(F2CResult {
+            success: false,
+            c_code: None,
+            error: Some(format!("Ошибка f2c сервиса ({}): {}", status, error_body)),
+            original_length: None,
+            converted_length: None,
+        });
+    }
+
+    let result: F2CResult = response
+        .json()
+        .await
+        .map_err(|e| format!("Ошибка парсинга ответа f2c: {}", e))?;
+
+    if !result.success {
+        info!("Конвертация Fortran -> C не удалась: {:?}", result.error);
+    } else {
+        info!("Конвертация Fortran -> C успешна");
+    }
+
+    Ok(result)
+}
+
+/// Полная цепочка Fortran -> C -> Python
+#[tauri::command]
+async fn transpile_fortran_to_python(code: String) -> Result<TranspileResult, String> {
+    info!(
+        "Запуск транспиляции Fortran -> Python, длина кода: {} символов",
+        code.len()
+    );
+
+    // Шаг 1: Конвертируем Fortran -> C
+    info!("Шаг 1: Конвертация Fortran -> C...");
+    let f2c_result = transpile_fortran_to_c(code).await?;
+
+    if !f2c_result.success {
+        return Ok(TranspileResult {
+            success: false,
+            output: None,
+            error: f2c_result.error,
+            ast_json: None,
+        });
+    }
+
+    let c_code = f2c_result.c_code.unwrap_or_default();
+    info!(
+        "Шаг 1 завершён: получено {} символов C кода",
+        c_code.len()
+    );
+
+    // Шаг 2: Очищаем C код от комментариев и #include (как в текущей реализации)
+    info!("Шаг 2: Очистка C кода...");
+    let cleaned_c_code = clean_c_code_for_transpilation(&c_code);
+    info!("Шаг 2 завершён: {} символов после очистки", cleaned_c_code.len());
+
+    // Если после очистки код стал пустым
+    if cleaned_c_code.trim().is_empty() {
+        return Ok(TranspileResult {
+            success: false,
+            output: None,
+            error: Some("Код пуст после очистки".to_string()),
+            ast_json: None,
+        });
+    }
+
+    // Шаг 3: Парсим C код в AST и генерируем Python
+    info!("Шаг 3: Парсинг C -> AST и генерация Python...");
+    let python_result = transpile_c_to_python(cleaned_c_code).await?;
+
+    if python_result.success {
+        info!("Транспиляция Fortran -> Python успешна");
+    } else {
+        error!("Ошибка транспиляции Fortran -> Python: {:?}", python_result.error);
+    }
+
+    Ok(python_result)
+}
+
+/// Очистка C кода от комментариев, директив #include и специфичного мусора f2c
+fn clean_c_code_for_transpilation(code: &str) -> String {
+    let mut result = String::new();
+    let mut chars = code.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        // Проверяем начало однострочного комментария //
+        if ch == '/' && chars.peek() == Some(&'/') {
+            // Пропускаем до конца строки
+            while let Some(&c) = chars.peek() {
+                if c == '\n' {
+                    break;
+                }
+                chars.next();
+            }
+            continue;
+        }
+
+        // Проверяем начало многострочного комментария /*
+        if ch == '/' && chars.peek() == Some(&'*') {
+            chars.next(); // пропускаем *
+            // Ищем закрывающий */
+            while let Some(&c) = chars.peek() {
+                if c == '*' {
+                    chars.next();
+                    if chars.peek() == Some(&'/') {
+                        chars.next();
+                        break;
+                    }
+                } else {
+                    chars.next();
+                }
+            }
+            continue;
+        }
+
+        // Проверяем директиву #include
+        if ch == '#' {
+            let mut directive = String::from("#");
+            while let Some(&c) = chars.peek() {
+                if c == '\n' {
+                    break;
+                }
+                directive.push(c);
+                chars.next();
+            }
+            // Если это не #include, сохраняем директиву
+            if !directive.trim_start().starts_with("#include") {
+                result.push_str(&directive);
+            }
+            continue;
+        }
+
+        result.push(ch);
+    }
+
+    // Удаляем специфичные типы f2c
+    let result = result
+        .replace("static integer ", "int ")
+        .replace("static doublereal ", "double ")
+        .replace("static real ", "float ")
+        .replace("static logical ", "int ")
+        .replace("static char ", "char ")
+        .replace("ftnlen ", "")
+        .replace("cilist ", "int ")
+        .replace("integer ", "int ")
+        .replace("doublereal ", "double ")
+        .replace("real ", "float ")
+        .replace("logical ", "int ");
+
+    // Удаляем объявления внешних функций и переменных
+    let lines: Vec<&str> = result.lines().collect();
+    let mut filtered_lines = Vec::new();
+    
+    for line in lines {
+        let trimmed = line.trim();
+        
+        // Пропускаем extern объявления
+        if trimmed.starts_with("extern") {
+            continue;
+        }
+        
+        // Пропускаем объявления функций f2c и специфичные строки
+        if trimmed.contains("s_wsle(") 
+            || trimmed.contains("do_lio(")
+            || trimmed.contains("e_wsle(")
+            || trimmed.contains("s_copy(")
+            || trimmed.contains("s_stop(")
+            || trimmed.starts_with("\"")
+            || trimmed.starts_with("',")
+            || trimmed.starts_with("\",")
+        {
+            continue;
+        }
+        
+        // Заменяем вызовы функций вывода на printf
+        let line = line
+            // Заменяем s_wsle(&xxx); на пустоту (начало вывода)
+            .replace("s_wsle(&io___2);", "")
+            .replace("s_wsle(&io___1);", "")
+            .replace("s_wsle(&io___3);", "")
+            .replace("s_wsle(&io___4);", "")
+            .replace("s_wsle(&io___5);", "")
+            // Заменяем e_wsle(); на пустоту (конец вывода)  
+            .replace("e_wsle();", "")
+            // Заменяем do_lio на printf с аргументом
+            .replace("do_lio(&c__9, &c__1,", "printf(\"%s\",")
+            .replace("do_lio(&c__1, &c__9,", "printf(\"%d\",")
+            // Удаляем хвост вызова do_lio
+            ;
+        
+        // Удаляем остаточные вызовы f2c и пустые строки
+        if line.trim().is_empty() || 
+           line.trim() == ";" ||
+           line.trim().contains("s_copy(") ||
+           line.trim().contains("s_stop")
+        {
+            continue;
+        }
+        
+        filtered_lines.push(line);
+    }
+
+    filtered_lines.join("\n")
 }
 
 /// Вспомогательная функция для сохранения AST в файл (отладка)
@@ -453,7 +745,10 @@ pub fn run() {
             open_file_with_filter,
             save_file_with_filter,
             transpile_c_to_python,
+            transpile_fortran_to_c,
+            transpile_fortran_to_python,
             check_parser_status,
+            check_f2c_status,
             get_supported_languages,
             simple_transpile,
         ])

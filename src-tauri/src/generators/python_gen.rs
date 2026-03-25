@@ -3609,14 +3609,17 @@ impl Generator for PythonGenerator {
         let mut enums = Vec::new();
         let mut functions = Vec::new();
         let mut has_main = false;
+        let mut main_function_name = String::from("main");
 
         for node in &ast.children {
             match node.node_type.as_str() {
                 "FuncDef" | "FuncDecl" => {
                     functions.push(node);
                     if let Some(name) = node.attributes.get("name").and_then(|v| v.as_str()) {
-                        if name == "main" {
+                        // Проверяем на main() или MAIN__() из Fortran
+                        if name == "main" || name == "MAIN__" {
                             has_main = true;
+                            main_function_name = name.to_string();
                         }
                     }
                 }
@@ -3661,10 +3664,10 @@ impl Generator for PythonGenerator {
             output.push_str("\n");
         }
 
-        // Добавляем конструкцию if __name__ == "__main__" для вызова main()
+        // Добавляем конструкцию if __name__ == "__main__" для вызова main() или MAIN__()
         if has_main {
-            output.push_str("if __name__ == \"__main__\":\n");
-            output.push_str("    main()\n");
+            output.push_str(&format!("if __name__ == \"__main__\":\n"));
+            output.push_str(&format!("    {}()\n", main_function_name));
         }
 
         // Вставляем все необходимые импорты в начало файла
