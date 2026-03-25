@@ -11,25 +11,33 @@ app = Flask(__name__)
 def convert_fortran_to_c(fortran_code):
     """
     Конвертирует Fortran код в C с помощью утилиты f2c.
-    
+
     Args:
         fortran_code: Исходный код на Fortran
-        
+
     Returns:
         tuple: (C код, статус успеха, сообщение об ошибке)
     """
     # Создаем временную директорию
     temp_dir = tempfile.mkdtemp()
-    
+
     try:
         # Записываем Fortran код во временный файл
         # f2c ожидает файлы с расширением .f или .for
         fortran_file = os.path.join(temp_dir, 'input.f')
-        with open(fortran_file, 'w') as f:
-            f.write(fortran_code)
-        
-        # Запускаем f2c
-        # f2c генерирует .c и .h файлы
+        with open(fortran_file, 'w', newline='\n') as f:
+            # Добавляем завершающую новую строку если её нет
+            code = fortran_code.rstrip() + '\n'
+            f.write(code)
+
+        # Отладка: читаем записанный файл
+        with open(fortran_file, 'r') as f:
+            written_code = f.read()
+        print(f"Written to input.f ({len(written_code)} chars):")
+        print(written_code[:500])
+
+        # Запускаем f2c с дополнительными флагами
+        # -E - подавляем #include
         result = subprocess.run(
             ['f2c', 'input.f'],
             cwd=temp_dir,
@@ -37,20 +45,31 @@ def convert_fortran_to_c(fortran_code):
             text=True,
             timeout=30
         )
-        
+
+        print(f"f2c return code: {result.returncode}")
+        if result.stdout:
+            print(f"f2c stdout: {result.stdout}")
+        if result.stderr:
+            print(f"f2c stderr: {result.stderr}")
+
         if result.returncode != 0:
             return None, False, f"f2c error: {result.stderr}"
-        
+
         # Читаем сгенерированный C файл
         c_file = os.path.join(temp_dir, 'input.c')
         if not os.path.exists(c_file):
-            return None, False, "f2c did not generate output file"
-        
+            # Проверяем какие файлы были созданы
+            files = os.listdir(temp_dir)
+            return None, False, f"f2c did not generate output file. Created files: {files}"
+
         with open(c_file, 'r') as f:
             c_code = f.read()
-        
+
+        print(f"Generated C code ({len(c_code)} chars):")
+        print(c_code[:500])
+
         return c_code, True, None
-        
+
     except subprocess.TimeoutExpired:
         return None, False, "f2c conversion timed out"
     except FileNotFoundError:
