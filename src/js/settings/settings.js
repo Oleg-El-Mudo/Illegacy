@@ -5,9 +5,6 @@ const COMPACT_MODE_KEY = 'illegacy-compact-mode';
 const FONT_SIZE_KEY = 'illegacy-font-size';
 const TAB_SIZE_KEY = 'illegacy-tab-size';
 
-/**
- * Инициализация страницы настроек
- */
 function initSettings() {
     // Тема
     const themeSelect = document.getElementById('theme-select');
@@ -164,9 +161,6 @@ function setupTabs() {
     });
 }
 
-/**
- * Проверка статуса Docker
- */
 async function checkDockerStatus() {
     const dockerStatusEl = document.getElementById('docker-status');
     if (!dockerStatusEl) return;

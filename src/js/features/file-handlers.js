@@ -65,9 +65,6 @@ export function initFileHandlers() {
     });
 }
 
-/**
- * Обновляет статус-бар
- */
 function updateStatusBar(message) {
     if (elements.statusFile) {
         elements.statusFile.textContent = message;

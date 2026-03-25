@@ -166,9 +166,7 @@ export async function translateCode() {
     }
 }
 
-/**
- * Транспиляция C -> Python
- */
+
 async function translateCToPython(code) {
     // Удаляем комментарии ТОЛЬКО для C кода
     console.log('Обработка C кода - удаление комментариев');
@@ -186,9 +184,6 @@ async function translateCToPython(code) {
     await performTranslation(code, 'C', 'Python');
 }
 
-/**
- * Транспиляция Fortran -> Python (через Fortran -> C -> Python)
- */
 async function translateFortranToPython(code) {
     console.log('Запуск транспиляции Fortran -> Python (через C)');
     console.log('Исходный код Fortran:');
@@ -198,9 +193,6 @@ async function translateFortranToPython(code) {
     await performTranslation(code, 'Fortran', 'Python');
 }
 
-/**
- * Выполняет транспиляцию с обновлением UI
- */
 async function performTranslation(code, fromLang, toLang) {
     const originalText = elements.translateBtn.textContent;
     elements.translateBtn.textContent = 'Перевод...';
@@ -268,9 +260,6 @@ export function initTranslation() {
     addDebugButton();
 }
 
-/**
- * Добавляет отладочную кнопку для проверки удаления комментариев
- */
 function addDebugButton() {
     // Проверяем, не добавлена ли уже кнопка
     if (document.getElementById('debug-comments-btn')) return;
@@ -341,9 +330,6 @@ export async function checkDockerStatus() {
     }
 }
 
-/**
- * Обновляет статус Docker в статус-баре
- */
 function updateDockerStatus(cParserReady, f2cReady) {
     if (!elements.statusDocker) return;
     

@@ -1,0 +1,49 @@
+/* ==========================================================================
+   UTILITIES - Утилиты и адаптивность
+   ========================================================================== */
+
+/* ----------------- Utility Classes ----------------- */
+.text-secondary {
+    color: var(--text-secondary);
+}
+
+.text-muted {
+    color: var(--text-disabled);
+}
+
+.divider {
+    width: 1px;
+    height: 20px;
+    background-color: var(--border-subtle);
+    margin: 0 var(--jb-spacing-sm);
+}
+
+/* ----------------- Responsive Design ----------------- */
+@media (max-width: 768px) {
+    .main-toolbar {
+        height: 40px;
+        padding: 0 var(--jb-spacing-sm);
+    }
+
+    .toolbar-brand {
+        display: none;
+    }
+
+    .jb-button {
+        padding: 0 var(--jb-spacing-sm);
+    }
+
+    .language-selector-label {
+        display: none;
+    }
+
+    .editor-panel-header {
+        height: 32px;
+        padding: 0 var(--jb-spacing-sm);
+    }
+
+    .status-bar {
+        height: 22px;
+        font-size: 10px;
+    }
+}

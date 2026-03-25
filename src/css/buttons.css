@@ -1,0 +1,89 @@
+.jb-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--jb-spacing-sm);
+    height: var(--jb-component-height-md);
+    padding: 0 var(--jb-spacing-md);
+    font-family: var(--jb-font-family-ui);
+    font-size: var(--jb-font-size-md);
+    font-weight: var(--jb-font-weight-medium);
+    border-radius: var(--jb-radius-sm);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all var(--jb-transition-fast);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.jb-button:focus,
+.jb-button:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+}
+
+/* Primary button */
+.jb-button-primary {
+    background: var(--gradient-primary);
+    color: #FFFFFF;
+    border-color: transparent;
+    box-shadow: var(--shadow-sm);
+}
+
+.jb-button-primary:hover {
+    background: var(--gradient-primary-hover);
+    border-color: transparent;
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.jb-button-primary:active {
+    transform: translateY(0);
+}
+
+/* Secondary button */
+.jb-button-secondary {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-color: var(--border-subtle);
+}
+
+.jb-button-secondary:hover {
+    background-color: var(--bg-hover);
+    border-color: var(--border-default);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Tertiary button (text-only) */
+.jb-button-tertiary {
+    background-color: transparent;
+    color: var(--text-primary);
+    border-color: transparent;
+    padding: 0 var(--jb-spacing-sm);
+}
+
+.jb-button-tertiary:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+/* Icon button */
+.jb-button-icon {
+    width: var(--jb-component-height-md);
+    height: var(--jb-component-height-md);
+    padding: 0;
+    background-color: transparent;
+    color: var(--text-primary);
+    border-color: transparent;
+    border-radius: var(--jb-radius-sm);
+}
+
+.jb-button-icon:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.jb-button-icon svg {
+    width: var(--jb-icon-size-md);
+    height: var(--jb-icon-size-md);
+}
