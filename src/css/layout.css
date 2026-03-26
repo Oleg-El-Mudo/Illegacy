@@ -3,16 +3,242 @@
     flex-direction: column;
     height: 100vh;
     overflow: hidden;
-    overflow-x: hidden;
+    background: var(--bg-primary);
 }
 
 .main-content {
     display: flex;
     flex: 1;
     width: 100%;
+    min-width: 0;
     overflow: hidden;
-    background-color: var(--bg-primary);
-    padding-right: var(--jb-spacing-sm);
-    padding-bottom: var(--jb-spacing-sm);
+    background: transparent;
+    padding: var(--spacing-sm);
+    padding-right: var(--spacing-sm);
+    gap: var(--spacing-sm);
     box-sizing: border-box;
+}
+
+/* Glassmorphism панели */
+.editor-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    width: 50%;
+    overflow: hidden;
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--blur-md));
+    -webkit-backdrop-filter: blur(var(--blur-md));
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-xl);
+    box-shadow:
+        var(--shadow-sm),
+        inset 0 1px 0 var(--glass-highlight);
+    transition:
+        box-shadow var(--transition-normal),
+        border-color var(--transition-normal);
+}
+
+.editor-panel:hover {
+    box-shadow: 
+        var(--shadow-md),
+        inset 0 1px 0 var(--glass-highlight);
+}
+
+.editor-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 44px;
+    padding: 0 var(--spacing-lg);
+    background: var(--glass-bg-light);
+    border-bottom: 1px solid var(--glass-border-subtle);
+    flex-shrink: 0;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    transition: background-color var(--transition-fast);
+}
+
+.editor-panel-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-secondary);
+    letter-spacing: 0.02em;
+}
+
+.editor-panel-title svg {
+    width: var(--icon-size-md);
+    height: var(--icon-size-md);
+    opacity: 0.7;
+    transition: opacity var(--transition-fast);
+}
+
+.editor-panel:hover .editor-panel-title svg {
+    opacity: 1;
+}
+
+.editor-panel-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.language-selector {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.language-selector-label {
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.code-container {
+    position: relative;
+    flex: 1;
+    overflow: hidden;
+    background: var(--editor-bg);
+    border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+    min-width: 0;
+}
+
+/* Общие стили для textarea и pre */
+.code-textarea,
+.code-preview {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    font-family: var(--font-family-code);
+    font-size: var(--font-size-lg);
+    line-height: 1.6;
+    white-space: pre;
+    word-wrap: normal;
+    overflow: auto;
+    box-sizing: border-box;
+    border: none;
+    outline: none;
+    tab-size: 4;
+    -moz-tab-size: 4;
+    -o-tab-size: 4;
+    -webkit-tab-size: 4;
+    max-width: 100%;
+}
+
+/* Textarea для ввода */
+.code-textarea {
+    padding: var(--spacing-lg);
+    background: transparent;
+    color: transparent;
+    caret-color: var(--editor-caret);
+    resize: none;
+    z-index: 2;
+}
+
+.code-textarea::placeholder {
+    color: var(--editor-placeholder);
+    opacity: 1;
+}
+
+.code-textarea::selection {
+    background: var(--editor-selection);
+}
+
+/* Pre для подсветки */
+.code-preview {
+    padding: 0;
+    pointer-events: none;
+    z-index: 1;
+    background: transparent;
+    overflow: auto;
+}
+
+.code-preview code {
+    font-family: var(--font-family-code);
+    background: transparent !important;
+    padding: var(--spacing-lg);
+    margin: 0;
+    display: block;
+    box-sizing: border-box;
+    min-height: 100%;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    color: var(--text-primary);
+}
+
+/* Скрываем скроллбар у preview */
+.code-preview::-webkit-scrollbar {
+    display: none;
+}
+
+.code-preview {
+    scrollbar-width: none;
+}
+
+/* Zoom индикатор */
+.zoom-indicator {
+    position: fixed;
+    bottom: calc(var(--spacing-2xl) + 28px);
+    right: var(--spacing-xl);
+    background: var(--glass-bg-heavy);
+    backdrop-filter: blur(var(--blur-lg));
+    -webkit-backdrop-filter: blur(var(--blur-lg));
+    color: var(--text-primary);
+    padding: var(--spacing-xs) var(--spacing-md);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    z-index: 1000;
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+    transition: 
+        opacity var(--transition-normal),
+        transform var(--transition-spring);
+    pointer-events: none;
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-lg);
+    letter-spacing: 0.05em;
+}
+
+.zoom-indicator.show {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+/* Плавное изменение размера шрифта */
+.code-textarea,
+.code-preview,
+.code-preview code {
+    transition: font-size var(--transition-normal);
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .main-content {
+        padding: var(--spacing-xs);
+        gap: var(--spacing-xs);
+    }
+    
+    .editor-panel-header {
+        height: 40px;
+        padding: 0 var(--spacing-md);
+    }
+    
+    .language-selector-label {
+        display: none;
+    }
+    
+    .editor-panel-title span {
+        display: none;
+    }
 }

@@ -1,38 +1,45 @@
 .resizer {
-    width: 4px;
-    background-color: var(--bg-secondary);
-    border: 1px solid var(--border-subtle);
+    width: 6px;
+    background: transparent;
+    border: none;
     box-sizing: border-box;
     cursor: col-resize;
     flex-shrink: 0;
     z-index: 10;
-    transition: background-color var(--jb-transition-fast);
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: var(--jb-radius-sm);
+    border-radius: var(--radius-full);
+    transition: 
+        background-color var(--transition-fast),
+        width var(--transition-fast);
+    margin: 0 var(--spacing-xxs);
 }
 
 .resizer::after {
     content: '';
     width: 2px;
-    height: 32px;
-    background: var(--gradient-primary);
-    border-radius: var(--jb-radius-full);
-    transition: all var(--jb-transition-fast);
-    opacity: 0.3;
+    height: 40px;
+    background: var(--glass-border);
+    border-radius: var(--radius-full);
+    transition: 
+        all var(--transition-fast);
+    opacity: 0.5;
 }
 
-.resizer:hover,
-.resizer:active {
-    background-color: var(--bg-hover);
-    border-color: var(--border-default);
+.resizer:hover {
+    background: var(--glass-bg-light);
 }
 
-.resizer:hover::after,
-.resizer:active::after {
+.resizer:hover::after {
+    background: var(--accent-primary);
     opacity: 1;
     height: 48px;
+    box-shadow: 0 0 12px var(--accent-primary-glass);
+}
+
+.resizer:active::after {
+    height: 56px;
 }
 
 /* Класс для режима ресайза */
@@ -41,7 +48,26 @@
     cursor: col-resize;
 }
 
+.resizing .resizer {
+    background: var(--glass-bg-light);
+}
+
+.resizing .resizer::after {
+    background: var(--accent-primary);
+    opacity: 1;
+    height: 56px;
+}
+
 .resizing .code-textarea,
 .resizing .code-preview {
     pointer-events: none;
+}
+
+/* Light theme adjustment */
+[data-bs-theme="light"] .resizer::after {
+    background: var(--border-default);
+}
+
+[data-bs-theme="light"] .resizer:hover::after {
+    background: var(--accent-primary);
 }

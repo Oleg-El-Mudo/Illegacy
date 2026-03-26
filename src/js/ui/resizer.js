@@ -7,10 +7,13 @@ let startLeftWidth = 0;
 
 export function setInitialWidths() {
     const containerWidth = elements.mainContent.clientWidth;
-    const columnsWidth = containerWidth - elements.resizer.offsetWidth;
+    const resizerWidth = elements.resizer.offsetWidth;
+    // Учитываем padding (слева и справа)
+    const padding = 16; // var(--spacing-sm) * 2
+    const availableWidth = containerWidth - resizerWidth - padding;
 
-    elements.leftPanel.style.width = `${columnsWidth / 2}px`;
-    elements.rightPanel.style.width = `${columnsWidth / 2}px`;
+    elements.leftPanel.style.width = `${availableWidth / 2}px`;
+    elements.rightPanel.style.width = `${availableWidth / 2}px`;
 
     elements.leftPanel.style.flex = 'none';
     elements.rightPanel.style.flex = 'none';
@@ -33,20 +36,23 @@ export function initResizer() {
         const deltaX = e.clientX - startX;
         const containerWidth = elements.mainContent.clientWidth;
         const resizerWidth = elements.resizer.offsetWidth;
+        // Учитываем padding
+        const padding = 16;
 
         let newLeftWidth = startLeftWidth + deltaX;
 
-        if (newLeftWidth < MIN_COLUMN_WIDTH) {
-            newLeftWidth = MIN_COLUMN_WIDTH;
+        const min_width = MIN_COLUMN_WIDTH;
+        const maxLeftWidth = containerWidth - resizerWidth - min_width - padding;
+        
+        if (newLeftWidth < min_width) {
+            newLeftWidth = min_width;
         }
-
-        const maxLeftWidth = containerWidth - resizerWidth - MIN_COLUMN_WIDTH;
         if (newLeftWidth > maxLeftWidth) {
             newLeftWidth = maxLeftWidth;
         }
 
         elements.leftPanel.style.width = `${newLeftWidth}px`;
-        elements.rightPanel.style.width = `${containerWidth - resizerWidth - newLeftWidth}px`;
+        elements.rightPanel.style.width = `${containerWidth - resizerWidth - newLeftWidth - padding}px`;
 
         e.preventDefault();
     });

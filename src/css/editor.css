@@ -1,85 +1,32 @@
-.editor-panel {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-width: 0;
-    max-width: 100%;
-    overflow: hidden;
-    background-color: var(--editor-bg);
-    border-radius: var(--jb-radius-md);
-    box-shadow: var(--shadow-sm);
-    box-sizing: border-box;
-}
-
-.editor-panel-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 36px;
-    padding: 0 var(--jb-spacing-md);
-    background: var(--gradient-subtle);
-    border-bottom: 1px solid var(--border-subtle);
-    flex-shrink: 0;
-    border-radius: var(--jb-radius-md) var(--jb-radius-md) 0 0;
-}
-
-.editor-panel-title {
-    display: flex;
-    align-items: center;
-    gap: var(--jb-spacing-sm);
-    font-size: var(--jb-font-size-sm);
-    font-weight: var(--jb-font-weight-medium);
-    color: var(--text-primary);
-}
-
-.editor-panel-title svg {
-    width: var(--jb-icon-size-md);
-    height: var(--jb-icon-size-md);
-    color: var(--text-secondary);
-}
-
-.editor-panel-actions {
-    display: flex;
-    align-items: center;
-    gap: var(--jb-spacing-xs);
-}
-
-.language-selector {
-    display: flex;
-    align-items: center;
-    gap: var(--jb-spacing-sm);
-}
-
-.language-selector-label {
-    font-size: var(--jb-font-size-sm);
-    color: var(--text-secondary);
-    white-space: nowrap;
-}
+/* Editor styles - перенесены в layout.css */
+/* Этот файл оставлен для совместимости */
 
 .jb-select {
-    height: var(--jb-component-height-sm);
-    padding: 0 var(--jb-spacing-sm);
-    font-family: var(--jb-font-family-ui);
-    font-size: var(--jb-font-size-sm);
+    height: var(--component-height-sm);
+    padding: 0 var(--spacing-sm);
+    font-family: var(--font-family-ui);
+    font-size: var(--font-size-sm);
     color: var(--text-primary);
-    background-color: var(--bg-tertiary);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--jb-radius-sm);
+    background-color: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: all var(--jb-transition-fast);
+    transition: all var(--transition-fast);
     min-width: 120px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238C8C8C' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2386868b' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 8px center;
     padding-right: 28px;
     appearance: none;
     -webkit-appearance: none;
     -moz-appearance: none;
+    backdrop-filter: blur(var(--blur-sm));
+    -webkit-backdrop-filter: blur(var(--blur-sm));
 }
 
 .jb-select:hover {
-    border-color: var(--border-default);
-    background-color: var(--bg-hover);
+    border-color: var(--glass-border-strong);
+    background-color: var(--glass-bg-light);
 }
 
 .jb-select:focus {
@@ -88,140 +35,7 @@
     box-shadow: var(--shadow-focus);
 }
 
-/* Light theme arrow */
+/* Light theme */
 [data-bs-theme="light"] .jb-select {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236E6E6E' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-}
-
-.code-container {
-    position: relative;
-    flex: 1;
-    overflow: hidden;
-    background-color: var(--editor-bg);
-    border-radius: 0 0 var(--jb-radius-md) var(--jb-radius-md);
-}
-
-/* Общие стили для textarea и pre */
-.code-textarea,
-.code-preview {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    font-family: var(--jb-font-family-code);
-    font-size: var(--jb-font-size-lg);
-    line-height: 1.6;
-    white-space: pre;
-    word-wrap: normal;
-    overflow: auto;
-    box-sizing: border-box;
-    border: none;
-    outline: none;
-    tab-size: 4;
-    -moz-tab-size: 4;
-    -o-tab-size: 4;
-    -webkit-tab-size: 4;
-}
-
-/* Textarea для ввода */
-.code-textarea {
-    padding: var(--jb-spacing-md);
-    background: transparent;
-    color: transparent;
-    caret-color: var(--editor-caret);
-    resize: none;
-    z-index: 2;
-}
-
-.code-textarea::placeholder {
-    color: var(--editor-placeholder);
-    opacity: 1;
-}
-
-.code-textarea::selection {
-    background: var(--editor-selection);
-}
-
-/* Pre для подсветки */
-.code-preview {
-    padding: 0;
-    pointer-events: none;
-    z-index: 1;
-    background-color: var(--editor-bg);
-    overflow: auto;
-}
-
-.code-preview code {
-    font-family: var(--jb-font-family-code);
-    background: transparent !important;
-    padding: var(--jb-spacing-md);
-    margin: 0;
-    display: block;
-    box-sizing: border-box;
-    min-height: 100%;
-    width: fit-content;
-    min-width: 100%;
-    color: var(--text-primary);
-}
-
-/* Скроллбары в стиле JetBrains */
-.code-textarea::-webkit-scrollbar,
-.code-preview::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-}
-
-.code-textarea::-webkit-scrollbar-track,
-.code-preview::-webkit-scrollbar-track {
-    background: var(--scrollbar-track);
-}
-
-.code-textarea::-webkit-scrollbar-thumb,
-.code-preview::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb);
-    border-radius: var(--jb-radius-sm);
-    border: 2px solid var(--scrollbar-track);
-}
-
-.code-textarea::-webkit-scrollbar-thumb:hover,
-.code-preview::-webkit-scrollbar-thumb:hover {
-    background: var(--scrollbar-thumb-hover);
-}
-
-/* Скрываем скроллбар у preview */
-.code-preview::-webkit-scrollbar {
-    display: none;
-}
-
-.code-preview {
-    scrollbar-width: none;
-}
-
-.zoom-indicator {
-    position: fixed;
-    bottom: 40px;
-    right: var(--jb-spacing-lg);
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
-    padding: var(--jb-spacing-xs) var(--jb-spacing-sm);
-    border-radius: var(--jb-radius-sm);
-    font-size: var(--jb-font-size-xs);
-    z-index: 1000;
-    opacity: 0;
-    transition: opacity var(--jb-transition-normal);
-    pointer-events: none;
-    box-shadow: var(--shadow-md);
-    border: 1px solid var(--border-subtle);
-}
-
-.zoom-indicator.show {
-    opacity: 1;
-}
-
-.code-textarea,
-.code-preview,
-.code-preview code {
-    transition: font-size var(--jb-transition-normal);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236e6e73' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
 }

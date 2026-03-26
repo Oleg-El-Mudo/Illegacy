@@ -7,6 +7,7 @@ import { initZoom } from './editor/zoom.js';
 import { initIndentation } from './editor/indentation.js';
 import { initHistory } from './editor/history.js';
 import { initKeyboardShortcuts } from './ui/keyboard-shortcuts.js';
+import { initSettingsModal } from './ui/settings-modal.js';
 
 // Применение сохранённой темы при загрузке
 const THEME_KEY = 'illegacy-theme';
@@ -21,12 +22,12 @@ function applySavedTheme() {
 }
 applySavedTheme();
 
-// Инициализация DOM-элементов
-const domElements = getDOMElements();
-setElements(domElements);
-
 // Инициализация всех модулей
 function initApp() {
+    // Инициализация DOM-элементов после загрузки DOM
+    const domElements = getDOMElements();
+    setElements(domElements);
+
     initResizer();
     initSyntaxHighlighting();
     initFileHandlers();
@@ -35,10 +36,11 @@ function initApp() {
     initIndentation();
     initHistory(); // Инициализируем историю
     initKeyboardShortcuts(); // Инициализируем горячие клавиши
-    
+    initSettingsModal(); // Инициализируем модальное окно настроек
+
     // Проверяем статус Docker при загрузке
     checkDockerStatus();
-    
+
     // Даем время на загрузку Highlight.js
     setTimeout(updateSyntaxHighlighting, 100);
 }

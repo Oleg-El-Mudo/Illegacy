@@ -2,88 +2,177 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: var(--jb-spacing-sm);
-    height: var(--jb-component-height-md);
-    padding: 0 var(--jb-spacing-md);
-    font-family: var(--jb-font-family-ui);
-    font-size: var(--jb-font-size-md);
-    font-weight: var(--jb-font-weight-medium);
-    border-radius: var(--jb-radius-sm);
+    gap: var(--spacing-sm);
+    height: var(--component-height-md);
+    padding: 0 var(--spacing-lg);
+    font-family: var(--font-family-ui);
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
+    border-radius: var(--radius-lg);
     border: 1px solid transparent;
     cursor: pointer;
-    transition: all var(--jb-transition-fast);
+    transition: 
+        all var(--transition-normal);
     text-decoration: none;
     white-space: nowrap;
+    letter-spacing: -0.01em;
 }
 
-.jb-button:focus,
 .jb-button:focus-visible {
     outline: none;
     box-shadow: var(--shadow-focus);
 }
 
-/* Primary button */
+/* === Primary Button === */
 .jb-button-primary {
-    background: var(--gradient-primary);
-    color: #FFFFFF;
+    background: var(--accent-primary);
+    color: #ffffff;
     border-color: transparent;
-    box-shadow: var(--shadow-sm);
+    box-shadow: 
+        0 2px 8px rgba(10, 132, 255, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .jb-button-primary:hover {
-    background: var(--gradient-primary-hover);
-    border-color: transparent;
-    box-shadow: var(--shadow-md);
-    transform: translateY(-1px);
+    background: var(--accent-primary-hover);
+    box-shadow: 
+        0 4px 16px rgba(10, 132, 255, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px) scale(1.02);
 }
 
 .jb-button-primary:active {
-    transform: translateY(0);
+    transform: translateY(0) scale(0.98);
+    box-shadow: 
+        0 1px 4px rgba(10, 132, 255, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
-/* Secondary button */
+/* === Secondary Button === */
 .jb-button-secondary {
-    background-color: var(--bg-tertiary);
+    background: var(--glass-bg);
     color: var(--text-primary);
-    border-color: var(--border-subtle);
+    border-color: var(--glass-border);
+    backdrop-filter: blur(var(--blur-sm));
+    -webkit-backdrop-filter: blur(var(--blur-sm));
 }
 
 .jb-button-secondary:hover {
-    background-color: var(--bg-hover);
-    border-color: var(--border-default);
+    background: var(--glass-bg-light);
+    border-color: var(--glass-border-subtle);
     box-shadow: var(--shadow-sm);
+    transform: translateY(-1px);
 }
 
-/* Tertiary button (text-only) */
+.jb-button-secondary:active {
+    transform: translateY(0);
+}
+
+/* === Tertiary Button (text-only style) === */
 .jb-button-tertiary {
-    background-color: transparent;
-    color: var(--text-primary);
+    background: transparent;
+    color: var(--text-secondary);
     border-color: transparent;
-    padding: 0 var(--jb-spacing-sm);
+    padding: 0 var(--spacing-md);
+    height: var(--component-height-md);
 }
 
 .jb-button-tertiary:hover {
-    background-color: var(--bg-hover);
+    background: var(--glass-bg-light);
     color: var(--text-primary);
+    transform: scale(1.02);
 }
 
-/* Icon button */
+.jb-button-tertiary:active {
+    transform: scale(0.98);
+}
+
+.jb-button-tertiary svg {
+    opacity: 0.7;
+    transition: opacity var(--transition-fast);
+}
+
+.jb-button-tertiary:hover svg {
+    opacity: 1;
+}
+
+/* === Icon Button === */
 .jb-button-icon {
-    width: var(--jb-component-height-md);
-    height: var(--jb-component-height-md);
+    width: var(--component-height-md);
+    height: var(--component-height-md);
     padding: 0;
-    background-color: transparent;
-    color: var(--text-primary);
+    background: transparent;
+    color: var(--text-secondary);
     border-color: transparent;
-    border-radius: var(--jb-radius-sm);
+    border-radius: var(--radius-md);
 }
 
 .jb-button-icon:hover {
-    background-color: var(--bg-hover);
+    background: var(--glass-bg-light);
     color: var(--text-primary);
+    transform: scale(1.05);
+}
+
+.jb-button-icon:active {
+    transform: scale(0.95);
 }
 
 .jb-button-icon svg {
-    width: var(--jb-icon-size-md);
-    height: var(--jb-icon-size-md);
+    width: var(--icon-size-md);
+    height: var(--icon-size-md);
+    transition: transform var(--transition-fast);
+}
+
+/* === Disabled State === */
+.jb-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+/* === Loading State === */
+.jb-button.loading {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.jb-button.loading::after {
+    content: '';
+    width: 14px;
+    height: 14px;
+    border: 2px solid transparent;
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-left: var(--spacing-sm);
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* === Button Sizes === */
+.jb-button-sm {
+    height: var(--component-height-sm);
+    padding: 0 var(--spacing-md);
+    font-size: var(--font-size-sm);
+}
+
+.jb-button-lg {
+    height: var(--component-height-lg);
+    padding: 0 var(--spacing-xl);
+    font-size: var(--font-size-lg);
+}
+
+/* === Light Theme Adjustments === */
+[data-bs-theme="light"] .jb-button-primary {
+    box-shadow: 
+        0 2px 8px rgba(0, 113, 227, 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+[data-bs-theme="light"] .jb-button-primary:hover {
+    box-shadow: 
+        0 4px 16px rgba(0, 113, 227, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }

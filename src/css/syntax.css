@@ -1,3 +1,7 @@
+/* === Синтаксическая подсветка — Glassmorphism Style === */
+/* Приглушённая, элегантная цветовая схема в стиле Apple/VS Code */
+
+/* --- Тёмная тема --- */
 [data-bs-theme="dark"] .hljs {
     background: transparent;
     color: var(--text-primary);
@@ -5,25 +9,37 @@
 
 [data-bs-theme="dark"] .hljs-comment,
 [data-bs-theme="dark"] .hljs-quote {
-    color: #808080;
+    color: #6e7681;
     font-style: italic;
 }
 
 [data-bs-theme="dark"] .hljs-keyword,
 [data-bs-theme="dark"] .hljs-selector-tag,
-[data-bs-theme="dark"] .hljs-meta-keyword {
-    color: #CC7832;
+[data-bs-theme="dark"] .hljs-meta-keyword,
+[data-bs-theme="dark"] .hljs-doctag {
+    color: #ff7b72;
+}
+
+[data-bs-theme="dark"] .hljs-type,
+[data-bs-theme="dark"] .hljs-class .hljs-title {
+    color: #ffa657;
+}
+
+[data-bs-theme="dark"] .hljs-literal,
+[data-bs-theme="dark"] .hljs-number,
+[data-bs-theme="dark"] .hljs-regexp {
+    color: #79c0ff;
 }
 
 [data-bs-theme="dark"] .hljs-string,
-[data-bs-theme="dark"] .hljs-doctag {
-    color: #6A8759;
+[data-bs-theme="dark"] .hljs-regexp {
+    color: #a5d6ff;
 }
 
 [data-bs-theme="dark"] .hljs-title,
 [data-bs-theme="dark"] .hljs-section,
 [data-bs-theme="dark"] .hljs-selector-id {
-    color: #FFC66D;
+    color: #d2a8ff;
 }
 
 [data-bs-theme="dark"] .hljs-subst {
@@ -32,44 +48,40 @@
 
 [data-bs-theme="dark"] .hljs-tag,
 [data-bs-theme="dark"] .hljs-name {
-    color: #E8BF6A;
+    color: #7ee787;
 }
 
 [data-bs-theme="dark"] .hljs-attr {
-    color: #9876AA;
+    color: #79c0ff;
 }
 
 [data-bs-theme="dark"] .hljs-attribute,
 [data-bs-theme="dark"] .hljs-variable,
 [data-bs-theme="dark"] .hljs-template-variable {
-    color: #9876AA;
-}
-
-[data-bs-theme="dark"] .hljs-number,
-[data-bs-theme="dark"] .hljs-regexp,
-[data-bs-theme="dark"] .hljs-literal,
-[data-bs-theme="dark"] .hljs-type {
-    color: #6897BB;
+    color: #ffa657;
 }
 
 [data-bs-theme="dark"] .hljs-symbol,
 [data-bs-theme="dark"] .hljs-bullet {
-    color: #9876AA;
+    color: #ffa657;
 }
 
 [data-bs-theme="dark"] .hljs-built_in,
 [data-bs-theme="dark"] .hljs-builtin-name {
-    color: #E8BF6A;
+    color: #ffa657;
 }
 
 [data-bs-theme="dark"] .hljs-deletion {
-    background: #501e18;
+    background: rgba(255, 69, 58, 0.15);
+    color: #ff7b72;
 }
 
 [data-bs-theme="dark"] .hljs-addition {
-    background: #1e3a1e;
+    background: rgba(48, 209, 88, 0.15);
+    color: #7ee787;
 }
 
+/* --- Светлая тема --- */
 [data-bs-theme="light"] .hljs {
     background: transparent;
     color: var(--text-primary);
@@ -77,25 +89,37 @@
 
 [data-bs-theme="light"] .hljs-comment,
 [data-bs-theme="light"] .hljs-quote {
-    color: #808080;
+    color: #969896;
     font-style: italic;
 }
 
 [data-bs-theme="light"] .hljs-keyword,
 [data-bs-theme="light"] .hljs-selector-tag,
-[data-bs-theme="light"] .hljs-meta-keyword {
-    color: #000080;
+[data-bs-theme="light"] .hljs-meta-keyword,
+[data-bs-theme="light"] .hljs-doctag {
+    color: #d73a49;
+}
+
+[data-bs-theme="light"] .hljs-type,
+[data-bs-theme="light"] .hljs-class .hljs-title {
+    color: #e36209;
+}
+
+[data-bs-theme="light"] .hljs-literal,
+[data-bs-theme="light"] .hljs-number,
+[data-bs-theme="light"] .hljs-regexp {
+    color: #005cc5;
 }
 
 [data-bs-theme="light"] .hljs-string,
-[data-bs-theme="light"] .hljs-doctag {
-    color: #008000;
+[data-bs-theme="light"] .hljs-regexp {
+    color: #032f62;
 }
 
 [data-bs-theme="light"] .hljs-title,
 [data-bs-theme="light"] .hljs-section,
 [data-bs-theme="light"] .hljs-selector-id {
-    color: #AA6B00;
+    color: #6f42c1;
 }
 
 [data-bs-theme="light"] .hljs-subst {
@@ -104,32 +128,44 @@
 
 [data-bs-theme="light"] .hljs-tag,
 [data-bs-theme="light"] .hljs-name {
-    color: #0000FF;
+    color: #22863a;
 }
 
 [data-bs-theme="light"] .hljs-attr {
-    color: #800080;
+    color: #005cc5;
 }
 
 [data-bs-theme="light"] .hljs-attribute,
 [data-bs-theme="light"] .hljs-variable,
 [data-bs-theme="light"] .hljs-template-variable {
-    color: #660E7A;
-}
-
-[data-bs-theme="light"] .hljs-number,
-[data-bs-theme="light"] .hljs-regexp,
-[data-bs-theme="light"] .hljs-literal,
-[data-bs-theme="light"] .hljs-type {
-    color: #0000FF;
+    color: #e36209;
 }
 
 [data-bs-theme="light"] .hljs-symbol,
 [data-bs-theme="light"] .hljs-bullet {
-    color: #0000FF;
+    color: #e36209;
 }
 
 [data-bs-theme="light"] .hljs-built_in,
 [data-bs-theme="light"] .hljs-builtin-name {
-    color: #660E7A;
+    color: #e36209;
+}
+
+[data-bs-theme="light"] .hljs-deletion {
+    background: rgba(255, 59, 48, 0.1);
+    color: #d73a49;
+}
+
+[data-bs-theme="light"] .hljs-addition {
+    background: rgba(52, 199, 89, 0.1);
+    color: #22863a;
+}
+
+/* Общие стили */
+.hljs-emphasis {
+    font-style: italic;
+}
+
+.hljs-strong {
+    font-weight: var(--font-weight-semibold);
 }

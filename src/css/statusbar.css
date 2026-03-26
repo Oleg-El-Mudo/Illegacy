@@ -2,29 +2,64 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 28px;
-    padding: 0 var(--jb-spacing-md);
-    background: var(--gradient-subtle);
-    border-top: 1px solid var(--border-subtle);
+    height: 32px;
+    padding: 0 var(--spacing-lg);
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--blur-md));
+    -webkit-backdrop-filter: blur(var(--blur-md));
+    border-top: 1px solid var(--glass-border-subtle);
     flex-shrink: 0;
-    font-size: var(--jb-font-size-xs);
-    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    transition: 
+        background-color var(--transition-normal),
+        border-color var(--transition-normal);
 }
 
 .status-bar-left,
 .status-bar-right {
     display: flex;
     align-items: center;
-    gap: var(--jb-spacing-md);
+    gap: var(--spacing-lg);
 }
 
 .status-bar-item {
     display: flex;
     align-items: center;
-    gap: var(--jb-spacing-xs);
+    gap: var(--spacing-xs);
+    font-weight: var(--font-weight-medium);
+    letter-spacing: 0.02em;
 }
 
 .status-bar-item svg {
-    width: 12px;
-    height: 12px;
+    width: var(--icon-size-sm);
+    height: var(--icon-size-sm);
+    opacity: 0.6;
+    transition: opacity var(--transition-fast);
+}
+
+.status-bar-item:hover svg {
+    opacity: 1;
+}
+
+/* Статусы */
+.status-bar-item .text-secondary {
+    color: var(--text-secondary);
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .status-bar {
+        height: 28px;
+        padding: 0 var(--spacing-md);
+        font-size: 10px;
+    }
+    
+    .status-bar-left {
+        gap: var(--spacing-md);
+    }
+    
+    .status-bar-item span:not(:first-child) {
+        display: none;
+    }
 }

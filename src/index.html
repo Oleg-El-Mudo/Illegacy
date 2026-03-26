@@ -6,6 +6,12 @@
     <link rel="stylesheet" href="css/main.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>IlLegacy</title>
+    
+    <!-- Preload шрифтов для производительности -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
     <!-- Highlight.js библиотека -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <!-- Дополнительные языки для Highlight.js -->
@@ -16,6 +22,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/php.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/fortran.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/cobol.min.js"></script>
+    
     <script type="module" src="/js/main.js" defer></script>
 </head>
 
@@ -33,14 +40,14 @@
                     </div>
                     <span>IlLegacy</span>
                 </div>
-                
+
                 <button class="jb-button jb-button-tertiary" id="openFile" title="Открыть файл (Ctrl+O)">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
                     </svg>
                     <span>Открыть</span>
                 </button>
-                
+
                 <button class="jb-button jb-button-tertiary" id="exportFile" title="Экспорт файла (Ctrl+S)">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -49,9 +56,9 @@
                     </svg>
                     <span>Экспорт</span>
                 </button>
-                
+
                 <div class="divider"></div>
-                
+
                 <button class="jb-button jb-button-tertiary" id="clearInput" title="Очистить ввод (Ctrl+Shift+N)">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="3 6 5 6 21 6"></polyline>
@@ -59,7 +66,7 @@
                     </svg>
                     <span>Очистить</span>
                 </button>
-                
+
                 <button class="jb-button jb-button-primary" id="translateBtn" title="Выполнить перевод (Ctrl+Enter)">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="10"></circle>
@@ -69,14 +76,14 @@
                     <span>Перевести</span>
                 </button>
             </div>
-            
+
             <div class="toolbar-right">
-                <a href="settings.html" class="jb-button jb-button-icon" title="Настройки">
+                <button class="jb-button jb-button-icon" id="openSettings" title="Настройки">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="3"></circle>
                         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
                     </svg>
-                </a>
+                </button>
             </div>
         </header>
 
@@ -103,14 +110,14 @@
                     </div>
                 </div>
                 <div class="code-container">
-                    <textarea class="code-textarea" placeholder="Введите программу..." id="inputCode" spellcheck="false"></textarea>
+                    <textarea class="code-textarea" placeholder="Введите программу..." id="inputCode" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
                     <pre class="code-preview"><code class="hljs" id="inputCodePreview"></code></pre>
                 </div>
             </div>
-            
+
             <!-- Разделитель -->
             <div id="resizer" class="resizer"></div>
-            
+
             <!-- Правая панель - Результат -->
             <div class="editor-panel">
                 <div class="editor-panel-header">
@@ -130,7 +137,7 @@
                     </div>
                 </div>
                 <div class="code-container">
-                    <textarea class="code-textarea" placeholder="Результат преобразования..." id="outputCode" spellcheck="false" readonly></textarea>
+                    <textarea class="code-textarea" placeholder="Результат преобразования..." id="outputCode" spellcheck="false" readonly autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
                     <pre class="code-preview"><code class="hljs" id="outputCodePreview"></code></pre>
                 </div>
             </div>
@@ -159,6 +166,168 @@
 
     <!-- Индикатор масштаба -->
     <div class="zoom-indicator" id="zoomIndicator">100%</div>
+
+    <!-- Модальное окно настроек -->
+    <div class="settings-modal-overlay" id="settingsModalOverlay">
+        <div class="settings-modal">
+            <!-- Заголовок диалога -->
+            <div class="settings-header">
+                <h1 class="settings-title">Настройки</h1>
+                <button class="jb-button jb-button-icon" id="closeSettings" title="Закрыть">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Табы навигации -->
+            <div class="settings-tabs">
+                <button class="settings-tab active" data-tab="appearance">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                    <span>Внешний вид</span>
+                </button>
+                <button class="settings-tab" data-tab="integrations">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
+                        <rect x="9" y="9" width="6" height="6"></rect>
+                        <line x1="9" y1="1" x2="9" y2="4"></line>
+                        <line x1="15" y1="1" x2="15" y2="4"></line>
+                        <line x1="9" y1="20" x2="9" y2="23"></line>
+                        <line x1="15" y1="20" x2="15" y2="23"></line>
+                        <line x1="20" y1="9" x2="23" y2="9"></line>
+                        <line x1="20" y1="14" x2="23" y2="14"></line>
+                        <line x1="1" y1="9" x2="4" y2="9"></line>
+                        <line x1="1" y1="14" x2="4" y2="14"></line>
+                    </svg>
+                    <span>Интеграции</span>
+                </button>
+                <button class="settings-tab" data-tab="editor">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+                        <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+                        <path d="M2 2l7.586 7.586"></path>
+                        <circle cx="11" cy="11" r="2"></circle>
+                    </svg>
+                    <span>Редактор</span>
+                </button>
+            </div>
+
+            <div class="settings-body">
+                <div class="settings-content">
+                    <!-- Секция: Внешний вид -->
+                    <section id="appearance" class="settings-section active">
+                        <h2 class="section-title">Внешний вид</h2>
+
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <label class="setting-label" for="theme-select">Тема оформления</label>
+                                <p class="setting-description">Выберите светлую или тёмную тему интерфейса</p>
+                            </div>
+                            <div class="setting-control">
+                                <select id="theme-select" class="jb-select">
+                                    <option value="dark">Тёмная</option>
+                                    <option value="light">Светлая</option>
+                                    <option value="auto">Системная</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <label class="setting-label" for="compact-mode">Компактный режим</label>
+                                <p class="setting-description">Уменьшенные отступы и размеры элементов для маленьких экранов</p>
+                            </div>
+                            <div class="setting-control">
+                                <label class="jb-switch">
+                                    <input type="checkbox" id="compact-mode">
+                                    <span class="switch-track"></span>
+                                    <span class="switch-thumb"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Секция: Интеграции -->
+                    <section id="integrations" class="settings-section">
+                        <h2 class="section-title">Интеграции</h2>
+
+                        <div class="setting-item disabled">
+                            <div class="setting-info">
+                                <label class="setting-label">Локальный LLM</label>
+                                <p class="setting-description">Использование локальной языковой модели для улучшения транспиляции</p>
+                            </div>
+                            <div class="setting-control">
+                                <label class="jb-switch">
+                                    <input type="checkbox" id="llm-toggle" disabled>
+                                    <span class="switch-track"></span>
+                                    <span class="switch-thumb"></span>
+                                </label>
+                                <span class="badge badge-secondary ms-2">Скоро</span>
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <label class="setting-label">Docker</label>
+                                <p class="setting-description">Статус подключения к Docker для обработки кода</p>
+                            </div>
+                            <div class="setting-control">
+                                <span id="docker-status" class="badge badge-secondary">Проверка...</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Секция: Редактор -->
+                    <section id="editor" class="settings-section">
+                        <h2 class="section-title">Редактор</h2>
+
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <label class="setting-label" for="font-size-select">Размер шрифта</label>
+                                <p class="setting-description">Размер шрифта в редакторе кода</p>
+                            </div>
+                            <div class="setting-control">
+                                <select id="font-size-select" class="jb-select">
+                                    <option value="12">12px</option>
+                                    <option value="13">13px</option>
+                                    <option value="14" selected>14px</option>
+                                    <option value="15">15px</option>
+                                    <option value="16">16px</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <label class="setting-label" for="tab-size-select">Размер табуляции</label>
+                                <p class="setting-description">Количество пробелов для табуляции</p>
+                            </div>
+                            <div class="setting-control">
+                                <select id="tab-size-select" class="jb-select">
+                                    <option value="2">2</option>
+                                    <option value="4" selected>4</option>
+                                    <option value="8">8</option>
+                                </select>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- Подвал с кнопками действий -->
+            <div class="settings-footer">
+                <button class="jb-button jb-button-secondary" id="resetSettings">Сбросить настройки</button>
+                <div class="footer-actions">
+                    <button class="jb-button jb-button-tertiary" id="cancelSettings">Отмена</button>
+                    <button class="jb-button jb-button-primary" id="saveSettings">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>
