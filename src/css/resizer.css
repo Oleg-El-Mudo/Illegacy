@@ -10,10 +10,9 @@
     align-items: center;
     justify-content: center;
     border-radius: var(--radius-full);
-    transition: 
+    transition:
         background-color var(--transition-fast),
         width var(--transition-fast);
-    margin: 0 var(--spacing-xxs);
 }
 
 .resizer::after {

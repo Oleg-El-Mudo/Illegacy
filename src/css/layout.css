@@ -13,9 +13,6 @@
     min-width: 0;
     overflow: hidden;
     background: transparent;
-    padding: var(--spacing-sm);
-    padding-right: var(--spacing-sm);
-    gap: var(--spacing-sm);
     box-sizing: border-box;
 }
 
@@ -25,7 +22,7 @@
     flex-direction: column;
     flex: 1;
     min-width: 0;
-    width: 50%;
+    margin: var(--spacing-sm);
     overflow: hidden;
     background: var(--glass-bg);
     backdrop-filter: blur(var(--blur-md));
@@ -38,6 +35,7 @@
     transition:
         box-shadow var(--transition-normal),
         border-color var(--transition-normal);
+    box-sizing: border-box;
 }
 
 .editor-panel:hover {
@@ -57,6 +55,7 @@
     flex-shrink: 0;
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     transition: background-color var(--transition-fast);
+    box-sizing: border-box;
 }
 
 .editor-panel-title {
@@ -107,6 +106,8 @@
     background: var(--editor-bg);
     border-radius: 0 0 var(--radius-xl) var(--radius-xl);
     min-width: 0;
+    box-sizing: border-box;
+    max-width: 100%;
 }
 
 /* Общие стили для textarea и pre */
@@ -174,6 +175,8 @@
     max-width: 100%;
     overflow-x: auto;
     color: var(--text-primary);
+    overflow-wrap: normal;
+    word-break: normal;
 }
 
 /* Скрываем скроллбар у preview */
