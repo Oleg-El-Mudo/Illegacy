@@ -63,10 +63,12 @@
 }
 
 /* Light theme adjustment */
-[data-bs-theme="light"] .resizer::after {
+html[data-bs-theme="light"] .resizer::after,
+:root[data-bs-theme="light"] .resizer::after {
     background: var(--border-default);
 }
 
-[data-bs-theme="light"] .resizer:hover::after {
+html[data-bs-theme="light"] .resizer:hover::after,
+:root[data-bs-theme="light"] .resizer:hover::after {
     background: var(--accent-primary);
 }

@@ -165,14 +165,16 @@
 }
 
 /* === Light Theme Adjustments === */
-[data-bs-theme="light"] .jb-button-primary {
-    box-shadow: 
+html[data-bs-theme="light"] .jb-button-primary,
+:root[data-bs-theme="light"] .jb-button-primary {
+    box-shadow:
         0 2px 8px rgba(0, 113, 227, 0.25),
         inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
-[data-bs-theme="light"] .jb-button-primary:hover {
-    box-shadow: 
+html[data-bs-theme="light"] .jb-button-primary:hover,
+:root[data-bs-theme="light"] .jb-button-primary:hover {
+    box-shadow:
         0 4px 16px rgba(0, 113, 227, 0.35),
         inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }

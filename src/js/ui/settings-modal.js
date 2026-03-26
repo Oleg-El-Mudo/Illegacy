@@ -89,35 +89,33 @@ export function initSettingsModal() {
 
 function saveSettings(e) {
     if (e) e.preventDefault();
-    
-    // Сохраняем тему
+
+    // Сохраняем тему в localStorage (тема уже применена в реальном времени)
     const themeSelect = document.getElementById('theme-select');
     if (themeSelect) {
         localStorage.setItem(THEME_KEY, themeSelect.value);
-        applyTheme(themeSelect.value);
     }
-    
-    // Сохраняем компактный режим
+
+    // Сохраняем компактный режим в localStorage (уже применён)
     const compactModeToggle = document.getElementById('compact-mode');
     if (compactModeToggle) {
         localStorage.setItem(COMPACT_MODE_KEY, compactModeToggle.checked.toString());
-        applyCompactMode(compactModeToggle.checked);
     }
-    
+
     // Сохраняем размер шрифта
     const fontSizeSelect = document.getElementById('font-size-select');
     if (fontSizeSelect) {
         localStorage.setItem(FONT_SIZE_KEY, fontSizeSelect.value);
         applyFontSize(parseInt(fontSizeSelect.value, 10));
     }
-    
+
     // Сохраняем размер табуляции
     const tabSizeSelect = document.getElementById('tab-size-select');
     if (tabSizeSelect) {
         localStorage.setItem(TAB_SIZE_KEY, tabSizeSelect.value);
         applyTabSize(parseInt(tabSizeSelect.value, 10));
     }
-    
+
     closeSettings();
 }
 
@@ -141,22 +139,34 @@ function initSettingsValues() {
     if (themeSelect) {
         const savedTheme = localStorage.getItem(THEME_KEY) || 'dark';
         themeSelect.value = savedTheme;
+        // Применяем тему сразу при инициализации
+        applyTheme(savedTheme);
+        // Добавляем live-применение темы при изменении
+        themeSelect.addEventListener('change', function(e) {
+            applyTheme(e.target.value);
+        });
     }
-    
+
     // Компактный режим
     const compactModeToggle = document.getElementById('compact-mode');
     if (compactModeToggle) {
         const compactMode = localStorage.getItem(COMPACT_MODE_KEY) === 'true';
         compactModeToggle.checked = compactMode;
+        // Применяем компактный режим сразу
+        applyCompactMode(compactMode);
+        // Добавляем live-применение при изменении
+        compactModeToggle.addEventListener('change', function(e) {
+            applyCompactMode(e.target.checked);
+        });
     }
-    
+
     // Размер шрифта
     const fontSizeSelect = document.getElementById('font-size-select');
     if (fontSizeSelect) {
         const savedFontSize = localStorage.getItem(FONT_SIZE_KEY) || '14';
         fontSizeSelect.value = savedFontSize;
     }
-    
+
     // Размер табуляции
     const tabSizeSelect = document.getElementById('tab-size-select');
     if (tabSizeSelect) {

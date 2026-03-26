@@ -74,83 +74,7 @@
     --editor-selection: rgba(10, 132, 255, 0.25);
     --editor-caret: #f5f5f7;
     --editor-placeholder: #48484a;
-    
-    /* --- Светлая тема --- */
-    [data-bs-theme="light"] {
-        --bg-primary: #f5f5f7;
-        --bg-secondary: #ffffff;
-        --bg-tertiary: #efeff1;
-        
-        /* Glass эффекты (светлые) */
-        --glass-bg: rgba(255, 255, 255, 0.7);
-        --glass-bg-light: rgba(255, 255, 255, 0.5);
-        --glass-bg-heavy: rgba(255, 255, 255, 0.85);
-        --glass-border: rgba(0, 0, 0, 0.06);
-        --glass-border-subtle: rgba(0, 0, 0, 0.04);
-        --glass-highlight: rgba(255, 255, 255, 0.8);
-        --glass-shadow: rgba(0, 0, 0, 0.08);
-        
-        /* Neumorphism тени (светлые) */
-        --neuro-shadow-light: rgba(255, 255, 255, 0.9);
-        --neuro-shadow-dark: rgba(0, 0, 0, 0.1);
-        --neuro-inset-light: rgba(255, 255, 255, 0.7);
-        --neuro-inset-dark: rgba(0, 0, 0, 0.08);
-        
-        /* Текст */
-        --text-primary: #1d1d1f;
-        --text-secondary: #6e6e73;
-        --text-tertiary: #86868b;
-        --text-disabled: #aeaeb2;
-        
-        /* Акценты */
-        --accent-primary: #0071e3;
-        --accent-primary-hover: #0077ed;
-        --accent-primary-glass: rgba(0, 113, 227, 0.1);
-        --accent-focus: rgba(0, 113, 227, 0.25);
-        
-        /* Семантические */
-        --success: #34c759;
-        --success-bg: rgba(52, 199, 89, 0.1);
-        --warning: #ff9500;
-        --warning-bg: rgba(255, 149, 0, 0.1);
-        --error: #ff3b30;
-        --error-bg: rgba(255, 59, 48, 0.1);
-        --info: #0071e3;
-        --info-bg: rgba(0, 113, 227, 0.1);
-        
-        /* Границы */
-        --border-default: rgba(0, 0, 0, 0.1);
-        --border-subtle: rgba(0, 0, 0, 0.06);
-        --border-strong: rgba(0, 0, 0, 0.15);
-        
-        /* Скроллбары */
-        --scrollbar-track: rgba(0, 0, 0, 0.03);
-        --scrollbar-thumb: rgba(0, 0, 0, 0.12);
-        --scrollbar-thumb-hover: rgba(0, 0, 0, 0.2);
-        
-        /* Тени */
-        --shadow-xs: 0 1px 2px var(--glass-shadow);
-        --shadow-sm: 0 2px 8px var(--glass-shadow);
-        --shadow-md: 0 4px 16px var(--glass-shadow);
-        --shadow-lg: 0 8px 32px var(--glass-shadow);
-        --shadow-xl: 0 16px 64px var(--glass-shadow);
-        --shadow-focus: 0 0 0 3px var(--accent-focus);
-        --shadow-neuro: 
-            8px 8px 16px var(--neuro-shadow-dark),
-            -8px -8px 16px var(--neuro-shadow-light);
-        --shadow-neuro-inset:
-            inset 3px 3px 6px var(--neuro-inset-dark),
-            inset -3px -3px 6px var(--neuro-inset-light);
-        
-        /* Редактор */
-        --editor-bg: rgba(255, 255, 255, 0.5);
-        --editor-gutter-bg: rgba(239, 239, 241, 0.5);
-        --editor-line-number: #aeaeb2;
-        --editor-selection: rgba(0, 113, 227, 0.15);
-        --editor-caret: #1d1d1f;
-        --editor-placeholder: #aeaeb2;
-    }
-    
+
     /* === Типографика === */
     --font-family-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Inter', 'Segoe UI', sans-serif;
     --font-family-code: 'SF Mono', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
@@ -230,4 +154,81 @@
     --spacing-sm: 6px;
     --spacing-md: 10px;
     --spacing-lg: 14px;
+}
+
+/* === Светлая тема === */
+html[data-bs-theme="light"],
+:root[data-bs-theme="light"] {
+    --bg-primary: #f5f5f7;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #efeff1;
+
+    /* Glass эффекты (светлые) */
+    --glass-bg: rgba(255, 255, 255, 0.7);
+    --glass-bg-light: rgba(255, 255, 255, 0.5);
+    --glass-bg-heavy: rgba(255, 255, 255, 0.85);
+    --glass-border: rgba(0, 0, 0, 0.06);
+    --glass-border-subtle: rgba(0, 0, 0, 0.04);
+    --glass-highlight: rgba(255, 255, 255, 0.8);
+    --glass-shadow: rgba(0, 0, 0, 0.08);
+
+    /* Neumorphism тени (светлые) */
+    --neuro-shadow-light: rgba(255, 255, 255, 0.9);
+    --neuro-shadow-dark: rgba(0, 0, 0, 0.1);
+    --neuro-inset-light: rgba(255, 255, 255, 0.7);
+    --neuro-inset-dark: rgba(0, 0, 0, 0.08);
+
+    /* Текст */
+    --text-primary: #1d1d1f;
+    --text-secondary: #6e6e73;
+    --text-tertiary: #86868b;
+    --text-disabled: #aeaeb2;
+
+    /* Акценты */
+    --accent-primary: #0071e3;
+    --accent-primary-hover: #0077ed;
+    --accent-primary-glass: rgba(0, 113, 227, 0.1);
+    --accent-focus: rgba(0, 113, 227, 0.25);
+
+    /* Семантические */
+    --success: #34c759;
+    --success-bg: rgba(52, 199, 89, 0.1);
+    --warning: #ff9500;
+    --warning-bg: rgba(255, 149, 0, 0.1);
+    --error: #ff3b30;
+    --error-bg: rgba(255, 59, 48, 0.1);
+    --info: #0071e3;
+    --info-bg: rgba(0, 113, 227, 0.1);
+
+    /* Границы */
+    --border-default: rgba(0, 0, 0, 0.1);
+    --border-subtle: rgba(0, 0, 0, 0.06);
+    --border-strong: rgba(0, 0, 0, 0.15);
+
+    /* Скроллбары */
+    --scrollbar-track: rgba(0, 0, 0, 0.03);
+    --scrollbar-thumb: rgba(0, 0, 0, 0.12);
+    --scrollbar-thumb-hover: rgba(0, 0, 0, 0.2);
+
+    /* Тени */
+    --shadow-xs: 0 1px 2px var(--glass-shadow);
+    --shadow-sm: 0 2px 8px var(--glass-shadow);
+    --shadow-md: 0 4px 16px var(--glass-shadow);
+    --shadow-lg: 0 8px 32px var(--glass-shadow);
+    --shadow-xl: 0 16px 64px var(--glass-shadow);
+    --shadow-focus: 0 0 0 3px var(--accent-focus);
+    --shadow-neuro:
+        8px 8px 16px var(--neuro-shadow-dark),
+        -8px -8px 16px var(--neuro-shadow-light);
+    --shadow-neuro-inset:
+        inset 3px 3px 6px var(--neuro-inset-dark),
+        inset -3px -3px 6px var(--neuro-inset-light);
+
+    /* Редактор */
+    --editor-bg: rgba(255, 255, 255, 0.5);
+    --editor-gutter-bg: rgba(239, 239, 241, 0.5);
+    --editor-line-number: #aeaeb2;
+    --editor-selection: rgba(0, 113, 227, 0.15);
+    --editor-caret: #1d1d1f;
+    --editor-placeholder: #aeaeb2;
 }

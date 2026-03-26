@@ -377,11 +377,13 @@
 }
 
 /* Light theme adjustments */
-[data-bs-theme="light"] .settings-modal {
+html[data-bs-theme="light"] .settings-modal,
+:root[data-bs-theme="light"] .settings-modal {
     background: rgba(255, 255, 255, 0.85);
 }
 
-[data-bs-theme="light"] .settings-modal-overlay {
+html[data-bs-theme="light"] .settings-modal-overlay,
+:root[data-bs-theme="light"] .settings-modal-overlay {
     background: rgba(0, 0, 0, 0.4);
 }
 
