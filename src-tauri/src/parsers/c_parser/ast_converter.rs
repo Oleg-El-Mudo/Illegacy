@@ -4,7 +4,7 @@ use serde_json::Value;
 
 use crate::ast::ASTNode;
 
-use super::node_handlers::{
+use crate::parsers::c_parser::node_handlers::{
     handle_array_decl, handle_array_ref, handle_assignment, handle_binary_op, handle_case,
     handle_cast, handle_compound, handle_constant, handle_decl, handle_default, handle_dowhile,
     handle_enum, handle_enumerator, handle_expr_list, handle_for, handle_func_call, handle_func_def,

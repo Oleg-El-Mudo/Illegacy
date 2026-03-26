@@ -1,11 +1,27 @@
+//! C Parser module
+//!
+//! Модуль для парсинга C кода с использованием pycparser в Docker контейнере.
+//!
+//! Структура модуля:
+//! - `docker` - работа с Docker контейнером
+//! - `http_client` - HTTP клиент для взаимодействия с парсером
+//! - `ast_converter` - конвертация JSON от парсера в ASTNode
+//! - `node_handlers` - обработчики различных типов узлов AST
+
+pub mod ast_converter;
+pub mod docker;
+pub mod http_client;
+pub mod node_handlers;
+
 use anyhow::{anyhow, Result};
 use log::info;
 
-use super::Parser;
-use super::ast_converter::AstConverter;
-use super::docker::DockerService;
-use super::http_client::ParserHttpClient;
+use self::ast_converter::AstConverter;
+use self::docker::DockerService;
+use self::http_client::ParserHttpClient;
+
 use crate::ast::ASTNode;
+use crate::parsers::Parser as BaseParser;
 
 /// Клиент для взаимодействия с Docker контейнером парсера C
 pub struct CParser {
@@ -73,7 +89,7 @@ impl Default for CParser {
     }
 }
 
-impl Parser for CParser {
+impl BaseParser for CParser {
     fn parse(_code: &str) -> Result<ASTNode> {
         Err(anyhow!(
             "Используйте parse_async в асинхронном контексте"

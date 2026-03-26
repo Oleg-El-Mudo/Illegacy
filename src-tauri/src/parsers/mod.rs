@@ -1,8 +1,13 @@
-pub mod ast_converter;
+//! Parsers module
+//!
+//! Модуль содержит парсеры для различных языков программирования.
+//! Каждый парсер расположен в отдельной подпапке.
+//!
+//! Структура:
+//! - `c_parser/` - парсер C кода (pycparser + Docker)
+//! - `mod.rs` - общий трейт Parser для всех парсеров
+
 pub mod c_parser;
-pub mod docker;
-pub mod http_client;
-pub mod node_handlers;
 
 use anyhow::Result;
 use crate::ast::ASTNode;
