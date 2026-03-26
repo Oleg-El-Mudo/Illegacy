@@ -112,7 +112,7 @@ impl PythonGenerator {
             FunctionMapping::new("strlwr", "{0}.lower()", None),
             FunctionMapping::new("strupr", "{0}.upper()", None),
             // Функции ввода-вывода (stdio.h)
-            FunctionMapping::new("printf", "print({})", None),
+            FunctionMapping::new("printf", "print({}, end='')", None),
             FunctionMapping::new("puts", "print({})", None),
             FunctionMapping::new("putchar", "print(chr({}), end='')", None),
             FunctionMapping::new("sprintf", "{} = {}", None),
@@ -1100,7 +1100,7 @@ impl PythonGenerator {
     /// Специальная обработка для printf с форматированием
     fn handle_printf(&mut self, args: &[String]) -> String {
         if args.is_empty() {
-            return "print()".to_string();
+            return "print(end='')".to_string();
         }
 
         let format_str = &args[0];
@@ -1124,11 +1124,11 @@ impl PythonGenerator {
                     .replace("%o", "{:o}")
                     .replace("%p", "{}");
 
-                return format!("print({}.format({}))", python_format, format_args);
+                return format!("print({}.format({}), end='')", python_format, format_args);
             }
         }
 
-        format!("print({})", format_str)
+        format!("print({}, end='')", format_str)
     }
 
     /// Обработка строковых функций
