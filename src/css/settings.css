@@ -292,6 +292,7 @@
 
 .switch-track {
     position: relative;
+    display: inline-block;
     width: 44px;
     height: 24px;
     background: var(--glass-bg);
@@ -309,22 +310,22 @@
     height: 16px;
     background: var(--text-secondary);
     border-radius: 50%;
-    transition: all var(--transition-spring);
+    transition: transform var(--transition-spring), background-color var(--transition-normal);
     box-shadow: var(--shadow-sm);
 }
 
-.jb-switch input:checked + .switch-track {
+.jb-switch:has(input:checked) .switch-track {
     background: var(--accent-primary);
     border-color: var(--accent-primary);
     box-shadow: 0 2px 12px rgba(10, 132, 255, 0.4);
 }
 
-.jb-switch input:checked + .switch-track .switch-thumb {
+.jb-switch:has(input:checked) .switch-thumb {
     transform: translateX(20px);
     background: #ffffff;
 }
 
-.jb-switch input:focus + .switch-track {
+.jb-switch:has(input:focus) .switch-track {
     box-shadow: var(--shadow-focus), var(--shadow-neuro-inset);
 }
 
@@ -332,7 +333,7 @@
     border-color: var(--glass-border-strong);
 }
 
-.jb-switch input:disabled + .switch-track {
+.jb-switch:has(input:disabled) .switch-track {
     opacity: 0.5;
     cursor: not-allowed;
 }
