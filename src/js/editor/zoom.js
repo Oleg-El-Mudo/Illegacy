@@ -138,48 +138,52 @@ export function updateZoomIndicator() {
 export function initZoom() {
     // Загружаем сохраненный размер
     loadFontSize();
-    
+
     // Применяем начальный размер
     applyFontSize(currentFontSize);
-    
-    // Обработчик для Ctrl + + / Ctrl + -
+
+    // Обработчик для Ctrl + + / Ctrl + - (клавиатура)
     document.addEventListener('keydown', (e) => {
-        // Проверяем, не вводит ли пользователь текст в поле
-        const isTyping = e.target.matches('textarea, input, [contenteditable="true"]');
-        
-        if (e.ctrlKey || e.metaKey) { // metaKey для Mac
-            switch (e.key) {
-                case '+':
-                case '=': // = без Shift дает + на некоторых раскладках
-                case 'Add': // Numpad +
-                    e.preventDefault();
-                    if (isTyping) {
-                        // Если пользователь печатает, добавляем символ
-                        return;
-                    }
-                    zoomIn();
-                    break;
-                    
-                case '-':
-                case 'Subtract': // Numpad -
-                    e.preventDefault();
-                    if (isTyping) {
-                        return;
-                    }
-                    zoomOut();
-                    break;
-                    
-                case '0':
-                    e.preventDefault();
-                    if (isTyping) {
-                        return;
-                    }
-                    zoomReset();
-                    break;
+        if (e.ctrlKey || e.metaKey) {
+            const key = e.key;
+            
+            // Ctrl + 0 - сброс масштаба
+            if (key === '0') {
+                e.preventDefault();
+                zoomReset();
+                return;
+            }
+            
+            // Ctrl + + / Ctrl + = / Ctrl + NumpadAdd - увеличить
+            if (key === '+' || key === '=' || key === 'Add') {
+                e.preventDefault();
+                zoomIn();
+                return;
+            }
+            
+            // Ctrl + - / Ctrl + NumpadSubtract - уменьшить
+            if (key === '-' || key === 'Subtract') {
+                e.preventDefault();
+                zoomOut();
+                return;
             }
         }
-        
     });
-    
+
+    // Обработчик для Ctrl + колесико мыши
+    document.addEventListener('wheel', (e) => {
+        if (e.ctrlKey) {
+            e.preventDefault();
+            
+            if (e.deltaY < 0) {
+                // Колесико вверх - увеличение
+                zoomIn();
+            } else {
+                // Колесико вниз - уменьшение
+                zoomOut();
+            }
+        }
+    }, { passive: false });
+
     console.log('Zoom module initialized with font size:', currentFontSize);
 }

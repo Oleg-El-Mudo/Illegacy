@@ -94,8 +94,8 @@ function handleInputShortcuts(e) {
 // Предотвращение стандартного поведения браузера
 function preventDefaultForShortcuts(e) {
     const ctrl = e.ctrlKey || e.metaKey;
-    const key = e.key.toLowerCase();
-    
+    const key = e.key;
+
     // Наши комбинации, которые должны переопределять стандартные
     if (ctrl) {
         switch (key) {
@@ -103,6 +103,12 @@ function preventDefaultForShortcuts(e) {
             case 'o': // Сохраняем Ctrl+O для открытия
             case 'z': // Сохраняем Ctrl+Z для отмены
             case 'y': // Сохраняем Ctrl+Y для повтора
+            case '+': // Ctrl++ для увеличения масштаба
+            case '=': // Ctrl+= для увеличения масштаба (альтернатива)
+            case '-': // Ctrl+- для уменьшения масштаба
+            case '0': // Ctrl+0 для сброса масштаба
+            case 'Add': // Numpad +
+            case 'Subtract': // Numpad -
                 e.preventDefault();
                 break;
         }
