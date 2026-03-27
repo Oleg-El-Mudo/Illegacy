@@ -165,6 +165,10 @@ function initSettingsValues() {
     if (fontSizeSelect) {
         const savedFontSize = localStorage.getItem(FONT_SIZE_KEY) || '14';
         fontSizeSelect.value = savedFontSize;
+        // Добавляем live-применение при изменении
+        fontSizeSelect.addEventListener('change', function(e) {
+            applyFontSize(parseInt(e.target.value, 10));
+        });
     }
 
     // Размер табуляции
@@ -191,10 +195,10 @@ function applyCompactMode(enabled) {
 }
 
 function applyFontSize(size) {
-    const event = new CustomEvent('settings-change', {
-        detail: { type: 'font-size', value: size }
+    // Импортируем функцию applyFontSize из модуля zoom
+    import('../editor/zoom.js').then(({ applyFontSize: applyZoomFontSize }) => {
+        applyZoomFontSize(size);
     });
-    document.dispatchEvent(event);
 }
 
 function applyTabSize(size) {

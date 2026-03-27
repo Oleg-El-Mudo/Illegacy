@@ -4,32 +4,35 @@ import { updateSyntaxHighlighting } from './syntax-highlight.js';
 // Константы для масштабирования
 const MIN_FONT_SIZE = 8;
 const MAX_FONT_SIZE = 32;
-const DEFAULT_FONT_SIZE = 14;
+const DEFAULT_FONT_SIZE = 14; // Базовый размер шрифта = 100%
 const ZOOM_STEP = 2;
 
 // Ключ для сохранения в localStorage
-const STORAGE_KEY = 'illegancy-font-size';
+const STORAGE_KEY = 'illegacy-font-size';
 
-// Текущий размер шрифта
-let currentFontSize = DEFAULT_FONT_SIZE;
+// Базовый размер шрифта (считается 100%)
+let baseFontSize = DEFAULT_FONT_SIZE;
 
-// Загрузка сохраненного размера шрифта
+// Текущий масштаб в процентах относительно базового размера
+let currentZoomPercent = 100;
+
+// Загрузка сохраненного размера шрифта (базовый размер)
 export function loadFontSize() {
     try {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
             const size = parseInt(saved, 10);
             if (size >= MIN_FONT_SIZE && size <= MAX_FONT_SIZE) {
-                currentFontSize = size;
+                baseFontSize = size;
             }
         }
     } catch (e) {
         console.warn('Failed to load font size from localStorage:', e);
     }
-    return currentFontSize;
+    return baseFontSize;
 }
 
-// Сохранение размера шрифта
+// Сохранение базового размера шрифта
 export function saveFontSize(size) {
     try {
         localStorage.setItem(STORAGE_KEY, size.toString());
@@ -43,15 +46,19 @@ export function applyFontSize(size) {
     // Ограничиваем размер
     size = Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, size));
 
-    if (size === currentFontSize) return;
+    if (size === baseFontSize && currentZoomPercent === 100) return;
 
-    currentFontSize = size;
+    baseFontSize = size;
+    currentZoomPercent = 100; // Сбрасываем зум к 100% при смене базового размера
 
     // Сохраняем позиции скролла перед изменением
     const scrollPositions = {
         input: { top: elements.inputCode.scrollTop, left: elements.inputCode.scrollLeft },
         output: { top: elements.outputCode.scrollTop, left: elements.outputCode.scrollLeft }
     };
+
+    // Обновляем CSS-переменную для применения ко всему интерфейсу
+    document.documentElement.style.setProperty('--font-size-base', `${size}px`);
 
     // Применяем размер шрифта ко всем текстовым элементам
     const fontSizePx = `${size}px`;
@@ -93,40 +100,94 @@ export function applyFontSize(size) {
     });
 }
 
-// Увеличение размера шрифта
+// Увеличение размера шрифта (увеличиваем масштаб)
 export function zoomIn() {
-    applyFontSize(currentFontSize + ZOOM_STEP);
+    const newZoom = Math.min(currentZoomPercent + 10, Math.round((MAX_FONT_SIZE / baseFontSize) * 100));
+    applyZoomPercent(newZoom);
 }
 
-// Уменьшение размера шрифта
+// Уменьшение размера шрифта (уменьшаем масштаб)
 export function zoomOut() {
-    applyFontSize(currentFontSize - ZOOM_STEP);
+    const newZoom = Math.max(currentZoomPercent - 10, Math.round((MIN_FONT_SIZE / baseFontSize) * 100));
+    applyZoomPercent(newZoom);
 }
 
-// Сброс к размеру по умолчанию
+// Сброс к 100% масштабу
 export function zoomReset() {
-    applyFontSize(DEFAULT_FONT_SIZE);
+    applyZoomPercent(100);
+}
+
+// Применение масштаба в процентах
+function applyZoomPercent(percent) {
+    if (percent === currentZoomPercent) return;
+    
+    currentZoomPercent = percent;
+    const newSize = Math.round(baseFontSize * (percent / 100));
+    const clampedSize = Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, newSize));
+
+    // Сохраняем позиции скролла перед изменением
+    const scrollPositions = {
+        input: { top: elements.inputCode.scrollTop, left: elements.inputCode.scrollLeft },
+        output: { top: elements.outputCode.scrollTop, left: elements.outputCode.scrollLeft }
+    };
+
+    // Обновляем CSS-переменную для применения ко всему интерфейсу
+    document.documentElement.style.setProperty('--font-size-base', `${clampedSize}px`);
+
+    // Применяем размер шрифта ко всем текстовым элементам
+    const fontSizePx = `${clampedSize}px`;
+
+    // Textarea для ввода
+    elements.inputCode.style.fontSize = fontSizePx;
+    elements.outputCode.style.fontSize = fontSizePx;
+
+    // Preview элементы
+    const inputPreview = elements.inputCodePreview.closest('pre');
+    const outputPreview = elements.outputCodePreview.closest('pre');
+
+    if (inputPreview) {
+        inputPreview.style.fontSize = fontSizePx;
+    }
+    if (outputPreview) {
+        outputPreview.style.fontSize = fontSizePx;
+    }
+
+    // Также обновляем сам code элемент внутри preview
+    elements.inputCodePreview.style.fontSize = fontSizePx;
+    elements.outputCodePreview.style.fontSize = fontSizePx;
+
+    // Обновляем индикатор масштаба
+    updateZoomIndicator();
+
+    // Восстанавливаем позиции скролла
+    requestAnimationFrame(() => {
+        elements.inputCode.scrollTop = scrollPositions.input.top;
+        elements.inputCode.scrollLeft = scrollPositions.input.left;
+        elements.outputCode.scrollTop = scrollPositions.output.top;
+        elements.outputCode.scrollLeft = scrollPositions.output.left;
+
+        // Обновляем подсветку для корректного отображения
+        updateSyntaxHighlighting();
+    });
 }
 
 // Получение текущего размера шрифта
 export function getCurrentFontSize() {
-    return currentFontSize;
+    return Math.round(baseFontSize * (currentZoomPercent / 100));
 }
 
 // Обновление индикатора масштаба
 export function updateZoomIndicator() {
-    const zoomPercent = Math.round((currentFontSize / DEFAULT_FONT_SIZE) * 100);
-    
     // Обновляем индикатор в статус-баре
     if (elements.statusZoom) {
-        elements.statusZoom.textContent = `${zoomPercent}%`;
+        elements.statusZoom.textContent = `${currentZoomPercent}%`;
     }
-    
+
     // Обновляем всплывающий индикатор
     if (elements.zoomIndicator) {
-        elements.zoomIndicator.textContent = `${zoomPercent}%`;
+        elements.zoomIndicator.textContent = `${currentZoomPercent}%`;
         elements.zoomIndicator.classList.add('show');
-        
+
         // Скрываем через 1.5 секунды
         setTimeout(() => {
             elements.zoomIndicator.classList.remove('show');
@@ -136,31 +197,34 @@ export function updateZoomIndicator() {
 
 // Инициализация обработчиков масштабирования
 export function initZoom() {
-    // Загружаем сохраненный размер
+    // Загружаем сохраненный базовый размер шрифта
     loadFontSize();
 
-    // Применяем начальный размер
-    applyFontSize(currentFontSize);
+    // Применяем CSS-переменную для базового размера
+    document.documentElement.style.setProperty('--font-size-base', `${baseFontSize}px`);
+
+    // Применяем базовый размер (100% масштаб)
+    applyFontSize(baseFontSize);
 
     // Обработчик для Ctrl + + / Ctrl + - (клавиатура)
     document.addEventListener('keydown', (e) => {
         if (e.ctrlKey || e.metaKey) {
             const key = e.key;
-            
-            // Ctrl + 0 - сброс масштаба
+
+            // Ctrl + 0 - сброс масштаба к 100%
             if (key === '0') {
                 e.preventDefault();
                 zoomReset();
                 return;
             }
-            
+
             // Ctrl + + / Ctrl + = / Ctrl + NumpadAdd - увеличить
             if (key === '+' || key === '=' || key === 'Add') {
                 e.preventDefault();
                 zoomIn();
                 return;
             }
-            
+
             // Ctrl + - / Ctrl + NumpadSubtract - уменьшить
             if (key === '-' || key === 'Subtract') {
                 e.preventDefault();
@@ -174,7 +238,7 @@ export function initZoom() {
     document.addEventListener('wheel', (e) => {
         if (e.ctrlKey) {
             e.preventDefault();
-            
+
             if (e.deltaY < 0) {
                 // Колесико вверх - увеличение
                 zoomIn();
@@ -185,5 +249,5 @@ export function initZoom() {
         }
     }, { passive: false });
 
-    console.log('Zoom module initialized with font size:', currentFontSize);
+    console.log('Zoom module initialized with base font size:', baseFontSize);
 }

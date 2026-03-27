@@ -78,8 +78,9 @@
     /* === Типографика === */
     --font-family-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Inter', 'Segoe UI', sans-serif;
     --font-family-code: 'SF Mono', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-    
+
     /* Размеры шрифтов */
+    --font-size-base: 14px; /* Базовый размер шрифта редактора (100%) */
     --font-size-xs: 11px;
     --font-size-sm: 12px;
     --font-size-md: 13px;
@@ -145,9 +146,10 @@
 
 /* === Compact Mode === */
 [data-compact-mode="true"] {
-    --font-size-md: 12px;
-    --font-size-lg: 13px;
-    --font-size-xl: 14px;
+    --font-size-base: 12px;
+    --font-size-md: 11px;
+    --font-size-lg: 12px;
+    --font-size-xl: 13px;
     --component-height-sm: 28px;
     --component-height-md: 32px;
     --component-height-lg: 38px;
