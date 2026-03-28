@@ -99,14 +99,28 @@
                         </svg>
                         <span>Исходный код</span>
                     </div>
-                    <div class="language-selector">
-                        <span class="language-selector-label">Язык:</span>
-                        <select id="input-lang-select" class="jb-select">
-                            <option value="c">C</option>
-                            <option value="fortran">Fortran</option>
-                            <option value="php">PHP</option>
-                            <option value="cobol">COBOL</option>
-                        </select>
+                    <div class="editor-panel-actions">
+                        <div class="language-selector">
+                            <span class="language-selector-label">Язык:</span>
+                            <select id="input-lang-select" class="jb-select">
+                                <option value="c">C</option>
+                                <option value="fortran">Fortran</option>
+                                <option value="php">PHP</option>
+                                <option value="cobol">COBOL</option>
+                            </select>
+                        </div>
+                        <div class="code-actions">
+                            <button class="jb-button jb-button-icon" id="runInput" title="Запустить" disabled>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                </svg>
+                            </button>
+                            <button class="jb-button jb-button-icon" id="stopInput" title="Остановить" disabled>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                                    <rect x="6" y="6" width="12" height="12"></rect>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
                 <div class="code-container">
@@ -135,6 +149,18 @@
                             <option value="go">Go</option>
                         </select>
                     </div>
+                    <div class="code-actions">
+                        <button class="jb-button jb-button-icon" id="runOutput" title="Запустить" disabled>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                        </button>
+                        <button class="jb-button jb-button-icon" id="stopOutput" title="Остановить" disabled>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                                <rect x="6" y="6" width="12" height="12"></rect>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
                 <div class="code-container">
                     <textarea class="code-textarea" placeholder="Результат преобразования..." id="outputCode" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
@@ -142,6 +168,61 @@
                 </div>
             </div>
         </main>
+
+        <!-- Вертикальный разделитель для терминала -->
+        <div id="terminal-resizer" class="terminal-resizer"></div>
+
+        <!-- Нижняя панель терминала -->
+        <div class="terminal-panel" id="terminalPanel">
+            <div class="terminal-header">
+                <div class="terminal-title">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="4 17 10 11 4 5"></polyline>
+                        <line x1="12" y1="19" x2="20" y2="19"></line>
+                    </svg>
+                    <span>Терминал</span>
+                </div>
+                <div class="terminal-actions">
+                    <button class="jb-button jb-button-icon" id="clearTerminal" title="Очистить терминал">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                    </button>
+                    <button class="jb-button jb-button-icon" id="toggleTerminal" title="Скрыть/Показать терминал (Ctrl+`)">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="terminal-body">
+                <!-- Левая часть - терминал входного кода -->
+                <div class="terminal-section" id="inputTerminalSection">
+                    <div class="terminal-section-header">
+                        <span class="terminal-section-title">Входной код</span>
+                    </div>
+                    <div class="terminal-section-content">
+                        <div class="terminal-output" id="inputTerminalOutput">
+                            <div class="terminal-line text-secondary">Терминал входного кода готов</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Вертикальный разделитель между половинами терминала -->
+                <div id="terminal-split-resizer" class="terminal-split-resizer"></div>
+                <!-- Правая часть - терминал выходного кода -->
+                <div class="terminal-section" id="outputTerminalSection">
+                    <div class="terminal-section-header">
+                        <span class="terminal-section-title">Выходной код</span>
+                    </div>
+                    <div class="terminal-section-content">
+                        <div class="terminal-output" id="outputTerminalOutput">
+                            <div class="terminal-line text-secondary">Терминал выходного кода готов</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- Строка состояния (Status Bar) -->
         <footer class="status-bar">
@@ -279,6 +360,221 @@
                             </div>
                             <div class="setting-control">
                                 <span id="docker-status" class="badge badge-secondary">Проверка...</span>
+                            </div>
+                        </div>
+
+                        <!-- Трансляторы входных языков -->
+                        <div class="settings-subsection">
+                            <h3 class="subsection-title">Трансляторы входных языков</h3>
+                            <p class="subsection-description">Трансляторы для запуска программ на исходных языках</p>
+
+                            <div class="translator-item disabled">
+                                <div class="translator-info">
+                                    <div class="translator-name">
+                                        <span class="translator-badge">C</span>
+                                        <span class="translator-label">GCC / Clang</span>
+                                    </div>
+                                    <p class="translator-description">Компилятор C для запуска и отладки кода</p>
+                                </div>
+                                <div class="translator-status">
+                                    <span class="badge badge-secondary">Недоступно</span>
+                                </div>
+                                <div class="translator-actions">
+                                    <button class="jb-button jb-button-secondary" disabled>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                                        </svg>
+                                        <span>Скачать</span>
+                                    </button>
+                                    <button class="jb-button jb-button-secondary" disabled>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                        </svg>
+                                        <span>Удалить</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="translator-item disabled">
+                                <div class="translator-info">
+                                    <div class="translator-name">
+                                        <span class="translator-badge">Fortran</span>
+                                        <span class="translator-label">GFortran</span>
+                                    </div>
+                                    <p class="translator-description">Компилятор Fortran для запуска и отладки кода</p>
+                                </div>
+                                <div class="translator-status">
+                                    <span class="badge badge-secondary">Недоступно</span>
+                                </div>
+                                <div class="translator-actions">
+                                    <button class="jb-button jb-button-secondary" disabled>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                                        </svg>
+                                        <span>Скачать</span>
+                                    </button>
+                                    <button class="jb-button jb-button-secondary" disabled>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                        </svg>
+                                        <span>Удалить</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="translator-item disabled">
+                                <div class="translator-info">
+                                    <div class="translator-name">
+                                        <span class="translator-badge">COBOL</span>
+                                        <span class="translator-label">GnuCOBOL</span>
+                                    </div>
+                                    <p class="translator-description">Компилятор COBOL для запуска и отладки кода</p>
+                                </div>
+                                <div class="translator-status">
+                                    <span class="badge badge-secondary">Недоступно</span>
+                                </div>
+                                <div class="translator-actions">
+                                    <button class="jb-button jb-button-secondary" disabled>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                                        </svg>
+                                        <span>Скачать</span>
+                                    </button>
+                                    <button class="jb-button jb-button-secondary" disabled>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                        </svg>
+                                        <span>Удалить</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="translator-item disabled">
+                                <div class="translator-info">
+                                    <div class="translator-name">
+                                        <span class="translator-badge">PHP</span>
+                                        <span class="translator-label">PHP Interpreter</span>
+                                    </div>
+                                    <p class="translator-description">Интерпретатор PHP для запуска и отладки кода</p>
+                                </div>
+                                <div class="translator-status">
+                                    <span class="badge badge-secondary">Недоступно</span>
+                                </div>
+                                <div class="translator-actions">
+                                    <button class="jb-button jb-button-secondary" disabled>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                                        </svg>
+                                        <span>Скачать</span>
+                                    </button>
+                                    <button class="jb-button jb-button-secondary" disabled>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                        </svg>
+                                        <span>Удалить</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Трансляторы выходных языков -->
+                        <div class="settings-subsection">
+                            <h3 class="subsection-title">Трансляторы выходных языков</h3>
+                            <p class="subsection-description">Средства выполнения для запуска программ на целевых языках</p>
+
+                            <div class="translator-item disabled">
+                                <div class="translator-info">
+                                    <div class="translator-name">
+                                        <span class="translator-badge">Python</span>
+                                        <span class="translator-label">Python 3 Interpreter</span>
+                                    </div>
+                                    <p class="translator-description">Интерпретатор Python для запуска сгенерированного кода</p>
+                                </div>
+                                <div class="translator-status">
+                                    <span class="badge badge-secondary">Недоступно</span>
+                                </div>
+                                <div class="translator-actions">
+                                    <button class="jb-button jb-button-secondary" disabled>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                                        </svg>
+                                        <span>Скачать</span>
+                                    </button>
+                                    <button class="jb-button jb-button-secondary" disabled>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                        </svg>
+                                        <span>Удалить</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="translator-item disabled">
+                                <div class="translator-info">
+                                    <div class="translator-name">
+                                        <span class="translator-badge">Java</span>
+                                        <span class="translator-label">JDK / JRE</span>
+                                    </div>
+                                    <p class="translator-description">Java Virtual Machine для запуска сгенерированного кода</p>
+                                </div>
+                                <div class="translator-status">
+                                    <span class="badge badge-secondary">Недоступно</span>
+                                </div>
+                                <div class="translator-actions">
+                                    <button class="jb-button jb-button-secondary" disabled>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                                        </svg>
+                                        <span>Скачать</span>
+                                    </button>
+                                    <button class="jb-button jb-button-secondary" disabled>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                        </svg>
+                                        <span>Удалить</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="translator-item disabled">
+                                <div class="translator-info">
+                                    <div class="translator-name">
+                                        <span class="translator-badge">Go</span>
+                                        <span class="translator-label">Go Compiler</span>
+                                    </div>
+                                    <p class="translator-description">Компилятор Go для запуска сгенерированного кода</p>
+                                </div>
+                                <div class="translator-status">
+                                    <span class="badge badge-secondary">Недоступно</span>
+                                </div>
+                                <div class="translator-actions">
+                                    <button class="jb-button jb-button-secondary" disabled>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                                        </svg>
+                                        <span>Скачать</span>
+                                    </button>
+                                    <button class="jb-button jb-button-secondary" disabled>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                        </svg>
+                                        <span>Удалить</span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </section>

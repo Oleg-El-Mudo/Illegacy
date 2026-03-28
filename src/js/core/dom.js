@@ -32,7 +32,15 @@ export function getDOMElements() {
         statusZoom: document.getElementById('status-zoom'),
 
         // Zoom indicator
-        zoomIndicator: document.getElementById('zoomIndicator')
+        zoomIndicator: document.getElementById('zoomIndicator'),
+
+        // Terminal
+        terminalPanel: document.getElementById('terminalPanel'),
+        terminalOutput: document.getElementById('terminalOutput'),
+        terminalResizer: document.getElementById('terminal-resizer'),
+        inputTerminalOutput: document.getElementById('inputTerminalOutput'),
+        outputTerminalOutput: document.getElementById('outputTerminalOutput'),
+        terminalSplitResizer: document.getElementById('terminal-split-resizer')
     };
 
     // Проверка наличия всех элементов
