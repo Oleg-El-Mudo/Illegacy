@@ -12,9 +12,11 @@ function openSettings() {
     if (!modalOverlay) return;
     modalOverlay.classList.add('active');
     document.body.style.overflow = 'hidden';
-    
+
     // Проверяем статус Docker при открытии
     checkDockerStatusInModal();
+    // Проверяем статус Python при открытии
+    checkPythonStatusInModal();
 }
 
 function closeSettings() {
@@ -233,16 +235,16 @@ function setupTabs() {
 async function checkDockerStatusInModal() {
     const dockerStatusEl = document.getElementById('docker-status');
     if (!dockerStatusEl) return;
-    
+
     try {
         const { invoke } = window.__TAURI__.core;
-        
+
         const cStatus = await invoke('check_parser_status');
         const f2cStatus = await invoke('check_f2c_status');
-        
+
         const cReady = cStatus.docker_available;
         const f2cReady = f2cStatus.available && f2cStatus.f2c_available;
-        
+
         if (cReady && f2cReady) {
             dockerStatusEl.className = 'badge badge-success';
             dockerStatusEl.textContent = 'Готов';
@@ -257,5 +259,49 @@ async function checkDockerStatusInModal() {
         console.error('Ошибка при проверке сервисов:', error);
         dockerStatusEl.className = 'badge badge-error';
         dockerStatusEl.textContent = 'Ошибка';
+    }
+}
+
+async function checkPythonStatusInModal() {
+    try {
+        const { invoke } = window.__TAURI__.core;
+        const pythonStatus = await invoke('check_python_status');
+        
+        const pythonReady = pythonStatus.available && pythonStatus.python_available;
+        
+        // Обновляем UI Python секции
+        const pythonItem = document.getElementById('python-translator-item');
+        const pythonBadge = document.getElementById('python-status-badge');
+        const pythonDownloadBtn = document.getElementById('python-download-btn');
+        const pythonRemoveBtn = document.getElementById('python-remove-btn');
+        
+        if (pythonItem && pythonBadge) {
+            if (pythonReady) {
+                pythonBadge.className = 'badge badge-success';
+                pythonBadge.textContent = 'Готов';
+                pythonItem.classList.remove('disabled');
+                if (pythonDownloadBtn) pythonDownloadBtn.disabled = true;
+                if (pythonRemoveBtn) pythonRemoveBtn.disabled = false;
+            } else if (pythonStatus.available) {
+                pythonBadge.className = 'badge badge-warning';
+                pythonBadge.textContent = 'Остановлен';
+                pythonItem.classList.remove('disabled');
+                if (pythonDownloadBtn) pythonDownloadBtn.disabled = false;
+                if (pythonRemoveBtn) pythonRemoveBtn.disabled = false;
+            } else {
+                pythonBadge.className = 'badge badge-secondary';
+                pythonBadge.textContent = 'Недоступно';
+                pythonItem.classList.add('disabled');
+                if (pythonDownloadBtn) pythonDownloadBtn.disabled = false;
+                if (pythonRemoveBtn) pythonRemoveBtn.disabled = true;
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка при проверке Python сервиса:', error);
+        const pythonBadge = document.getElementById('python-status-badge');
+        if (pythonBadge) {
+            pythonBadge.className = 'badge badge-error';
+            pythonBadge.textContent = 'Ошибка';
+        }
     }
 }

@@ -10,6 +10,8 @@ import { initKeyboardShortcuts } from './ui/keyboard-shortcuts.js';
 import { initSettingsModal } from './ui/settings-modal.js';
 import { initTerminalPanel } from './ui/terminal-panel.js';
 import { initAboutPage } from './ui/about.js';
+import { initPythonExecution } from './features/python-execution.js';
+import { initPythonIntegration } from './features/python-integration.js';
 
 // Применение сохранённой темы при загрузке
 const THEME_KEY = 'illegacy-theme';
@@ -41,6 +43,8 @@ function initApp() {
     initSettingsModal(); // Инициализируем модальное окно настроек
     initTerminalPanel(); // Инициализируем панель терминала
     initAboutPage(); // Инициализируем страницу "О программе"
+    initPythonExecution(); // Инициализируем выполнение Python кода
+    initPythonIntegration(); // Инициализируем интеграцию Python
 
     // Проверяем статус Docker при загрузке
     checkDockerStatus();

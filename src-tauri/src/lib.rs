@@ -369,6 +369,56 @@ async fn check_f2c_status() -> Result<F2CStatus, String> {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct PythonStatus {
+    available: bool,
+    python_available: bool,
+}
+
+/// Проверка статуса Python-сервиса
+#[tauri::command]
+async fn check_python_status() -> Result<PythonStatus, String> {
+    info!("Проверка статуса Python-сервиса");
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| format!("Ошибка создания клиента: {}", e))?;
+
+    match client
+        .get("http://localhost:5002/health")
+        .send()
+        .await
+    {
+        Ok(response) => {
+            if response.status().is_success() {
+                match response.json::<serde_json::Value>().await {
+                    Ok(json) => Ok(PythonStatus {
+                        available: true,
+                        python_available: json
+                            .get("python_available")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false),
+                    }),
+                    Err(_) => Ok(PythonStatus {
+                        available: true,
+                        python_available: false,
+                    }),
+                }
+            } else {
+                Ok(PythonStatus {
+                    available: false,
+                    python_available: false,
+                })
+            }
+        }
+        Err(_) => Ok(PythonStatus {
+            available: false,
+            python_available: false,
+        }),
+    }
+}
+
 /// Получение информации о поддерживаемых языках
 #[tauri::command]
 async fn get_supported_languages() -> serde_json::Value {
@@ -727,6 +777,109 @@ fn write_file_content(path: &str, content: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Результат выполнения Python кода
+#[derive(Debug, Serialize, Deserialize)]
+struct PythonExecutionResult {
+    success: bool,
+    stdout: Option<String>,
+    stderr: Option<String>,
+    return_code: Option<i32>,
+}
+
+/// Выполнение Python кода
+#[tauri::command]
+async fn execute_python_code(code: String) -> Result<PythonExecutionResult, String> {
+    info!(
+        "Запуск выполнения Python кода, длина кода: {} символов",
+        code.len()
+    );
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(35))
+        .build()
+        .map_err(|e| format!("Ошибка создания клиента: {}", e))?;
+
+    let response = client
+        .post("http://localhost:5002/execute")
+        .json(&serde_json::json!({
+            "code": code
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Ошибка запроса к Python сервису: {}", e))?;
+
+    let status = response.status();
+
+    if !status.is_success() {
+        let error_body = response.text().await.unwrap_or_else(|_| "Неизвестная ошибка".to_string());
+        return Ok(PythonExecutionResult {
+            success: false,
+            stdout: None,
+            stderr: Some(format!("Ошибка Python сервиса ({}): {}", status, error_body)),
+            return_code: None,
+        });
+    }
+
+    let result: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Ошибка парсинга ответа Python: {}", e))?;
+
+    Ok(PythonExecutionResult {
+        success: result
+            .get("success")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
+        stdout: result
+            .get("stdout")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        stderr: result
+            .get("stderr")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        return_code: result
+            .get("return_code")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32),
+    })
+}
+
+/// Остановка выполнения Python кода
+#[tauri::command]
+async fn stop_python_execution() -> Result<String, String> {
+    info!("Остановка выполнения Python кода");
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| format!("Ошибка создания клиента: {}", e))?;
+
+    let response = client
+        .post("http://localhost:5002/stop")
+        .send()
+        .await
+        .map_err(|e| format!("Ошибка запроса остановки: {}", e))?;
+
+    let status = response.status();
+
+    if !status.is_success() {
+        let error_body = response.text().await.unwrap_or_else(|_| "Неизвестная ошибка".to_string());
+        return Err(format!("Ошибка остановки ({}): {}", status, error_body));
+    }
+
+    let result: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Ошибка парсинга ответа: {}", e))?;
+
+    Ok(result
+        .get("message")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Выполнено")
+        .to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Инициализация логгера
@@ -749,6 +902,9 @@ pub fn run() {
             transpile_fortran_to_python,
             check_parser_status,
             check_f2c_status,
+            check_python_status,
+            execute_python_code,
+            stop_python_execution,
             get_supported_languages,
             simple_transpile,
         ])
