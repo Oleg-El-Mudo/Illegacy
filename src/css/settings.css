@@ -34,17 +34,17 @@
     width: 100%;
     max-width: 800px;
     max-height: 85vh;
-    /* Эффект матового стекла */
-    background: rgba(28, 28, 31, 0.55);
+    /* Эффект матового стекла с использованием темизированных переменных */
+    background: var(--glass-bg);
     backdrop-filter: blur(40px) saturate(160%);
     -webkit-backdrop-filter: blur(40px) saturate(160%);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-top: 1px solid rgba(255, 255, 255, 0.15);
-    border-left: 1px solid rgba(255, 255, 255, 0.12);
+    border: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-border-strong, rgba(255, 255, 255, 0.15));
+    border-left: 1px solid var(--glass-border-light, rgba(255, 255, 255, 0.12));
     border-radius: var(--radius-2xl);
     box-shadow:
-        0 8px 32px rgba(0, 0, 0, 0.4),
-        inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+        0 8px 32px var(--glass-shadow),
+        inset 0 0 0 1px var(--glass-border-subtle);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -529,175 +529,6 @@
     scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
 
-/* Light theme adjustments */
-html[data-bs-theme="light"] .settings-modal,
-:root[data-bs-theme="light"] .settings-modal {
-    background: rgba(255, 255, 255, 0.65);
-    backdrop-filter: blur(40px) saturate(160%);
-    -webkit-backdrop-filter: blur(40px) saturate(160%);
-    border-color: rgba(0, 0, 0, 0.08);
-    border-top-color: rgba(0, 0, 0, 0.12);
-    border-left-color: rgba(0, 0, 0, 0.1);
-    box-shadow:
-        0 8px 32px rgba(0, 0, 0, 0.12),
-        inset 0 0 0 1px rgba(255, 255, 255, 0.3);
-}
-
-html[data-bs-theme="light"] .settings-modal-overlay,
-:root[data-bs-theme="light"] .settings-modal-overlay {
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(12px) saturate(160%);
-    -webkit-backdrop-filter: blur(12px) saturate(160%);
-}
-
-/* Light theme - header & footer */
-html[data-bs-theme="light"] .settings-header,
-:root[data-bs-theme="light"] .settings-header {
-    border-bottom-color: rgba(0, 0, 0, 0.06);
-    background: rgba(0, 0, 0, 0.02);
-}
-
-html[data-bs-theme="light"] .settings-tabs,
-:root[data-bs-theme="light"] .settings-tabs {
-    border-bottom-color: rgba(0, 0, 0, 0.04);
-    background: rgba(0, 0, 0, 0.02);
-}
-
-html[data-bs-theme="light"] .settings-footer,
-:root[data-bs-theme="light"] .settings-footer {
-    border-top-color: rgba(0, 0, 0, 0.06);
-    background: rgba(0, 0, 0, 0.02);
-}
-
-/* Light theme - tabs */
-html[data-bs-theme="light"] .settings-tab,
-:root[data-bs-theme="light"] .settings-tab {
-    color: var(--text-secondary);
-}
-
-html[data-bs-theme="light"] .settings-tab:hover,
-:root[data-bs-theme="light"] .settings-tab:hover {
-    color: var(--text-primary);
-    background: rgba(0, 0, 0, 0.04);
-    border-color: rgba(0, 0, 0, 0.08);
-}
-
-html[data-bs-theme="light"] .settings-tab.active,
-:root[data-bs-theme="light"] .settings-tab.active {
-    color: var(--text-primary);
-    background: rgba(0, 0, 0, 0.06);
-    border-color: rgba(0, 0, 0, 0.1);
-    box-shadow:
-        0 2px 12px rgba(0, 0, 0, 0.08),
-        inset 0 1px 0 rgba(255, 255, 255, 0.5);
-}
-
-/* Light theme - setting items */
-html[data-bs-theme="light"] .setting-item,
-:root[data-bs-theme="light"] .setting-item {
-    border-bottom-color: rgba(0, 0, 0, 0.06);
-}
-
-html[data-bs-theme="light"] .setting-item:hover,
-:root[data-bs-theme="light"] .setting-item:hover {
-    border-color: rgba(0, 0, 0, 0.08);
-    background: rgba(0, 0, 0, 0.02);
-}
-
-/* Light theme - badges */
-html[data-bs-theme="light"] .badge-secondary,
-:root[data-bs-theme="light"] .badge-secondary {
-    background: rgba(0, 0, 0, 0.04);
-    border-color: rgba(0, 0, 0, 0.12);
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.4),
-        0 1px 2px rgba(0, 0, 0, 0.08);
-}
-
-/* Light theme - switch */
-html[data-bs-theme="light"] .switch-track,
-:root[data-bs-theme="light"] .switch-track {
-    background: rgba(0, 0, 0, 0.06);
-    border-color: rgba(0, 0, 0, 0.12);
-    box-shadow:
-        inset 0 2px 4px rgba(0, 0, 0, 0.08),
-        0 1px 2px rgba(0, 0, 0, 0.08);
-}
-
-html[data-bs-theme="light"] .jb-switch:has(input:checked) .switch-track,
-:root[data-bs-theme="light"] .jb-switch:has(input:checked) .switch-track {
-    background: rgba(0, 113, 227, 0.4);
-    border-color: rgba(0, 113, 227, 0.35);
-    box-shadow:
-        inset 0 2px 4px rgba(0, 0, 0, 0.08),
-        0 0 12px rgba(0, 113, 227, 0.25);
-}
-
-/* Light theme - scrollbar */
-html[data-bs-theme="light"] .settings-content::-webkit-scrollbar-thumb,
-:root[data-bs-theme="light"] .settings-content::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.15);
-}
-
-html[data-bs-theme="light"] .settings-content::-webkit-scrollbar-thumb:hover,
-:root[data-bs-theme="light"] .settings-content::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.2);
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-    .settings-modal-overlay {
-        padding: var(--spacing-md);
-        align-items: flex-end;
-    }
-    
-    .settings-modal {
-        max-height: 90vh;
-        border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
-    }
-    
-    .settings-header,
-    .settings-tabs,
-    .settings-content,
-    .settings-footer {
-        padding-left: var(--spacing-lg);
-        padding-right: var(--spacing-lg);
-    }
-    
-    .settings-tabs {
-        padding: var(--spacing-md) var(--spacing-lg) 0;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-    }
-    
-    .settings-tab {
-        white-space: nowrap;
-    }
-    
-    .setting-item {
-        flex-direction: column;
-        gap: var(--spacing-md);
-    }
-    
-    .setting-control {
-        width: 100%;
-    }
-    
-    .setting-control .jb-select {
-        width: 100%;
-    }
-    
-    .settings-footer {
-        flex-direction: column-reverse;
-        gap: var(--spacing-md);
-    }
-    
-    .footer-actions {
-        width: 100%;
-        justify-content: flex-end;
-    }
-}
-
 /* Utilities */
 .text-secondary {
     color: var(--text-secondary);
@@ -709,12 +540,6 @@ html[data-bs-theme="light"] .settings-content::-webkit-scrollbar-thumb:hover,
 
 .divider {
     height: 1px;
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--border-default);
     margin: var(--spacing-lg) 0;
-}
-
-/* Light theme divider */
-html[data-bs-theme="light"] .divider,
-:root[data-bs-theme="light"] .divider {
-    background: rgba(0, 0, 0, 0.08);
 }
