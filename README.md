@@ -126,20 +126,39 @@ cd illegacy
 cargo tauri dev
 ```
 
-### Структура проекта (обобщенная)
+### Структура проекта
 
 ```
 illegacy/
-├── src/                    # Frontend (html+css+js)
-├── src-tauri/              # Backend на Rust
+├── src/                        # Frontend (HTML + CSS + JS)
+│   ├── index.html
+│   ├── css/
+│   └── js/
+├── src-tauri/                  # Backend на Rust
 │   ├── src/
-|   |   ├── parsers/        # Парсеры
-│   │   ├── generators      # Генераторы
-│   │   ├── ast/            # Определения AST
-│   │   └── main.rs         # Точка входа
-|   ├── docker/             # Контейнеры с микросервисами (Для C - микросервис получает AST для дальнейшего парсинга)
-│   └── Cargo.toml          # Rust зависимости
-├── package.json
+│   │   ├── main.rs             # Точка входа Tauri
+│   │   ├── lib.rs
+│   │   ├── ast/                # Определения AST
+│   │   ├── parsers/            # Парсеры языков
+│   │   └── generators/         # Генераторы кода
+│   ├── docker/                 # Контейнеры с микросервисами
+│   │   ├── c-parser/           # Парсер C
+│   │   ├── f2c-service/        # Сервис трансляции C → Python
+│   │   ├── build.sh
+│   │   └── run.sh
+│   ├── capabilities/           # Tauri capabilities
+│   ├── gen/                    # Сгенерированные файлы
+│   ├── icons/                  # Иконки приложения
+│   ├── tests/                  # Тесты
+│   ├── Cargo.toml              # Rust зависимости
+│   ├── Cargo.lock
+│   ├── build.rs
+│   └── tauri.conf.json         # Конфигурация Tauri
+├── .vscode/                    # Настройки VS Code
+├── app-icon.png                # Иконка приложения
+├── mainpage.png                # Скриншот интерфейса
+├── LICENSE                     # Лицензия GPLv3
+├── .gitignore
 └── README.md
 ```
 
