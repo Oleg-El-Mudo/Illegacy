@@ -9,6 +9,7 @@ import { initHistory } from './editor/history.js';
 import { initKeyboardShortcuts } from './ui/keyboard-shortcuts.js';
 import { initSettingsModal } from './ui/settings-modal.js';
 import { initTerminalPanel } from './ui/terminal-panel.js';
+import { initAboutPage } from './ui/about.js';
 
 // Применение сохранённой темы при загрузке
 const THEME_KEY = 'illegacy-theme';
@@ -39,6 +40,7 @@ function initApp() {
     initKeyboardShortcuts(); // Инициализируем горячие клавиши
     initSettingsModal(); // Инициализируем модальное окно настроек
     initTerminalPanel(); // Инициализируем панель терминала
+    initAboutPage(); // Инициализируем страницу "О программе"
 
     // Проверяем статус Docker при загрузке
     checkDockerStatus();

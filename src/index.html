@@ -295,6 +295,14 @@
                     </svg>
                     <span>Редактор</span>
                 </button>
+                <button class="settings-tab" data-tab="about">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="16" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                    <span>О программе</span>
+                </button>
             </div>
 
             <div class="settings-body">
@@ -612,6 +620,136 @@
                                     <option value="4" selected>4</option>
                                     <option value="8">8</option>
                                 </select>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Секция: О программе -->
+                    <section id="about" class="settings-section">
+                        <h2 class="section-title">О программе</h2>
+
+                        <div class="about-section">
+                            <div class="about-header">
+                                <div class="about-logo">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="16 18 22 12 16 6"></polyline>
+                                        <polyline points="8 6 2 12 8 18"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="about-info">
+                                    <h3 class="about-title">IlLegacy</h3>
+                                    <p class="about-subtitle">Транспилятор кода на старых языках в современные</p>
+                                    <div class="about-version">
+                                        <span class="badge badge-secondary">Версия:<span id="app-version">0.0.0</span></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="about-content">
+                                <h4 class="shortcuts-title">Горячие клавиши</h4>
+
+                                <div class="shortcuts-list">
+                                    <div class="shortcut-item">
+                                        <div class="shortcut-keys">
+                                            <kbd>Ctrl</kbd><kbd>O</kbd>
+                                        </div>
+                                        <div class="shortcut-description">
+                                            <span>Открыть файл</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="shortcut-item">
+                                        <div class="shortcut-keys">
+                                            <kbd>Ctrl</kbd><kbd>S</kbd>
+                                        </div>
+                                        <div class="shortcut-description">
+                                            <span>Сохранить файл (входной или результат, в зависимости от фокуса)</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="shortcut-item">
+                                        <div class="shortcut-keys">
+                                            <kbd>Ctrl</kbd><kbd>Enter</kbd>
+                                        </div>
+                                        <div class="shortcut-description">
+                                            <span>Выполнить перевод кода</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="shortcut-item">
+                                        <div class="shortcut-keys">
+                                            <kbd>Ctrl</kbd><kbd>`</kbd>
+                                        </div>
+                                        <div class="shortcut-description">
+                                            <span>Показать/скрыть терминал</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="shortcut-item">
+                                        <div class="shortcut-keys">
+                                            <kbd>Ctrl</kbd><kbd>Z</kbd>
+                                        </div>
+                                        <div class="shortcut-description">
+                                            <span>Отменить действие в редакторе</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="shortcut-item">
+                                        <div class="shortcut-keys">
+                                            <kbd>Ctrl</kbd><kbd>Y</kbd>
+                                            <span class="shortcut-or">или</span>
+                                            <kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>Z</kbd>
+                                        </div>
+                                        <div class="shortcut-description">
+                                            <span>Повторить действие в редакторе</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="shortcut-item">
+                                        <div class="shortcut-keys">
+                                            <kbd>Ctrl</kbd><kbd>+</kbd>
+                                        </div>
+                                        <div class="shortcut-description">
+                                            <span>Увеличить масштаб редактора</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="shortcut-item">
+                                        <div class="shortcut-keys">
+                                            <kbd>Ctrl</kbd><kbd>-</kbd>
+                                        </div>
+                                        <div class="shortcut-description">
+                                            <span>Уменьшить масштаб редактора</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="shortcut-item">
+                                        <div class="shortcut-keys">
+                                            <kbd>Ctrl</kbd><kbd>0</kbd>
+                                        </div>
+                                        <div class="shortcut-description">
+                                            <span>Сбросить масштаб редактора</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="shortcut-item">
+                                        <div class="shortcut-keys">
+                                            <kbd>Tab</kbd>
+                                        </div>
+                                        <div class="shortcut-description">
+                                            <span>Вставить отступ (настраиваемый)</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="shortcut-item">
+                                        <div class="shortcut-keys">
+                                            <kbd>Shift</kbd><kbd>Tab</kbd>
+                                        </div>
+                                        <div class="shortcut-description">
+                                            <span>Уменьшить отступ</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </section>
