@@ -1,10 +1,5 @@
 FROM python:3.11-slim
 
-# Устанавливаем gcc и необходимые зависимости для препроцессинга
-RUN apt-get update && apt-get install -y \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 
 # Копируем зависимости
@@ -14,8 +9,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Копируем код сервиса
 COPY parser_service/ .
 
-# Создаем пользователя для безопасности
-RUN useradd -m -u 1000 parser && chown -R parser:parser /app
+# Создаем директорию для входных файлов и пользователя для безопасности
+RUN mkdir -p /input && \
+    useradd -m -u 1000 parser && \
+    chown -R parser:parser /app && \
+    chmod 755 /input
+
+# Пользователь parser будет запускать приложение
 USER parser
 
 # Запускаем сервис

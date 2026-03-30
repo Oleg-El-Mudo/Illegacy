@@ -50,11 +50,19 @@ impl DockerService {
         // Создаем временный файл с кодом
         let temp_dir = tempdir()?;
         let input_file = temp_dir.path().join("input.c");
+        
+        // Проверяем, что код не пустой перед записью
+        if code.is_empty() {
+            return Err(anyhow!("Пустой код передан в Docker контейнер"));
+        }
+        
         fs::write(&input_file, code).await?;
-
+        
         info!("Запуск Docker контейнера для парсинга C кода");
         debug!("Путь к временному файлу: {:?}", input_file);
-        debug!("Содержимое файла:\n{}", code);
+        info!("Длина кода: {} символов", code.len());
+        debug!("Содержимое файла (первые 500 символов):\n{}", 
+            code.chars().take(500).collect::<String>());
 
         // Проверяем, существует ли образ
         if !Self::check_image_exists(image_name).await? {
@@ -109,6 +117,7 @@ impl DockerService {
         }
 
         let stdout = String::from_utf8(output.stdout)?;
+        info!("Получен ответ от парсера, длина: {} символов", stdout.len());
         debug!(
             "Ответ от парсера (первые 500 символов): {}",
             &stdout.chars().take(500).collect::<String>()

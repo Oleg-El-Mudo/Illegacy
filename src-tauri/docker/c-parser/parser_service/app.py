@@ -173,77 +173,112 @@ struct lconv *localeconv(void);
 """
 
 class ASTEncoder(json.JSONEncoder):
-    """Кастомный JSON энкодер для pycparser AST"""
+    """
+    Кастомный JSON энкодер для pycparser AST.
+    Рекурсивно обрабатывает все атрибуты и детей узла.
+    """
+    
+    # Явный список атрибутов-детей для различных типов узлов pycparser
+    CHILD_ATTRS = {
+        'FileAST': ['ext'],
+        'FuncDef': ['decl', 'param_decls', 'body'],
+        'FuncDecl': ['args', 'type'],
+        'ParamList': ['params'],
+        'Decl': ['type', 'init', 'bitsize'],
+        'Compound': ['block_items'],
+        'If': ['cond', 'iftrue', 'iffalse'],
+        'While': ['cond', 'stmt'],
+        'DoWhile': ['cond', 'stmt'],
+        'For': ['init', 'cond', 'next', 'stmt'],
+        'Return': ['expr'],
+        'BinaryOp': ['left', 'right'],
+        'UnaryOp': ['expr'],
+        'Assignment': ['lvalue', 'rvalue'],
+        'StructRef': ['name', 'field'],
+        'ArrayRef': ['name', 'subscript'],
+        'FuncCall': ['name', 'args'],
+        'ExprList': ['exprs'],
+        'Cast': ['to_type', 'expr'],
+        'ArrayDecl': ['type', 'dim'],
+        'PtrDecl': ['type'],
+        'TypeDecl': ['type'],
+        'Struct': ['decls'],
+        'Union': ['decls'],
+        'Enum': ['values'],
+        'EnumeratorList': ['enumerators'],
+        'Enumerator': ['value'],
+        'Switch': ['cond', 'stmt'],
+        'Case': ['expr', 'stmts'],
+        'Default': ['stmts'],
+        'Break': [],
+        'Continue': [],
+        'Constant': [],
+        'ID': [],
+        'IdentifierType': [],
+        'TernaryOp': ['cond', 'iftrue', 'iffalse'],
+        'Typedef': ['type'],
+    }
+    
     def default(self, obj):
         if isinstance(obj, c_ast.Node):
             result = {
                 '__node__': obj.__class__.__name__,
                 'coord': str(obj.coord) if obj.coord else None
             }
-            # Добавляем все атрибуты узла
+            
+            # Добавляем все атрибуты узла из attr_names
             for attr in obj.attr_names:
                 value = getattr(obj, attr)
-                # Преобразуем значение в JSON-совместимый формат
-                if isinstance(value, c_ast.Node):
-                    result[attr] = self.default(value)
-                elif isinstance(value, list):
-                    result[attr] = [self.default(item) if isinstance(item, c_ast.Node) else item for item in value]
-                else:
-                    result[attr] = value
+                result[attr] = self._convert_value(value)
             
+            # Получаем список атрибутов-детей для этого типа узла
+            node_type = obj.__class__.__name__
+            child_attrs = self.CHILD_ATTRS.get(node_type, [])
+            
+            # Если тип узла не найден в словаре, пробуем найти детей автоматически
+            if not child_attrs and node_type != 'Constant' and node_type != 'ID' and node_type != 'IdentifierType':
+                # Автоматическое определение - ищем известные атрибуты детей
+                potential_attrs = ['ext', 'decl', 'body', 'args', 'type', 'params', 'init', 
+                                   'block_items', 'cond', 'iftrue', 'iffalse', 'stmt', 'stmts',
+                                   'left', 'right', 'lvalue', 'rvalue', 'name', 'field', 
+                                   'subscript', 'to_type', 'expr', 'dim', 'values', 'enumerators',
+                                   'next', 'bitsize', 'value']
+                child_attrs = [attr for attr in potential_attrs if hasattr(obj, attr)]
+            
+            # Рекурсивно обрабатываем детей узла
+            for attr_name in child_attrs:
+                try:
+                    value = getattr(obj, attr_name)
+                    if value is not None:
+                        result[attr_name] = self._convert_value(value)
+                except (AttributeError, TypeError):
+                    pass
+
             return result
         elif isinstance(obj, list):
             return [self.default(item) for item in obj]
         elif isinstance(obj, dict):
             return {key: self.default(value) for key, value in obj.items()}
         return super().default(obj)
+    
+    def _convert_value(self, value):
+        """Вспомогательный метод для конвертации значения в JSON-совместимый формат"""
+        if isinstance(value, c_ast.Node):
+            return self.default(value)
+        elif isinstance(value, list):
+            return [self.default(item) if isinstance(item, c_ast.Node) else item for item in value]
+        else:
+            return value
 
 def preprocess_with_gcc(code, add_fake_libc=True):
     """
-    Выполняет препроцессинг C кода с помощью GCC.
-    Если add_fake_libc=True, добавляет фейковые определения стандартных функций.
+    УСТАРЕВШАЯ ФУНКЦИЯ - больше не используется.
+    JS часть Tauri приложения уже удаляет комментарии и #include.
+    
+    Эта функция оставлена для совместимости, но просто возвращает исходный код.
     """
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.c', delete=False) as f:
-        # Добавляем фейковые определения если нужно
-        if add_fake_libc:
-            f.write(FAKE_LIBC_DEFINITIONS)
-        
-        f.write(code)
-        f.write("\n")
-        f.flush()
-        
-        try:
-            # Выполняем препроцессинг с gcc
-            result = subprocess.run(
-                ['gcc', '-E', '-P', '-nostdinc', '-undef', f.name],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            
-            if result.returncode == 0:
-                preprocessed = result.stdout
-            else:
-                print(f"GCC preprocessing failed: {result.stderr}", file=sys.stderr)
-                preprocessed = code
-                
-        except FileNotFoundError:
-            print("GCC not found, using raw code", file=sys.stderr)
-            preprocessed = code
-        except subprocess.TimeoutExpired:
-            print("GCC preprocessing timed out", file=sys.stderr)
-            preprocessed = code
-        except Exception as e:
-            print(f"Preprocessing error: {e}", file=sys.stderr)
-            preprocessed = code
-    
-    # Удаляем временный файл
-    try:
-        os.unlink(f.name)
-    except:
-        pass
-    
-    return preprocessed
+    # Просто возвращаем код как есть - препроцессинг больше не выполняется
+    return code
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -269,53 +304,74 @@ def parse():
     """
     Парсит C код и возвращает AST.
     Ожидает JSON: {"code": "int main() { return 0; }"}
+    
+    Примечание: JS часть Tauri приложения уже удаляет комментарии и #include,
+    поэтому препроцессинг не выполняется.
     """
     try:
         data = request.get_json()
         if not data or 'code' not in data:
+            print("ERROR: No code provided in request", file=sys.stderr)
             return jsonify({"error": "No code provided"}), 400
-        
+
         code = data['code']
-        
-        # Параметры обработки
-        preprocess = data.get('preprocess', True)
-        add_fake_libc = data.get('add_fake_libc', True)
-        
-        # Выполняем препроцессинг если нужно
-        if preprocess:
-            original_code = code
-            code = preprocess_with_gcc(code, add_fake_libc)
-            print(f"Original code length: {len(original_code)}", file=sys.stderr)
-            print(f"Preprocessed code length: {len(code)}", file=sys.stderr)
-        
+
+        # Отладка: выводим информацию о полученном коде
+        print(f"=== PARSE REQUEST ===", file=sys.stderr)
+        print(f"Received code length: {len(code)} chars", file=sys.stderr)
+        print(f"Code preview (first 300 chars):\n{code[:300]}", file=sys.stderr)
+
+        # Проверяем, не пустой ли код
+        if not code.strip():
+            print("ERROR: Empty code provided!", file=sys.stderr)
+            return jsonify({
+                "success": False,
+                "error": "Пустой код"
+            }), 400
+
         # Создаем парсер
         parser = c_parser.CParser()
-        
+
         # Парсим код
+        print("Starting pycparser parsing...", file=sys.stderr)
         ast = parser.parse(code, filename='<stdin>')
+        print(f"PyCParser result: {type(ast)}", file=sys.stderr)
         
+        # Проверяем, есть ли дети у AST
+        if hasattr(ast, 'ext') and ast.ext:
+            print(f"AST has {len(ast.ext)} top-level nodes", file=sys.stderr)
+        else:
+            print("WARNING: AST has no children (ext is empty or missing)!", file=sys.stderr)
+
         # Конвертируем в JSON
         ast_dict = json.loads(json.dumps(ast, cls=ASTEncoder))
         
+        print(f"AST JSON size: {len(json.dumps(ast_dict))} bytes", file=sys.stderr)
+
         return jsonify({
             "success": True,
             "ast": ast_dict,
-            "preprocessed": preprocess,
-            "fake_libc_added": add_fake_libc if preprocess else False
+            "preprocessed": False,
+            "fake_libc_added": False
         })
-        
+
     except c_parser.ParseError as e:
+        print(f"ParseError: {str(e)}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
         return jsonify({
             "success": False,
             "error": f"Parse error: {str(e)}",
             "traceback": traceback.format_exc()
         }), 400
     except Exception as e:
+        print(f"Exception: {str(e)}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
         return jsonify({
             "success": False,
             "error": str(e),
             "traceback": traceback.format_exc()
-        }), 400
+        }), 500
+
 
 @app.route('/parse_file', methods=['POST'])
 def parse_file():
@@ -389,5 +445,87 @@ def info():
         "fake_libc_definitions": True
     })
 
+
+def parse_file_cli(file_path):
+    """
+    Парсит C файл из командной строки и выводит JSON с AST.
+    Используется для запуска в режиме CLI (без HTTP сервера).
+    """
+    import sys
+    
+    try:
+        # Читаем файл
+        with open(file_path, 'r', encoding='utf-8') as f:
+            code = f.read()
+        
+        if not code.strip():
+            print(json.dumps({
+                "success": False,
+                "error": "Пустой файл"
+            }), file=sys.stdout)
+            return
+        
+        # Параметры по умолчанию для CLI режима
+        preprocess = True
+        add_fake_libc = True
+        
+        # Выполняем препроцессинг если нужно
+        if preprocess:
+            original_code = code
+            code = preprocess_with_gcc(code, add_fake_libc)
+            print(f"Original code length: {len(original_code)}", file=sys.stderr)
+            print(f"Preprocessed code length: {len(code)}", file=sys.stderr)
+        
+        # Создаем парсер
+        parser = c_parser.CParser()
+        
+        # Парсим код
+        ast = parser.parse(code, filename=file_path)
+        
+        # Конвертируем в JSON
+        ast_dict = json.loads(json.dumps(ast, cls=ASTEncoder))
+        
+        # Выводим результат
+        result = {
+            "success": True,
+            "ast": ast_dict,
+            "preprocessed": preprocess,
+            "fake_libc_added": add_fake_libc if preprocess else False
+        }
+        
+        print(json.dumps(result, ensure_ascii=False))
+        
+    except c_parser.ParseError as e:
+        print(json.dumps({
+            "success": False,
+            "error": f"Parse error: {str(e)}",
+            "traceback": traceback.format_exc()
+        }), file=sys.stdout)
+        sys.exit(1)
+    except FileNotFoundError:
+        print(json.dumps({
+            "success": False,
+            "error": f"Файл не найден: {file_path}"
+        }), file=sys.stdout)
+        sys.exit(1)
+    except Exception as e:
+        print(json.dumps({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), file=sys.stdout)
+        sys.exit(1)
+
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    import sys
+    
+    # Проверяем, передан ли файл как аргумент командной строки
+    if len(sys.argv) > 1:
+        # Режим CLI: парсим файл и выводим JSON
+        file_path = sys.argv[1]
+        print(f"Parsing file: {file_path}", file=sys.stderr)
+        parse_file_cli(file_path)
+    else:
+        # Режим HTTP сервера
+        app.run(host='0.0.0.0', port=5000, debug=False)

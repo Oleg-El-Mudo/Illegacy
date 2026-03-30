@@ -169,9 +169,17 @@ export async function translateCode() {
 
 async function translateCToPython(code) {
     // Удаляем комментарии ТОЛЬКО для C кода
-    console.log('Обработка C кода - удаление комментариев');
+    console.log('=== Обработка C кода - удаление комментариев ===');
+    console.log('Исходный код (первые 300 символов):');
+    console.log(code.substring(0, 300));
+    console.log(`Длина исходного кода: ${code.length} символов`);
+    
     const cleaned = cleanCode(code, 'c');
     code = cleaned.cleaned;
+    
+    console.log('Очищенный код (первые 300 символов):');
+    console.log(code.substring(0, 300));
+    console.log(`Длина очищенного кода: ${code.length} символов`);
 
     // Если после удаления комментариев код стал пустым
     if (!code || !code.trim()) {
@@ -200,13 +208,17 @@ async function performTranslation(code, fromLang, toLang) {
     elements.translateBtn.style.pointerEvents = 'none';
 
     try {
-        console.log(`Запуск транспиляции ${fromLang} -> ${toLang}`);
-        console.log('Код для отправки (первые 200 символов):');
-        console.log(code.substring(0, 200));
+        console.log(`=== Запуск транспиляции ${fromLang} -> ${toLang} ===`);
+        console.log(`Длина кода перед отправкой в Rust: ${code.length} символов`);
+        console.log('Код для отправки (первые 300 символов):');
+        console.log(code.substring(0, 300));
 
         // Выбираем команду в зависимости от языка
         const command = fromLang === 'C' ? 'transpile_c_to_python' : 'transpile_fortran_to_python';
+        console.log(`Вызов команды: ${command}`);
         const result = await invoke(command, { code });
+        
+        console.log('Получен результат от Rust:', result.success ? 'УСПЕХ' : 'ОШИБКА');
 
         if (result.success) {
             elements.outputCode.value = result.output;
