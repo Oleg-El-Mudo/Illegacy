@@ -943,6 +943,35 @@ impl PythonGenerator {
                         _ => {}
                     }
                 }
+                
+                // Если аргументы не найдены в детях, проверяем атрибут args
+                if args_exprs.is_empty() {
+                    if let Some(args_attr) = node.attributes.get("args") {
+                        debug!("Найден атрибут args для FuncCall: {:#?}", args_attr);
+                        // args может быть объектом ExprList с детьми exprs[...]
+                        if let Some(args_obj) = args_attr.as_object() {
+                            // Ищем все ключи exprs[0], exprs[1] и т.д.
+                            let mut indexed_args: Vec<(usize, &serde_json::Value)> = Vec::new();
+                            for (key, value) in args_obj {
+                                if key.starts_with("exprs[") && key.ends_with(']') {
+                                    if let Ok(idx) = key[6..key.len()-1].parse::<usize>() {
+                                        indexed_args.push((idx, value));
+                                    }
+                                }
+                            }
+                            // Сортируем по индексу
+                            indexed_args.sort_by_key(|(idx, _)| *idx);
+                            for (_, value) in indexed_args {
+                                if let Ok(arg_node) = crate::parsers::c_parser::ast_converter::AstConverter::parse_ast_node(value) {
+                                    let arg_expr = self.generate_expression_internal(&arg_node)?;
+                                    if !arg_expr.is_empty() && arg_expr != "None" {
+                                        args_exprs.push(arg_expr);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
                 // Если аргументы не найдены в детях, проверяем атрибут args
                 if args_exprs.is_empty() {
