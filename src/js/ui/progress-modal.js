@@ -55,10 +55,14 @@ export function initProgressModal() {
     console.log('Progress modal initialized');
 }
 
+let lastProgress = 0;
+let lastProgressMessage = '';
+
 function setupEventListeners() {
     // Слушаем события прогресса
     listen('refresh-progress', (event) => {
         const data = event.payload;
+        // Обновляем прогресс только если он изменился или это финальное сообщение
         updateProgress(data.message, data.progress, data.is_error);
     });
 
@@ -70,6 +74,17 @@ function setupEventListeners() {
 }
 
 function updateProgress(message, progress, isError) {
+    // Пропускаем обновления с прогрессом 0 (это просто логи, а не прогресс)
+    if (progress === 0.0 && !isError) return;
+    
+    // Обновляем только если прогресс увеличился или это финальное сообщение
+    if (progress < lastProgress && progress < 1.0) return;
+    
+    // Не обновляем если прогресс не изменился и сообщение то же самое
+    if (progress === lastProgress && message.trim() === lastProgressMessage) return;
+    
+    lastProgressMessage = message;
+    
     if (progressMessage) {
         progressMessage.textContent = message;
         if (isError) {
@@ -87,6 +102,8 @@ function updateProgress(message, progress, isError) {
     if (progressBarFill) {
         progressBarFill.style.width = `${progress * 100}%`;
     }
+    
+    lastProgress = progress;
 
     // Если процесс завершен
     if (progress >= 1.0) {
@@ -130,22 +147,35 @@ function addLogLine(text, type = '') {
 
 export function openProgressModal() {
     if (!progressModalOverlay) return;
-    
+
     isRefreshing = true;
+    lastProgress = 0;
+    lastProgressMessage = '';
+    
     progressModalOverlay.classList.add('active');
     document.body.style.overflow = 'hidden';
-    
+
     // Сбрасываем состояние
     if (closeProgressBtn) {
         closeProgressBtn.disabled = true;
     }
-    
+
     // Очищаем лог
     if (progressLog) {
         progressLog.innerHTML = '<div class="log-line">Запуск процесса...</div>';
     }
-    
-    updateProgress('Инициализация...', 0, false);
+
+    // Устанавливаем начальное состояние напрямую, не через updateProgress
+    if (progressMessage) {
+        progressMessage.textContent = 'Инициализация...';
+        progressMessage.style.color = 'var(--text-primary)';
+    }
+    if (progressPercent) {
+        progressPercent.textContent = '0%';
+    }
+    if (progressBarFill) {
+        progressBarFill.style.width = '0%';
+    }
 }
 
 export function closeProgressModal() {

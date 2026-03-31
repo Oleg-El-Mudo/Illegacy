@@ -100,22 +100,25 @@ pub fn check_docker_services_status() -> Result<DockerServicesStatus, String> {
 
 /// Получить путь к директории docker
 fn get_docker_dir() -> Result<PathBuf, String> {
-    // Путь относительно исполняемого файла или текущей рабочей директории
-    let docker_dir = PathBuf::from("docker");
+    // Путь относительно текущей рабочей директории (где запущено приложение)
+    let current_dir = std::env::current_dir()
+        .map_err(|e| format!("Ошибка получения текущего каталога: {}", e))?;
     
-    if docker_dir.exists() {
+    // Пробуем несколько вариантов расположения docker директории
+    let docker_dir = current_dir.join("docker");
+    
+    if docker_dir.exists() && docker_dir.is_dir() {
         Ok(docker_dir)
     } else {
-        // Пробуем относительно текущего каталога процесса
-        let current_dir = std::env::current_dir()
-            .map_err(|e| format!("Ошибка получения текущего каталога: {}", e))?;
+        // Пробуем относительно src-tauri
+        let parent_dir = current_dir.parent()
+            .ok_or_else(|| "Не удалось получить родительский каталог".to_string())?;
+        let docker_dir = parent_dir.join("docker");
         
-        let docker_dir = current_dir.join("docker");
-        
-        if docker_dir.exists() {
+        if docker_dir.exists() && docker_dir.is_dir() {
             Ok(docker_dir)
         } else {
-            Err("Docker директория не найдена".to_string())
+            Err(format!("Docker директория не найдена. Текущий каталог: {:?}", current_dir))
         }
     }
 }
@@ -176,8 +179,20 @@ pub async fn run_refresh_script(
             let reader = BufReader::new(stdout);
             for line in reader.lines() {
                 if let Ok(line_content) = line {
+                    // Сначала определяем прогресс
+                    let (progress, message) = parse_progress_from_line(&line_content);
+                    
                     info!("[refresh.sh] {}", line_content);
                     let _ = app_clone.emit("refresh-log", line_content);
+                    
+                    // Отправляем прогресс только для значимых строк
+                    if progress > 0.0 {
+                        let _ = app_clone.emit("refresh-progress", RefreshProgress {
+                            message,
+                            progress,
+                            is_error: false,
+                        });
+                    }
                 }
             }
         }
@@ -198,29 +213,6 @@ pub async fn run_refresh_script(
         }
     });
 
-    // Отправляем промежуточные события прогресса
-    let app_clone_progress = app.clone();
-    let progress_handle = std::thread::spawn(move || {
-        let stages = [
-            "Остановка контейнеров...",
-            "Удаление контейнеров...",
-            "Удаление образов...",
-            "Сборка новых образов...",
-            "Запуск сервисов...",
-            "Проверка доступности...",
-        ];
-        
-        for (i, stage) in stages.iter().enumerate() {
-            std::thread::sleep(std::time::Duration::from_secs(2));
-            let progress = (i + 1) as f64 / stages.len() as f64;
-            let _ = app_clone_progress.emit("refresh-progress", RefreshProgress {
-                message: stage.to_string(),
-                progress,
-                is_error: false,
-            });
-        }
-    });
-
     // Ждем завершения скрипта
     let result = child.wait()
         .map_err(|e| format!("Ошибка ожидания завершения скрипта: {}", e))?;
@@ -228,11 +220,10 @@ pub async fn run_refresh_script(
     // Ждем завершения потоков обработки вывода
     let _ = stdout_handle.join();
     let _ = stderr_handle.join();
-    let _ = progress_handle.join();
 
     if result.success() {
         info!("Скрипт refresh.sh успешно завершен");
-        
+
         let _ = app.emit("refresh-progress", RefreshProgress {
             message: "Переустановка зависимостей завершена успешно!".to_string(),
             progress: 1.0,
@@ -243,7 +234,7 @@ pub async fn run_refresh_script(
     } else {
         let error_msg = format!("Скрипт завершился с кодом: {:?}", result.code());
         error!("{}", error_msg);
-        
+
         let _ = app.emit("refresh-progress", RefreshProgress {
             message: format!("Ошибка: {}", error_msg),
             progress: 1.0,
@@ -252,6 +243,40 @@ pub async fn run_refresh_script(
 
         Err(error_msg)
     }
+}
+
+/// Парсинг прогресса из строки вывода скрипта
+fn parse_progress_from_line(line: &str) -> (f64, String) {
+    // Этапы выполнения и соответствующий им прогресс
+    if line.contains("=== Шаг 1: Остановка и удаление контейнеров ===") {
+        return (0.1, "Остановка контейнеров...".to_string());
+    } else if line.contains("=== Шаг 2: Удаление старых образов ===") {
+        return (0.3, "Удаление образов...".to_string());
+    } else if line.contains("=== Шаг 3: Сборка новых образов ===") {
+        return (0.5, "Сборка новых образов...".to_string());
+    } else if line.contains("Сборка c-parser") {
+        return (0.55, "Сборка c-parser...".to_string());
+    } else if line.contains("Сборка f2c-service") {
+        return (0.65, "Сборка f2c-service...".to_string());
+    } else if line.contains("Сборка python-service") {
+        return (0.75, "Сборка python-service...".to_string());
+    } else if line.contains("Сборка c-service") {
+        return (0.85, "Сборка c-service...".to_string());
+    } else if line.contains("=== Шаг 4: Запуск сервисов ===") {
+        return (0.9, "Запуск сервисов...".to_string());
+    } else if line.contains("Перезагрузка завершена") {
+        return (1.0, "Завершено!".to_string());
+    } else if line.contains("✓ Контейнер остановлен") || line.contains("✓ Контейнер удалён") {
+        return (0.2, "Остановка контейнеров...".to_string());
+    } else if line.contains("✓ Образ удалён") {
+        return (0.4, "Удаление образов...".to_string());
+    } else if line.contains("Запуск C парсера") || line.contains("Запуск f2c сервиса") || 
+              line.contains("Запуск Python сервиса") || line.contains("Запуск C service") {
+        return (0.95, "Запуск сервисов...".to_string());
+    }
+    
+    // Возвращаем текущее сообщение без изменения прогресса
+    (0.0, line.to_string())
 }
 
 /// Инициализация Docker модуля
