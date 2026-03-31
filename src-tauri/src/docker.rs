@@ -179,11 +179,15 @@ pub async fn run_refresh_script(
             let reader = BufReader::new(stdout);
             for line in reader.lines() {
                 if let Ok(line_content) = line {
+                    // Очищаем от ANSI-кодов для UI
+                    let clean_line = strip_ansi_codes(&line_content);
+                    
                     // Сначала определяем прогресс
                     let (progress, message) = parse_progress_from_line(&line_content);
                     
                     info!("[refresh.sh] {}", line_content);
-                    let _ = app_clone.emit("refresh-log", line_content);
+                    // Отправляем очищенную строку в лог
+                    let _ = app_clone.emit("refresh-log", clean_line);
                     
                     // Отправляем прогресс только для значимых строк
                     if progress > 0.0 {
@@ -206,8 +210,10 @@ pub async fn run_refresh_script(
             let reader = BufReader::new(stderr);
             for line in reader.lines() {
                 if let Ok(line_content) = line {
+                    // Очищаем от ANSI-кодов для UI
+                    let clean_line = strip_ansi_codes(&line_content);
                     warn!("[refresh.sh] {}", line_content);
-                    let _ = app_clone_stderr.emit("refresh-log", line_content);
+                    let _ = app_clone_stderr.emit("refresh-log", clean_line);
                 }
             }
         }
@@ -247,36 +253,64 @@ pub async fn run_refresh_script(
 
 /// Парсинг прогресса из строки вывода скрипта
 fn parse_progress_from_line(line: &str) -> (f64, String) {
+    // Очищаем строку от ANSI-кодов перед парсингом
+    let clean_line = strip_ansi_codes(line);
+    
     // Этапы выполнения и соответствующий им прогресс
-    if line.contains("=== Шаг 1: Остановка и удаление контейнеров ===") {
+    if clean_line.contains("=== Шаг 1: Остановка и удаление контейнеров ===") {
         return (0.1, "Остановка контейнеров...".to_string());
-    } else if line.contains("=== Шаг 2: Удаление старых образов ===") {
+    } else if clean_line.contains("=== Шаг 2: Удаление старых образов ===") {
         return (0.3, "Удаление образов...".to_string());
-    } else if line.contains("=== Шаг 3: Сборка новых образов ===") {
+    } else if clean_line.contains("=== Шаг 3: Сборка новых образов ===") {
         return (0.5, "Сборка новых образов...".to_string());
-    } else if line.contains("Сборка c-parser") {
+    } else if clean_line.contains("Сборка c-parser") {
         return (0.55, "Сборка c-parser...".to_string());
-    } else if line.contains("Сборка f2c-service") {
+    } else if clean_line.contains("Сборка f2c-service") {
         return (0.65, "Сборка f2c-service...".to_string());
-    } else if line.contains("Сборка python-service") {
+    } else if clean_line.contains("Сборка python-service") {
         return (0.75, "Сборка python-service...".to_string());
-    } else if line.contains("Сборка c-service") {
+    } else if clean_line.contains("Сборка c-service") {
         return (0.85, "Сборка c-service...".to_string());
-    } else if line.contains("=== Шаг 4: Запуск сервисов ===") {
+    } else if clean_line.contains("=== Шаг 4: Запуск сервисов ===") {
         return (0.9, "Запуск сервисов...".to_string());
-    } else if line.contains("Перезагрузка завершена") {
+    } else if clean_line.contains("Перезагрузка завершена") {
         return (1.0, "Завершено!".to_string());
-    } else if line.contains("✓ Контейнер остановлен") || line.contains("✓ Контейнер удалён") {
+    } else if clean_line.contains("✓ Контейнер остановлен") || clean_line.contains("✓ Контейнер удалён") {
         return (0.2, "Остановка контейнеров...".to_string());
-    } else if line.contains("✓ Образ удалён") {
+    } else if clean_line.contains("✓ Образ удалён") {
         return (0.4, "Удаление образов...".to_string());
-    } else if line.contains("Запуск C парсера") || line.contains("Запуск f2c сервиса") || 
-              line.contains("Запуск Python сервиса") || line.contains("Запуск C service") {
+    } else if clean_line.contains("Запуск C парсера") || clean_line.contains("Запуск f2c сервиса") || 
+              clean_line.contains("Запуск Python сервиса") || clean_line.contains("Запуск C service") {
         return (0.95, "Запуск сервисов...".to_string());
     }
     
     // Возвращаем текущее сообщение без изменения прогресса
     (0.0, line.to_string())
+}
+
+/// Очистка строки от ANSI-кодов
+fn strip_ansi_codes(s: &str) -> String {
+    let mut result = String::new();
+    let mut chars = s.chars().peekable();
+    
+    while let Some(ch) = chars.next() {
+        if ch == '\x1b' {
+            // Начало ANSI-последовательности
+            if chars.next() == Some('[') {
+                // Пропускаем всё до буквы
+                while let Some(&c) = chars.peek() {
+                    chars.next();
+                    if c.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+            }
+        } else {
+            result.push(ch);
+        }
+    }
+    
+    result
 }
 
 /// Инициализация Docker модуля
