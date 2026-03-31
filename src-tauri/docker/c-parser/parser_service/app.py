@@ -177,7 +177,7 @@ class ASTEncoder(json.JSONEncoder):
     Кастомный JSON энкодер для pycparser AST.
     Рекурсивно обрабатывает все атрибуты и детей узла.
     """
-    
+
     # Явный список атрибутов-детей для различных типов узлов pycparser
     CHILD_ATTRS = {
         'FileAST': ['ext'],
@@ -198,6 +198,8 @@ class ASTEncoder(json.JSONEncoder):
         'ArrayRef': ['name', 'subscript'],
         'FuncCall': ['name', 'args'],
         'ExprList': ['exprs'],
+        'InitList': ['exprs'],
+        'DeclList': ['decls'],
         'Cast': ['to_type', 'expr'],
         'ArrayDecl': ['type', 'dim'],
         'PtrDecl': ['type'],
@@ -218,33 +220,79 @@ class ASTEncoder(json.JSONEncoder):
         'TernaryOp': ['cond', 'iftrue', 'iffalse'],
         'Typedef': ['type'],
     }
-    
+
     def default(self, obj):
         if isinstance(obj, c_ast.Node):
             result = {
                 '__node__': obj.__class__.__name__,
                 'coord': str(obj.coord) if obj.coord else None
             }
-            
+
             # Добавляем все атрибуты узла из attr_names
             for attr in obj.attr_names:
                 value = getattr(obj, attr)
                 result[attr] = self._convert_value(value)
-            
+
+            # Специальная обработка для InitList - у него нет attr_names, но есть дети
+            if obj.__class__.__name__ == 'InitList':
+                exprs = []
+                for child in obj.exprs:
+                    if child is not None:
+                        exprs.append(self._convert_value(child))
+                result['exprs'] = exprs
+                return result
+
+            # Специальная обработка для DeclList - список объявлений в for цикле
+            if obj.__class__.__name__ == 'DeclList':
+                decls = []
+                for child in obj.decls:
+                    if child is not None:
+                        decls.append(self._convert_value(child))
+                result['decls'] = decls
+                return result
+
+            # Специальная обработка для FuncDef - параметры находятся в decl.type.args.params
+            if obj.__class__.__name__ == 'FuncDef':
+                # Добавляем decl и body
+                if hasattr(obj, 'decl') and obj.decl is not None:
+                    result['decl'] = self._convert_value(obj.decl)
+                if hasattr(obj, 'body') and obj.body is not None:
+                    result['body'] = self._convert_value(obj.body)
+                
+                # Извлекаем параметры и их имена
+                param_names = []
+                if hasattr(obj, 'decl') and obj.decl is not None:
+                    decl = obj.decl
+                    # В pycparser: FuncDef.decl.type.args - это ParamList с params[]
+                    if hasattr(decl, 'type') and hasattr(decl.type, 'args') and decl.type.args is not None:
+                        args = decl.type.args
+                        result['args'] = self._convert_value(args)
+                        # Извлекаем имена параметров из ParamList.params
+                        if hasattr(args, 'params') and args.params is not None:
+                            result['params'] = self._convert_value(args.params)
+                            for param in args.params:
+                                if param is not None and hasattr(param, 'name'):
+                                    param_names.append(param.name)
+                
+                # Добавляем param_names для генератора Python
+                if param_names:
+                    result['param_names'] = param_names
+                return result
+
             # Получаем список атрибутов-детей для этого типа узла
             node_type = obj.__class__.__name__
             child_attrs = self.CHILD_ATTRS.get(node_type, [])
-            
+
             # Если тип узла не найден в словаре, пробуем найти детей автоматически
             if not child_attrs and node_type != 'Constant' and node_type != 'ID' and node_type != 'IdentifierType':
                 # Автоматическое определение - ищем известные атрибуты детей
-                potential_attrs = ['ext', 'decl', 'body', 'args', 'type', 'params', 'init', 
+                potential_attrs = ['ext', 'decl', 'body', 'args', 'type', 'params', 'init',
                                    'block_items', 'cond', 'iftrue', 'iffalse', 'stmt', 'stmts',
-                                   'left', 'right', 'lvalue', 'rvalue', 'name', 'field', 
+                                   'left', 'right', 'lvalue', 'rvalue', 'name', 'field',
                                    'subscript', 'to_type', 'expr', 'dim', 'values', 'enumerators',
-                                   'next', 'bitsize', 'value']
+                                   'next', 'bitsize', 'value', 'exprs', 'decls']
                 child_attrs = [attr for attr in potential_attrs if hasattr(obj, attr)]
-            
+
             # Рекурсивно обрабатываем детей узла
             for attr_name in child_attrs:
                 try:
@@ -260,7 +308,7 @@ class ASTEncoder(json.JSONEncoder):
         elif isinstance(obj, dict):
             return {key: self.default(value) for key, value in obj.items()}
         return super().default(obj)
-    
+
     def _convert_value(self, value):
         """Вспомогательный метод для конвертации значения в JSON-совместимый формат"""
         if isinstance(value, c_ast.Node):

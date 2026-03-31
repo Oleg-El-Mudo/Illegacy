@@ -917,7 +917,7 @@ impl PythonGenerator {
                     name = Some(func_name.to_string());
                 }
 
-                // Обрабатываем детей
+                // Обрабатываем детей - ищем ExprList
                 for child in &node.children {
                     match child.node_type.as_str() {
                         "ID" => {
@@ -930,8 +930,11 @@ impl PythonGenerator {
                             }
                         }
                         "ExprList" => {
-                            for arg in &child.children {
+                            debug!("Найден ExprList с {} детьми", child.children.len());
+                            for (i, arg) in child.children.iter().enumerate() {
+                                debug!("  Аргумент {}: тип={}", i, arg.node_type);
                                 let arg_expr = self.generate_expression_internal(arg)?;
+                                debug!("  Аргумент {}: expr={}", i, arg_expr);
                                 if !arg_expr.is_empty() && arg_expr != "None" {
                                     args_exprs.push(arg_expr);
                                 }
@@ -941,10 +944,41 @@ impl PythonGenerator {
                     }
                 }
 
+                // Если аргументы не найдены в детях, проверяем атрибут args
+                if args_exprs.is_empty() {
+                    if let Some(args_attr) = node.attributes.get("args") {
+                        debug!("Найден атрибут args для FuncCall: {:#?}", args_attr);
+                        // args может быть объектом ExprList с детьми exprs[...]
+                        if let Some(args_obj) = args_attr.as_object() {
+                            // Ищем все ключи exprs[0], exprs[1] и т.д.
+                            let mut indexed_args: Vec<(usize, &serde_json::Value)> = Vec::new();
+                            for (key, value) in args_obj {
+                                if key.starts_with("exprs[") && key.ends_with(']') {
+                                    if let Ok(idx) = key[6..key.len()-1].parse::<usize>() {
+                                        indexed_args.push((idx, value));
+                                    }
+                                }
+                            }
+                            // Сортируем по индексу
+                            indexed_args.sort_by_key(|(idx, _)| *idx);
+                            for (_, value) in indexed_args {
+                                if let Ok(arg_node) = crate::parsers::c_parser::ast_converter::AstConverter::parse_ast_node(value) {
+                                    let arg_expr = self.generate_expression_internal(&arg_node)?;
+                                    if !arg_expr.is_empty() && arg_expr != "None" {
+                                        args_exprs.push(arg_expr);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 let name = name.unwrap_or_else(|| {
                     warn!("Не удалось определить имя функции");
                     "unknown".to_string()
                 });
+
+                debug!("Вызов функции {} с аргументами: {:?}", name, args_exprs);
 
                 // Проверяем, является ли это стандартной функцией C
                 if let Some(mapping) = self.function_mappings.get(&name).cloned() {
@@ -1472,10 +1506,11 @@ impl PythonGenerator {
             // Проверяем, есть ли операторы в case
             let mut has_statements = false;
             for stmt in node.children.iter().skip(1) {
+                // Пропускаем Break на любом уровне - в Python match/case break не нужен
                 if stmt.node_type == "Break" {
                     continue;
                 }
-                let stmt_code = self.generate_statement(stmt)?;
+                let stmt_code = self.generate_statement_no_break(stmt)?;
                 if !stmt_code.trim().is_empty() {
                     output.push_str(&stmt_code);
                     has_statements = true;
@@ -1501,13 +1536,13 @@ impl PythonGenerator {
         // УВЕЛИЧИВАЕМ отступ для тела default
         self.indent_level += 1;
 
-        // Операторы в default
+        // Операторы в default - пропускаем Break
         let mut has_statements = false;
         for stmt in node.children.iter() {
             if stmt.node_type == "Break" {
                 continue;
             }
-            let stmt_code = self.generate_statement(stmt)?;
+            let stmt_code = self.generate_statement_no_break(stmt)?;
             if !stmt_code.trim().is_empty() {
                 output.push_str(&stmt_code);
                 has_statements = true;
@@ -1520,6 +1555,78 @@ impl PythonGenerator {
 
         // УМЕНЬШАЕМ отступ обратно
         self.indent_level -= 1;
+
+        Ok(output)
+    }
+
+    /// Генерирует оператор, пропуская Break (для use в match/case)
+    fn generate_statement_no_break(&mut self, node: &ASTNode) -> Result<String> {
+        match node.node_type.as_str() {
+            "Break" => Ok(String::new()), // Пропускаем break
+            "Compound" => {
+                let mut output = String::new();
+                for stmt in &node.children {
+                    let stmt_code = self.generate_statement_no_break(stmt)?;
+                    if !stmt_code.trim().is_empty() {
+                        output.push_str(&stmt_code);
+                    }
+                }
+                Ok(output)
+            }
+            "If" => self.generate_if_no_break(node),
+            _ => self.generate_statement(node),
+        }
+    }
+
+    /// Генерирует if без break (для use в match/case)
+    fn generate_if_no_break(&mut self, node: &ASTNode) -> Result<String> {
+        let mut output = String::new();
+
+        if node.children.len() >= 2 {
+            let cond = &node.children[0];
+            let body = &node.children[1];
+
+            let cond_code = self.generate_expression(cond)?;
+            output.push_str(&self.line(&format!("if {}:", cond_code)));
+
+            self.indent_level += 1;
+            if body.node_type == "Compound" {
+                for stmt in &body.children {
+                    let stmt_code = self.generate_statement_no_break(stmt)?;
+                    if !stmt_code.trim().is_empty() {
+                        output.push_str(&stmt_code);
+                    }
+                }
+            } else {
+                let stmt_code = self.generate_statement_no_break(body)?;
+                output.push_str(&stmt_code);
+            }
+            self.indent_level -= 1;
+
+            // Проверяем, есть ли else
+            if let Some(else_node) = node.children.get(2) {
+                if else_node.node_type == "If" {
+                    // Это elif
+                    output.push_str(&self.generate_if_no_break(else_node)?);
+                } else {
+                    // Это else
+                    output.push_str(&self.line("else:"));
+                    self.indent_level += 1;
+                    if else_node.node_type == "Compound" {
+                        for stmt in &else_node.children {
+                            let stmt_code = self.generate_statement_no_break(stmt)?;
+                            if !stmt_code.trim().is_empty() {
+                                output.push_str(&stmt_code);
+                            }
+                        }
+                    } else {
+                        let stmt_code = self.generate_statement_no_break(else_node)?;
+                        output.push_str(&stmt_code);
+                    }
+                    self.indent_level -= 1;
+                }
+            }
+        }
 
         Ok(output)
     }

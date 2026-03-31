@@ -196,15 +196,28 @@ impl AstConverter {
         let mut param_names = Vec::new();
         let mut param_nodes = Vec::new();
 
-        // Собираем все параметры (они могут быть с ключами params[0], params[1] и т.д.)
+        // Собираем все параметры (они могут быть с ключами params[0], params[1] и т.д. или как массив params)
         for (key, value) in paramlist_obj {
             if key.starts_with("params[") || key == "params" {
                 debug!("Обработка параметра с ключом {}: {:#?}", key, value);
 
-                if let Some(param_obj) = value.as_object() {
-                    // Сохраняем узел параметра
+                // Если params - это массив, обрабатываем каждый элемент
+                if let Some(params_array) = value.as_array() {
+                    for param_value in params_array {
+                        if let Some(param_obj) = param_value.as_object() {
+                            if let Ok(param_node) = Self::parse_ast_node(param_value) {
+                                if let Some(param_name) = param_obj.get("name").and_then(|n| n.as_str()) {
+                                    param_names.push(Value::String(param_name.to_string()));
+                                    debug!("Найдено имя параметра: {}", param_name);
+                                }
+                                param_nodes.push(param_node);
+                            }
+                        }
+                    }
+                }
+                // Если params - это объект (единичный параметр)
+                else if let Some(param_obj) = value.as_object() {
                     if let Ok(param_node) = Self::parse_ast_node(value) {
-                        // Извлекаем имя параметра перед добавлением в param_nodes
                         if let Some(param_name) = param_obj.get("name").and_then(|n| n.as_str()) {
                             param_names.push(Value::String(param_name.to_string()));
                             debug!("Найдено имя параметра: {}", param_name);
@@ -217,9 +230,9 @@ impl AstConverter {
 
         // Сохраняем параметры как атрибуты
         if !param_names.is_empty() {
+            debug!("Добавлен атрибут param_names: {:?}", param_names);
             node.attributes
                 .insert("param_names".to_string(), Value::Array(param_names));
-            debug!("Добавлен атрибут param_names");
         }
 
         if !param_nodes.is_empty() {

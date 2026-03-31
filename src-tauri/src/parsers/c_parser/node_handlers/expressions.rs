@@ -96,11 +96,28 @@ pub fn handle_func_call(obj: &serde_json::Map<String, Value>, node: &mut ASTNode
         }
     }
 
+    // Обработка аргументов функции
     if let Some(args) = obj.get("args") {
+        debug!("Найден args для функции: {:#?}", args);
+        
+        // Проверяем, является ли args непосредственно ExprList
         if let Some(args_obj) = args.as_object() {
             if args_obj.get("__node__").and_then(|n| n.as_str()) == Some("ExprList") {
+                debug!("args является ExprList, парсим как узел");
                 if let Ok(args_node) = AstConverter::parse_ast_node(args) {
                     node.children.push(args_node);
+                }
+            } else {
+                // Возможно args - это массив выражений напрямую
+                if let Some(exprs) = args_obj.get("exprs") {
+                    if let Some(exprs_array) = exprs.as_array() {
+                        debug!("Найден массив exprs с {} элементами", exprs_array.len());
+                        for expr in exprs_array {
+                            if let Ok(expr_node) = AstConverter::parse_ast_node(expr) {
+                                node.children.push(expr_node);
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -134,6 +151,7 @@ pub fn handle_expr_list(obj: &serde_json::Map<String, Value>, node: &mut ASTNode
 
     let mut values = std::collections::HashMap::new();
 
+    // Сначала пробуем найти ключи exprs[0], exprs[1] и т.д.
     for (key, value) in obj {
         if key.starts_with("exprs[") && key.ends_with(']') {
             if let Some(index_str) = key.strip_prefix("exprs[").and_then(|s| s.strip_suffix(']')) {
@@ -144,16 +162,32 @@ pub fn handle_expr_list(obj: &serde_json::Map<String, Value>, node: &mut ASTNode
         }
     }
 
+    // Если не найдены ключи exprs[0], exprs[1], пробуем найти массив exprs
+    if values.is_empty() {
+        if let Some(exprs) = obj.get("exprs") {
+            if let Some(exprs_array) = exprs.as_array() {
+                debug!("Найден массив exprs с {} элементами", exprs_array.len());
+                for (index, expr) in exprs_array.iter().enumerate() {
+                    values.insert(index, expr);
+                }
+            }
+        }
+    }
+
     let mut indices: Vec<_> = values.keys().collect();
     indices.sort();
 
     for index in indices {
         if let Some(value) = values.get(index) {
+            debug!("  Добавляем аргумент {}: тип={}", index, 
+                value.as_object().and_then(|o| o.get("__node__")).and_then(|n| n.as_str()).unwrap_or("unknown"));
             if let Ok(expr_node) = AstConverter::parse_ast_node(value) {
                 node.children.push(expr_node);
             }
         }
     }
+
+    debug!("  Всего добавлено {} детей", node.children.len());
 
     Ok(())
 }
@@ -164,11 +198,24 @@ pub fn handle_init_list(obj: &serde_json::Map<String, Value>, node: &mut ASTNode
 
     let mut values = std::collections::HashMap::new();
 
+    // Сначала пробуем найти ключи exprs[0], exprs[1] и т.д.
     for (key, value) in obj {
         if key.starts_with("exprs[") && key.ends_with(']') {
             if let Some(index_str) = key.strip_prefix("exprs[").and_then(|s| s.strip_suffix(']')) {
                 if let Ok(index) = index_str.parse::<usize>() {
                     values.insert(index, value);
+                }
+            }
+        }
+    }
+
+    // Если не найдены ключи exprs[0], exprs[1], пробуем найти массив exprs
+    if values.is_empty() {
+        if let Some(exprs) = obj.get("exprs") {
+            if let Some(exprs_array) = exprs.as_array() {
+                debug!("Найден массив exprs в InitList с {} элементами", exprs_array.len());
+                for (index, expr) in exprs_array.iter().enumerate() {
+                    values.insert(index, expr);
                 }
             }
         }
@@ -185,17 +232,7 @@ pub fn handle_init_list(obj: &serde_json::Map<String, Value>, node: &mut ASTNode
         }
     }
 
-    if node.children.is_empty() {
-        if let Some(exprs) = obj.get("exprs") {
-            if let Some(exprs_array) = exprs.as_array() {
-                for expr in exprs_array {
-                    if let Ok(expr_node) = AstConverter::parse_ast_node(expr) {
-                        node.children.push(expr_node);
-                    }
-                }
-            }
-        }
-    }
+    debug!("  Всего добавлено {} детей в InitList", node.children.len());
 
     Ok(())
 }
