@@ -371,217 +371,81 @@
                             </div>
                         </div>
 
-                        <!-- Трансляторы входных языков -->
-                        <div class="settings-subsection">
-                            <h3 class="subsection-title">Трансляторы входных языков</h3>
-                            <p class="subsection-description">Трансляторы для запуска программ на исходных языках</p>
-
-                            <div class="translator-item disabled">
-                                <div class="translator-info">
-                                    <div class="translator-name">
-                                        <span class="translator-badge">C</span>
-                                        <span class="translator-label">GCC / Clang</span>
-                                    </div>
-                                    <p class="translator-description">Компилятор C для запуска и отладки кода</p>
-                                </div>
-                                <div class="translator-status">
-                                    <span class="badge badge-secondary" id="c-status-badge">Недоступно</span>
-                                </div>
-                                <div class="translator-actions">
-                                    <button class="jb-button jb-button-primary" id="c-download-btn">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                                        </svg>
-                                        <span>Скачать</span>
-                                    </button>
-                                    <button class="jb-button jb-button-secondary" id="c-remove-btn" disabled>
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <polyline points="3 6 5 6 21 6"></polyline>
-                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                        </svg>
-                                        <span>Удалить</span>
-                                    </button>
-                                </div>
+                        <!-- Кнопка переустановки зависимостей -->
+                        <div class="setting-item refresh-dependencies-item">
+                            <div class="setting-info">
+                                <label class="setting-label">Зависимости Docker</label>
+                                <p class="setting-description">Переустановить все Docker образы и перезапустить сервисы</p>
                             </div>
-
-                            <div class="translator-item disabled">
-                                <div class="translator-info">
-                                    <div class="translator-name">
-                                        <span class="translator-badge">Fortran</span>
-                                        <span class="translator-label">GFortran</span>
-                                    </div>
-                                    <p class="translator-description">Компилятор Fortran для запуска и отладки кода</p>
-                                </div>
-                                <div class="translator-status">
-                                    <span class="badge badge-secondary">Недоступно</span>
-                                </div>
-                                <div class="translator-actions">
-                                    <button class="jb-button jb-button-secondary" disabled>
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                                        </svg>
-                                        <span>Скачать</span>
-                                    </button>
-                                    <button class="jb-button jb-button-secondary" disabled>
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <polyline points="3 6 5 6 21 6"></polyline>
-                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                        </svg>
-                                        <span>Удалить</span>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="translator-item disabled">
-                                <div class="translator-info">
-                                    <div class="translator-name">
-                                        <span class="translator-badge">COBOL</span>
-                                        <span class="translator-label">GnuCOBOL</span>
-                                    </div>
-                                    <p class="translator-description">Компилятор COBOL для запуска и отладки кода</p>
-                                </div>
-                                <div class="translator-status">
-                                    <span class="badge badge-secondary">Недоступно</span>
-                                </div>
-                                <div class="translator-actions">
-                                    <button class="jb-button jb-button-secondary" disabled>
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                                        </svg>
-                                        <span>Скачать</span>
-                                    </button>
-                                    <button class="jb-button jb-button-secondary" disabled>
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <polyline points="3 6 5 6 21 6"></polyline>
-                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                        </svg>
-                                        <span>Удалить</span>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="translator-item disabled">
-                                <div class="translator-info">
-                                    <div class="translator-name">
-                                        <span class="translator-badge">PHP</span>
-                                        <span class="translator-label">PHP Interpreter</span>
-                                    </div>
-                                    <p class="translator-description">Интерпретатор PHP для запуска и отладки кода</p>
-                                </div>
-                                <div class="translator-status">
-                                    <span class="badge badge-secondary">Недоступно</span>
-                                </div>
-                                <div class="translator-actions">
-                                    <button class="jb-button jb-button-secondary" disabled>
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                                        </svg>
-                                        <span>Скачать</span>
-                                    </button>
-                                    <button class="jb-button jb-button-secondary" disabled>
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <polyline points="3 6 5 6 21 6"></polyline>
-                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                        </svg>
-                                        <span>Удалить</span>
-                                    </button>
-                                </div>
+                            <div class="setting-control">
+                                <button class="jb-button jb-button-primary" id="refresh-dependencies-btn">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="23 4 23 10 17 10"></polyline>
+                                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                                    </svg>
+                                    <span>Переустановить</span>
+                                </button>
                             </div>
                         </div>
 
-                        <!-- Трансляторы выходных языков -->
+                        <!-- Статусы сервисов -->
                         <div class="settings-subsection">
-                            <h3 class="subsection-title">Трансляторы выходных языков</h3>
-                            <p class="subsection-description">Средства выполнения для запуска программ на целевых языках</p>
+                            <h3 class="subsection-title">Сервисы</h3>
+                            <p class="subsection-description">Статус подключения к Docker сервисам</p>
 
-                            <div class="translator-item" id="python-translator-item">
-                                <div class="translator-info">
-                                    <div class="translator-name">
-                                        <span class="translator-badge">Python</span>
-                                        <span class="translator-label">Python 3 Interpreter</span>
-                                    </div>
-                                    <p class="translator-description">Интерпретатор Python для запуска сгенерированного кода</p>
+                            <div class="service-status-item">
+                                <div class="service-status-info">
+                                    <span class="service-name">
+                                        <span class="service-badge">C</span>
+                                        <span class="service-label">Parser Service</span>
+                                    </span>
+                                    <p class="service-description">Парсинг C кода в AST</p>
                                 </div>
-                                <div class="translator-status">
-                                    <span class="badge badge-secondary" id="python-status-badge">Недоступно</span>
-                                </div>
-                                <div class="translator-actions">
-                                    <button class="jb-button jb-button-primary" id="python-download-btn">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                                        </svg>
-                                        <span>Скачать</span>
-                                    </button>
-                                    <button class="jb-button jb-button-secondary" id="python-remove-btn" disabled>
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <polyline points="3 6 5 6 21 6"></polyline>
-                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                        </svg>
-                                        <span>Удалить</span>
-                                    </button>
+                                <div class="service-status-indicator">
+                                    <span class="status-dot" id="c-parser-dot"></span>
+                                    <span class="status-label" id="c-parser-label">Проверка...</span>
                                 </div>
                             </div>
 
-                            <div class="translator-item disabled">
-                                <div class="translator-info">
-                                    <div class="translator-name">
-                                        <span class="translator-badge">Java</span>
-                                        <span class="translator-label">JDK / JRE</span>
-                                    </div>
-                                    <p class="translator-description">Java Virtual Machine для запуска сгенерированного кода</p>
+                            <div class="service-status-item">
+                                <div class="service-status-info">
+                                    <span class="service-name">
+                                        <span class="service-badge">F2C</span>
+                                        <span class="service-label">Fortran to C Service</span>
+                                    </span>
+                                    <p class="service-description">Конвертация Fortran в C</p>
                                 </div>
-                                <div class="translator-status">
-                                    <span class="badge badge-secondary">Недоступно</span>
-                                </div>
-                                <div class="translator-actions">
-                                    <button class="jb-button jb-button-secondary" disabled>
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                                        </svg>
-                                        <span>Скачать</span>
-                                    </button>
-                                    <button class="jb-button jb-button-secondary" disabled>
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <polyline points="3 6 5 6 21 6"></polyline>
-                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                        </svg>
-                                        <span>Удалить</span>
-                                    </button>
+                                <div class="service-status-indicator">
+                                    <span class="status-dot" id="f2c-service-dot"></span>
+                                    <span class="status-label" id="f2c-service-label">Проверка...</span>
                                 </div>
                             </div>
 
-                            <div class="translator-item disabled">
-                                <div class="translator-info">
-                                    <div class="translator-name">
-                                        <span class="translator-badge">Go</span>
-                                        <span class="translator-label">Go Compiler</span>
-                                    </div>
-                                    <p class="translator-description">Компилятор Go для запуска сгенерированного кода</p>
+                            <div class="service-status-item">
+                                <div class="service-status-info">
+                                    <span class="service-name">
+                                        <span class="service-badge">Python</span>
+                                        <span class="service-label">Python Service</span>
+                                    </span>
+                                    <p class="service-description">Выполнение Python кода</p>
                                 </div>
-                                <div class="translator-status">
-                                    <span class="badge badge-secondary">Недоступно</span>
+                                <div class="service-status-indicator">
+                                    <span class="status-dot" id="python-service-dot"></span>
+                                    <span class="status-label" id="python-service-label">Проверка...</span>
                                 </div>
-                                <div class="translator-actions">
-                                    <button class="jb-button jb-button-secondary" disabled>
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                                        </svg>
-                                        <span>Скачать</span>
-                                    </button>
-                                    <button class="jb-button jb-button-secondary" disabled>
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <polyline points="3 6 5 6 21 6"></polyline>
-                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                        </svg>
-                                        <span>Удалить</span>
-                                    </button>
+                            </div>
+
+                            <div class="service-status-item">
+                                <div class="service-status-info">
+                                    <span class="service-name">
+                                        <span class="service-badge">C</span>
+                                        <span class="service-label">C Service</span>
+                                    </span>
+                                    <p class="service-description">Выполнение C кода</p>
+                                </div>
+                                <div class="service-status-indicator">
+                                    <span class="status-dot" id="c-service-dot"></span>
+                                    <span class="status-label" id="c-service-label">Проверка...</span>
                                 </div>
                             </div>
                         </div>
@@ -762,6 +626,38 @@
                 <div class="footer-actions">
                     <button class="jb-button jb-button-tertiary" id="cancelSettings">Отмена</button>
                     <button class="jb-button jb-button-primary" id="saveSettings">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно прогресса установки -->
+    <div class="progress-modal-overlay" id="progressModalOverlay">
+        <div class="progress-modal">
+            <div class="progress-header">
+                <h2 class="progress-title">Переустановка зависимостей</h2>
+                <button class="jb-button jb-button-icon" id="closeProgressModal" title="Закрыть" disabled>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="progress-body">
+                <div class="progress-info">
+                    <span class="progress-message" id="progressMessage">Инициализация...</span>
+                    <span class="progress-percent" id="progressPercent">0%</span>
+                </div>
+                
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progressBar">
+                        <div class="progress-bar-fill" id="progressBarFill"></div>
+                    </div>
+                </div>
+                
+                <div class="progress-log" id="progressLog">
+                    <div class="log-line">Ожидание запуска...</div>
                 </div>
             </div>
         </div>

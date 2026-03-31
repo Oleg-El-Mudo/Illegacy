@@ -304,60 +304,64 @@ function addDebugButton() {
 // проверка статуса Docker и f2c сервисов
 export async function checkDockerStatus() {
     try {
-        // Проверяем основной парсер C
-        const cStatus = await invoke('check_parser_status');
-        console.log('Статус C парсера:', cStatus.docker_available ? 'Доступен' : 'Не доступен');
+        const { invoke } = window.__TAURI__.core;
+        
+        // Используем новую команду для проверки всех сервисов
+        const servicesStatus = await invoke('check_docker_services_status');
+        console.log('Статус сервисов:', servicesStatus);
 
-        // Проверяем f2c сервис для Fortran
-        const f2cStatus = await invoke('check_f2c_status');
-        console.log('Статус f2c сервиса:', f2cStatus.available ? 'Доступен' : 'Не доступен');
+        // Проверяем каждый сервис
+        const cParserReady = servicesStatus.c_parser;
+        const f2cReady = servicesStatus.f2c_service;
+        const pythonReady = servicesStatus.python_service;
+        const cServiceReady = servicesStatus.c_service;
 
-        // Проверяем C сервис для запуска C кода
-        const cServiceStatus = await invoke('check_c_status');
-        console.log('Статус C сервиса:', cServiceStatus.available ? 'Доступен' : 'Не доступен');
-
-        if (!cStatus.docker_available) {
-            console.warn('Docker не запущен. Транспиляция C может не работать.');
+        if (!cParserReady) {
+            console.warn('C parser сервис не запущен. Транспиляция C может не работать.');
         }
 
-        if (!f2cStatus.available || !f2cStatus.f2c_available) {
+        if (!f2cReady) {
             console.warn('f2c сервис не запущен. Транспиляция Fortran может не работать.');
-            console.warn('Для запуска выполните: cd src-tauri/docker && docker run -d -p 5001:5001 f2c-service');
         }
 
-        if (!cServiceStatus.available || !cServiceStatus.gcc_available) {
-            console.warn('C сервис не запущен. Запуск C кода может не работать.');
-            console.warn('Для запуска выполните: cd src-tauri/docker && docker run -d -p 5003:5003 c-service');
+        if (!pythonReady) {
+            console.warn('Python сервис не запущен. Выполнение Python кода может не работать.');
+        }
+
+        if (!cServiceReady) {
+            console.warn('C сервис не запущен. Выполнение C кода может не работать.');
         }
 
         // Обновляем статус-бар
-        updateDockerStatus(cStatus.docker_available, f2cStatus.available && f2cStatus.f2c_available, cServiceStatus.available && cServiceStatus.gcc_available);
+        updateDockerStatus(cParserReady, f2cReady, pythonReady, cServiceReady);
 
         return {
-            c_parser: cStatus.docker_available,
-            f2c_service: f2cStatus.available && f2cStatus.f2c_available,
-            c_service: cServiceStatus.available && cServiceStatus.gcc_available
+            c_parser: cParserReady,
+            f2c_service: f2cReady,
+            python_service: pythonReady,
+            c_service: cServiceReady
         };
     } catch (error) {
         console.error('Ошибка при проверке сервисов:', error);
 
         // Обновляем статус-бар с ошибкой
-        updateDockerStatus(false, false, false);
+        updateDockerStatus(false, false, false, false);
 
         return {
             c_parser: false,
             f2c_service: false,
+            python_service: false,
             c_service: false,
             error: error.toString()
         };
     }
 }
 
-function updateDockerStatus(cParserReady, f2cReady, cServiceReady) {
+function updateDockerStatus(cParserReady, f2cReady, pythonReady, cServiceReady) {
     if (!elements.statusDocker) return;
 
-    const allReady = cParserReady && f2cReady && cServiceReady;
-    const partialReady = cParserReady || f2cReady || cServiceReady;
+    const allReady = cParserReady && f2cReady && pythonReady && cServiceReady;
+    const partialReady = cParserReady || f2cReady || pythonReady || cServiceReady;
 
     if (allReady) {
         elements.statusDocker.innerHTML = 'Docker: <span style="color: var(--success)">Готов</span>';

@@ -2,6 +2,7 @@
 pub mod ast;
 pub mod generators;
 pub mod parsers;
+pub mod docker;
 
 use tauri::AppHandle;
 use tauri_plugin_dialog::DialogExt;
@@ -1064,6 +1065,8 @@ pub fn run() {
             stop_c_execution,
             get_supported_languages,
             simple_transpile,
+            docker::check_docker_services_status,
+            docker::run_refresh_script,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

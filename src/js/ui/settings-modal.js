@@ -15,8 +15,8 @@ function openSettings() {
 
     // Проверяем статус Docker при открытии
     checkDockerStatusInModal();
-    // Проверяем статус Python при открытии
-    checkPythonStatusInModal();
+    // Проверяем статус всех сервисов при открытии
+    checkAllServicesStatusInModal();
 }
 
 function closeSettings() {
@@ -42,6 +42,9 @@ export function initSettingsModal() {
     const saveSettingsBtn = document.getElementById('saveSettings');
     const resetSettingsBtn = document.getElementById('resetSettings');
 
+    // Кнопка переустановки зависимостей
+    const refreshDependenciesBtn = document.getElementById('refresh-dependencies-btn');
+
     // Открытие модального окна
     if (openSettingsBtn) {
         openSettingsBtn.addEventListener('click', openSettings);
@@ -55,37 +58,42 @@ export function initSettingsModal() {
     if (cancelSettingsBtn) {
         cancelSettingsBtn.addEventListener('click', closeSettings);
     }
-    
+
     // Закрытие по клику на overlay
     modalOverlay.addEventListener('click', (e) => {
         if (e.target === modalOverlay) {
             closeSettings();
         }
     });
-    
+
     // Закрытие по Escape
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && modalOverlay.classList.contains('active')) {
             closeSettings();
         }
     });
-    
+
     // Сохранение настроек
     if (saveSettingsBtn) {
         saveSettingsBtn.addEventListener('click', saveSettings);
     }
-    
+
     // Сброс настроек
     if (resetSettingsBtn) {
         resetSettingsBtn.addEventListener('click', resetSettings);
     }
-    
+
+    // Обработчик кнопки переустановки зависимостей
+    if (refreshDependenciesBtn) {
+        refreshDependenciesBtn.addEventListener('click', handleRefreshDependencies);
+    }
+
     // Инициализация настроек
     initSettingsValues();
-    
+
     // Навигация через табы
     setupTabs();
-    
+
     console.log('Settings modal initialized');
 }
 
@@ -239,22 +247,32 @@ async function checkDockerStatusInModal() {
     try {
         const { invoke } = window.__TAURI__.core;
 
-        const cStatus = await invoke('check_parser_status');
-        const f2cStatus = await invoke('check_f2c_status');
+        // Используем новую команду для проверки всех сервисов
+        const servicesStatus = await invoke('check_docker_services_status');
 
-        const cReady = cStatus.docker_available;
-        const f2cReady = f2cStatus.available && f2cStatus.f2c_available;
+        const allReady = servicesStatus.c_parser && 
+                         servicesStatus.f2c_service && 
+                         servicesStatus.python_service && 
+                         servicesStatus.c_service;
+        const partialReady = servicesStatus.c_parser || 
+                             servicesStatus.f2c_service || 
+                             servicesStatus.python_service || 
+                             servicesStatus.c_service;
 
-        if (cReady && f2cReady) {
+        if (allReady) {
             dockerStatusEl.className = 'badge badge-success';
             dockerStatusEl.textContent = 'Готов';
-        } else if (cReady || f2cReady) {
+        } else if (partialReady) {
             dockerStatusEl.className = 'badge badge-warning';
             dockerStatusEl.textContent = 'Частично';
         } else {
             dockerStatusEl.className = 'badge badge-error';
             dockerStatusEl.textContent = 'Не готов';
         }
+
+        // Обновляем индикаторы сервисов
+        updateServiceStatusUI(servicesStatus);
+
     } catch (error) {
         console.error('Ошибка при проверке сервисов:', error);
         dockerStatusEl.className = 'badge badge-error';
@@ -262,46 +280,69 @@ async function checkDockerStatusInModal() {
     }
 }
 
-async function checkPythonStatusInModal() {
+// Проверка статусов всех сервисов
+async function checkAllServicesStatusInModal() {
     try {
         const { invoke } = window.__TAURI__.core;
-        const pythonStatus = await invoke('check_python_status');
-        
-        const pythonReady = pythonStatus.available && pythonStatus.python_available;
-        
-        // Обновляем UI Python секции
-        const pythonItem = document.getElementById('python-translator-item');
-        const pythonBadge = document.getElementById('python-status-badge');
-        const pythonDownloadBtn = document.getElementById('python-download-btn');
-        const pythonRemoveBtn = document.getElementById('python-remove-btn');
-        
-        if (pythonItem && pythonBadge) {
-            if (pythonReady) {
-                pythonBadge.className = 'badge badge-success';
-                pythonBadge.textContent = 'Готов';
-                pythonItem.classList.remove('disabled');
-                if (pythonDownloadBtn) pythonDownloadBtn.disabled = true;
-                if (pythonRemoveBtn) pythonRemoveBtn.disabled = false;
-            } else if (pythonStatus.available) {
-                pythonBadge.className = 'badge badge-warning';
-                pythonBadge.textContent = 'Остановлен';
-                pythonItem.classList.remove('disabled');
-                if (pythonDownloadBtn) pythonDownloadBtn.disabled = false;
-                if (pythonRemoveBtn) pythonRemoveBtn.disabled = false;
-            } else {
-                pythonBadge.className = 'badge badge-secondary';
-                pythonBadge.textContent = 'Недоступно';
-                pythonItem.classList.add('disabled');
-                if (pythonDownloadBtn) pythonDownloadBtn.disabled = false;
-                if (pythonRemoveBtn) pythonRemoveBtn.disabled = true;
-            }
-        }
+        const servicesStatus = await invoke('check_docker_services_status');
+        updateServiceStatusUI(servicesStatus);
     } catch (error) {
-        console.error('Ошибка при проверке Python сервиса:', error);
-        const pythonBadge = document.getElementById('python-status-badge');
-        if (pythonBadge) {
-            pythonBadge.className = 'badge badge-error';
-            pythonBadge.textContent = 'Ошибка';
-        }
+        console.error('Ошибка при проверке сервисов:', error);
     }
+}
+
+// Обновление UI индикаторов сервисов
+function updateServiceStatusUI(status) {
+    // C Parser Service
+    const cParserDot = document.getElementById('c-parser-dot');
+    const cParserLabel = document.getElementById('c-parser-label');
+    if (cParserDot && cParserLabel) {
+        updateServiceIndicator(cParserDot, cParserLabel, status.c_parser);
+    }
+
+    // F2C Service
+    const f2cDot = document.getElementById('f2c-service-dot');
+    const f2cLabel = document.getElementById('f2c-service-label');
+    if (f2cDot && f2cLabel) {
+        updateServiceIndicator(f2cDot, f2cLabel, status.f2c_service);
+    }
+
+    // Python Service
+    const pythonDot = document.getElementById('python-service-dot');
+    const pythonLabel = document.getElementById('python-service-label');
+    if (pythonDot && pythonLabel) {
+        updateServiceIndicator(pythonDot, pythonLabel, status.python_service);
+    }
+
+    // C Service
+    const cServiceDot = document.getElementById('c-service-dot');
+    const cServiceLabel = document.getElementById('c-service-label');
+    if (cServiceDot && cServiceLabel) {
+        updateServiceIndicator(cServiceDot, cServiceLabel, status.c_service);
+    }
+}
+
+// Обновление одного индикатора сервиса
+function updateServiceIndicator(dot, label, isReady) {
+    dot.classList.remove('ready', 'pending', 'error');
+    if (isReady) {
+        dot.classList.add('ready');
+        label.textContent = 'Готов';
+        label.style.color = 'var(--success)';
+    } else {
+        dot.classList.add('error');
+        label.textContent = 'Не готов';
+        label.style.color = 'var(--error)';
+    }
+}
+
+// Обработчик кнопки переустановки зависимостей
+async function handleRefreshDependencies() {
+    const { startRefreshProcess } = await import('./progress-modal.js');
+    await startRefreshProcess();
+}
+
+// Экспортируем функцию для обновления статусов после переустановки
+export async function refreshDockerServicesStatus() {
+    await checkAllServicesStatusInModal();
 }
