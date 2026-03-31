@@ -312,6 +312,10 @@ export async function checkDockerStatus() {
         const f2cStatus = await invoke('check_f2c_status');
         console.log('Статус f2c сервиса:', f2cStatus.available ? 'Доступен' : 'Не доступен');
 
+        // Проверяем C сервис для запуска C кода
+        const cServiceStatus = await invoke('check_c_status');
+        console.log('Статус C сервиса:', cServiceStatus.available ? 'Доступен' : 'Не доступен');
+
         if (!cStatus.docker_available) {
             console.warn('Docker не запущен. Транспиляция C может не работать.');
         }
@@ -321,33 +325,43 @@ export async function checkDockerStatus() {
             console.warn('Для запуска выполните: cd src-tauri/docker && docker run -d -p 5001:5001 f2c-service');
         }
 
+        if (!cServiceStatus.available || !cServiceStatus.gcc_available) {
+            console.warn('C сервис не запущен. Запуск C кода может не работать.');
+            console.warn('Для запуска выполните: cd src-tauri/docker && docker run -d -p 5003:5003 c-service');
+        }
+
         // Обновляем статус-бар
-        updateDockerStatus(cStatus.docker_available, f2cStatus.available && f2cStatus.f2c_available);
+        updateDockerStatus(cStatus.docker_available, f2cStatus.available && f2cStatus.f2c_available, cServiceStatus.available && cServiceStatus.gcc_available);
 
         return {
             c_parser: cStatus.docker_available,
-            f2c_service: f2cStatus.available && f2cStatus.f2c_available
+            f2c_service: f2cStatus.available && f2cStatus.f2c_available,
+            c_service: cServiceStatus.available && cServiceStatus.gcc_available
         };
     } catch (error) {
         console.error('Ошибка при проверке сервисов:', error);
-        
+
         // Обновляем статус-бар с ошибкой
-        updateDockerStatus(false, false);
-        
+        updateDockerStatus(false, false, false);
+
         return {
             c_parser: false,
             f2c_service: false,
+            c_service: false,
             error: error.toString()
         };
     }
 }
 
-function updateDockerStatus(cParserReady, f2cReady) {
+function updateDockerStatus(cParserReady, f2cReady, cServiceReady) {
     if (!elements.statusDocker) return;
-    
-    if (cParserReady && f2cReady) {
+
+    const allReady = cParserReady && f2cReady && cServiceReady;
+    const partialReady = cParserReady || f2cReady || cServiceReady;
+
+    if (allReady) {
         elements.statusDocker.innerHTML = 'Docker: <span style="color: var(--success)">Готов</span>';
-    } else if (cParserReady || f2cReady) {
+    } else if (partialReady) {
         elements.statusDocker.innerHTML = 'Docker: <span style="color: var(--warning)">Частично</span>';
     } else {
         elements.statusDocker.innerHTML = 'Docker: <span style="color: var(--error)">Не готов</span>';

@@ -12,6 +12,8 @@ import { initTerminalPanel } from './ui/terminal-panel.js';
 import { initAboutPage } from './ui/about.js';
 import { initPythonExecution } from './features/python-execution.js';
 import { initPythonIntegration } from './features/python-integration.js';
+import { initCExecution } from './features/c-execution.js';
+import { initCIntegration } from './features/c-integration.js';
 
 // Применение сохранённой темы при загрузке
 const THEME_KEY = 'illegacy-theme';
@@ -45,6 +47,8 @@ function initApp() {
     initAboutPage(); // Инициализируем страницу "О программе"
     initPythonExecution(); // Инициализируем выполнение Python кода
     initPythonIntegration(); // Инициализируем интеграцию Python
+    initCExecution(); // Инициализируем выполнение C кода
+    initCIntegration(); // Инициализируем интеграцию C
 
     // Проверяем статус Docker при загрузке
     checkDockerStatus();

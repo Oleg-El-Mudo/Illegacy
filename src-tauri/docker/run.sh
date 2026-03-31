@@ -24,12 +24,20 @@ docker run -d \
   --restart unless-stopped \
   python-service:latest
 
+# Запуск C service (для запуска C кода) в фоне
+echo "Запуск C service..."
+docker run -d \
+  --name c-service \
+  -p 5003:5003 \
+  --restart unless-stopped \
+  c-service:latest
+
 echo "Парсеры запущены:"
-docker ps | grep -E "c-parser|f2c-service|python-service"
+docker ps | grep -E "c-parser|f2c-service|python-service|c-service"
 
 echo "
 Для остановки:
-  docker stop c-parser-service f2c-service python-service
+  docker stop c-parser-service f2c-service python-service c-service
 Для удаления:
-  docker rm c-parser-service f2c-service python-service
+  docker rm c-parser-service f2c-service python-service c-service
 "

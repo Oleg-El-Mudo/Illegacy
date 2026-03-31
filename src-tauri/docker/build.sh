@@ -22,5 +22,11 @@ cd python-service
 docker build -t python-service:latest .
 cd ..
 
+# Сборка C service (для запуска C кода)
+echo "Сборка c-service..."
+cd c-service
+docker build -t c-service:latest .
+cd ..
+
 echo "Готово! Образы собраны:"
-docker images | grep -E "c-parser|f2c-service|python-service"
+docker images | grep -E "c-parser|f2c-service|python-service|c-service"
