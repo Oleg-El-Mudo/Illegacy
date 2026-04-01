@@ -3,7 +3,20 @@ import { updateSyntaxHighlighting } from '../editor/syntax-highlight.js';
 
 const { invoke } = window.__TAURI__.core;
 
+// Отслеживаем последнее активное текстовое поле
+let lastFocusedCodeArea = 'input'; // 'input' или 'output'
+
+function trackCodeAreaFocus() {
+    elements.inputCode.addEventListener('focus', () => {
+        lastFocusedCodeArea = 'input';
+    });
+    elements.outputCode.addEventListener('focus', () => {
+        lastFocusedCodeArea = 'output';
+    });
+}
+
 export function initFileHandlers() {
+    trackCodeAreaFocus();
     elements.clearInput.addEventListener('click', function(e){
         e.preventDefault();
         elements.inputCode.value = '';
@@ -36,7 +49,18 @@ export function initFileHandlers() {
     elements.exportFile.addEventListener('click', async function(e){
         e.preventDefault();
 
-        const contentToExport = elements.outputCode.value || elements.inputCode.value;
+        // Выбираем содержимое и язык в зависимости от последнего активного поля
+        let contentToExport;
+        let selectedLang;
+
+        if (lastFocusedCodeArea === 'output') {
+            contentToExport = elements.outputCode.value;
+            selectedLang = elements.outputLangSelect.value;
+        } else {
+            // По умолчанию экспортируем из входного поля
+            contentToExport = elements.inputCode.value;
+            selectedLang = elements.inputLangSelect.value;
+        }
 
         if (!contentToExport.trim()) {
             alert('Нет содержимого для экспорта');
@@ -44,7 +68,6 @@ export function initFileHandlers() {
         }
 
         try {
-            const selectedLang = elements.outputLangSelect.value;
             const savedPath = await invoke('save_file_with_filter', {
                 content: contentToExport,
                 lang: selectedLang
