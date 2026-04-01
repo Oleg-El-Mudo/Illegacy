@@ -202,8 +202,9 @@ async function translateFortranToPython(code) {
 }
 
 async function performTranslation(code, fromLang, toLang) {
-    const originalText = elements.translateBtn.textContent;
-    elements.translateBtn.textContent = 'Перевод...';
+    // Сохраняем полный HTML кнопки (с иконкой)
+    const originalHTML = elements.translateBtn.innerHTML;
+    elements.translateBtn.innerHTML = '<span>Перевод...</span>';
     elements.translateBtn.style.opacity = '0.7';
     elements.translateBtn.style.pointerEvents = 'none';
 
@@ -217,7 +218,7 @@ async function performTranslation(code, fromLang, toLang) {
         const command = fromLang === 'C' ? 'transpile_c_to_python' : 'transpile_fortran_to_python';
         console.log(`Вызов команды: ${command}`);
         const result = await invoke(command, { code });
-        
+
         console.log('Получен результат от Rust:', result.success ? 'УСПЕХ' : 'ОШИБКА');
 
         if (result.success) {
@@ -247,7 +248,8 @@ async function performTranslation(code, fromLang, toLang) {
         updateSyntaxHighlighting();
         alert('Ошибка при переводе: ' + error);
     } finally {
-        elements.translateBtn.textContent = originalText;
+        // Восстанавливаем полный HTML кнопки (с иконкой)
+        elements.translateBtn.innerHTML = originalHTML;
         elements.translateBtn.style.opacity = '1';
         elements.translateBtn.style.pointerEvents = 'auto';
     }
