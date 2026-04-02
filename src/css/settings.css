@@ -827,7 +827,7 @@ html[data-bs-theme="light"] .translator-item:hover,
     gap: var(--spacing-xl);
 }
 
-.about-header {
+.about-header, .about-source {
     display: flex;
     align-items: center;
     gap: var(--spacing-xl);
@@ -854,7 +854,7 @@ html[data-bs-theme="light"] .translator-item:hover,
     height: 48px;
 }
 
-.about-info {
+.about-info, .about-source-info {
     flex: 1;
 }
 
