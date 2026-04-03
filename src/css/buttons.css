@@ -23,7 +23,6 @@
     box-shadow: var(--shadow-focus);
 }
 
-/* === Primary Button === */
 .jb-button-primary {
     background: var(--accent-primary);
     color: #ffffff;
@@ -48,7 +47,6 @@
         inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
-/* === Secondary Button === */
 .jb-button-secondary {
     background: var(--glass-bg);
     color: var(--text-primary);
@@ -68,7 +66,6 @@
     transform: translateY(0);
 }
 
-/* === Tertiary Button (text-only style) === */
 .jb-button-tertiary {
     background: transparent;
     color: var(--text-secondary);
@@ -96,7 +93,6 @@
     opacity: 1;
 }
 
-/* === Icon Button === */
 .jb-button-icon {
     width: var(--component-height-md);
     height: var(--component-height-md);
@@ -123,14 +119,12 @@
     transition: transform var(--transition-fast);
 }
 
-/* === Disabled State === */
 .jb-button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     transform: none !important;
 }
 
-/* === Loading State === */
 .jb-button.loading {
     pointer-events: none;
     opacity: 0.7;
@@ -151,7 +145,6 @@
     to { transform: rotate(360deg); }
 }
 
-/* === Button Sizes === */
 .jb-button-sm {
     height: var(--component-height-sm);
     padding: 0 var(--spacing-md);
@@ -164,7 +157,6 @@
     font-size: var(--font-size-lg);
 }
 
-/* === Light Theme Adjustments === */
 html[data-bs-theme="light"] .jb-button-primary,
 :root[data-bs-theme="light"] .jb-button-primary {
     box-shadow:

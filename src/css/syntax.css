@@ -1,7 +1,4 @@
-/* === Синтаксическая подсветка — Glassmorphism Style === */
-/* Приглушённая, элегантная цветовая схема в стиле Apple/VS Code */
-
-/* --- Тёмная тема --- */
+/* Тёмная тема */
 html[data-bs-theme="dark"] .hljs,
 :root[data-bs-theme="dark"] .hljs {
     background: transparent;

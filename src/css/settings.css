@@ -1,7 +1,5 @@
 @import './variables.css';
 
-/* === Модальное окно настроек === */
-
 /* Overlay - затемнение и размытие фона */
 .settings-modal-overlay {
     position: fixed;
@@ -134,7 +132,7 @@
     background-clip: text;
 }
 
-/* Tabs */
+/* Вкладки */
 .settings-tabs {
     display: flex;
     gap: var(--spacing-xs);
@@ -195,7 +193,7 @@
     opacity: 1;
 }
 
-/* Body */
+/* Тело настроек */
 .settings-body {
     display: flex;
     flex: 1;
@@ -251,7 +249,6 @@
     background-clip: text;
 }
 
-/* Setting Items */
 .setting-item {
     display: flex;
     justify-content: space-between;
@@ -313,13 +310,12 @@
     min-width: 140px;
 }
 
-/* Disabled state */
+/* Заблокированные элементы */
 .setting-item.disabled {
     opacity: 0.5;
     pointer-events: none;
 }
 
-/* Badges */
 .badge {
     display: inline-flex;
     align-items: center;
@@ -380,7 +376,7 @@
     margin-left: var(--spacing-sm);
 }
 
-/* Toggle Switch */
+/* Переключатель */
 .jb-switch {
     position: relative;
     display: inline-flex;
@@ -529,7 +525,7 @@
     scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
 
-/* Utilities */
+/* Утилиты */
 .text-secondary {
     color: var(--text-secondary);
 }
@@ -544,7 +540,7 @@
     margin: var(--spacing-lg) 0;
 }
 
-/* === Трансляторы (Integrations) === */
+/* Секция трансляторов */
 .settings-subsection {
     margin-top: var(--spacing-xl);
     padding: var(--spacing-lg);
@@ -659,14 +655,12 @@
     height: 14px;
 }
 
-/* Disabled state for translator items */
 .translator-item.disabled .translator-actions .jb-button {
     opacity: 0.5;
     cursor: not-allowed;
     pointer-events: none;
 }
 
-/* === Service Status Items === */
 .service-status-item {
     display: flex;
     align-items: center;
@@ -766,7 +760,6 @@
     min-width: 80px;
 }
 
-/* Refresh Dependencies Button */
 .refresh-dependencies-item {
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
@@ -780,7 +773,7 @@
     background: var(--glass-bg-light);
 }
 
-/* Light theme adjustments */
+/* Светлая тема */
 html[data-bs-theme="light"] .settings-subsection,
 :root[data-bs-theme="light"] .settings-subsection {
     background: rgba(0, 0, 0, 0.02);
@@ -799,7 +792,7 @@ html[data-bs-theme="light"] .translator-item:hover,
     border-color: var(--glass-border);
 }
 
-/* Responsive */
+/* Адаптивность */
 @media (max-width: 768px) {
     .translator-item {
         flex-direction: column;
@@ -820,7 +813,7 @@ html[data-bs-theme="light"] .translator-item:hover,
     }
 }
 
-/* === О программе === */
+/* О программе  */
 .about-section {
     display: flex;
     flex-direction: column;
@@ -978,7 +971,6 @@ html[data-bs-theme="light"] .translator-item:hover,
     color: var(--text-tertiary);
 }
 
-/* Light theme adjustments */
 html[data-bs-theme="light"] .about-header,
 :root[data-bs-theme="light"] .about-header {
     background: rgba(255, 255, 255, 0.5);
@@ -1010,7 +1002,6 @@ html[data-bs-theme="light"] .shortcut-keys kbd,
     border-color: var(--glass-border);
 }
 
-/* Responsive */
 @media (max-width: 768px) {
     .about-header {
         flex-direction: column;
@@ -1042,7 +1033,6 @@ html[data-bs-theme="light"] .shortcut-keys kbd,
     }
 }
 
-/* === Progress Modal === */
 .progress-modal-overlay {
     position: fixed;
     top: 0;

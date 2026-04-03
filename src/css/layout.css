@@ -263,7 +263,7 @@
     }
 }
 
-/* === Терминал === */
+/* Терминал */
 .terminal-resizer {
     height: 5px;
     cursor: ns-resize;

@@ -255,8 +255,11 @@ impl PythonGenerator {
                         params.push(param_name.to_string());
                         self.symbols.insert(param_name.to_string());
 
+                        // TODO
+
                         // В реальном коде здесь нужно анализировать тип параметра
                         // Пока будем считать, что параметры с именами x, y, z - указатели (для функции swap)
+
                         if param_name == "x" || param_name == "y" || param_name == "z" {
                             pointer_params.insert(param_name.to_string());
                         }
@@ -598,7 +601,6 @@ impl PythonGenerator {
         result
     }
 
-    // В методе generate_expression_internal, замените обработку "FuncCall" на:
     fn generate_expression_internal(&mut self, node: &ASTNode) -> Result<String> {
         match node.node_type.as_str() {
             // В методе generate_expression_internal, в обработке "Constant":
@@ -695,7 +697,6 @@ impl PythonGenerator {
                     String::new()
                 };
 
-                // В обработке "BinaryOp", при формировании выражения
                 let left_with_parens = self.wrap_if_needed(&left, node.children.get(0));
                 let right_with_parens = self.wrap_if_needed(&right, node.children.get(1));
 
@@ -749,7 +750,6 @@ impl PythonGenerator {
                 }
 
                 match op {
-                    // В generate_expression_internal для "UnaryOp" с оператором "&"
                     "&" => {
                         if let Some(child) = node.children.first() {
                             if child.node_type == "ArrayRef" {

@@ -118,13 +118,15 @@ async function downloadCService() {
         statusBadge.className = 'badge badge-warning';
         statusBadge.textContent = 'Загрузка...';
 
-        // В реальной реализации здесь будет:
-        // 1. Проверка наличия Docker
-        // 2. Pull образа или build из Dockerfile
-        // 3. Запуск контейнера
-        // invoke('install_c_service')
+        /* TODO:
 
-        // Симуляция процесса установки для демонстрации
+        1. Проверка наличия Docker
+        2. Pull образа или build из Dockerfile
+        3. Запуск контейнера
+        invoke('install_c_service')
+
+        Симуляция процесса установки для демонстрации
+        */
         await new Promise(resolve => setTimeout(resolve, 2000));
 
         cInstalled = true;
@@ -158,11 +160,14 @@ async function removeCService() {
         statusBadge.className = 'badge badge-warning';
         statusBadge.textContent = 'Удаление...';
 
-        // В реальной реализации здесь будет:
-        // 1. Остановка контейнера
-        // 2. Удаление контейнера
-        // 3. Удаление образа
-        // invoke('remove_c_service')
+        /* TODO:
+
+        1. Остановка контейнера
+        2. Удаление контейнера
+        3. Удаление образа
+        invoke('remove_c_service')
+        
+        */
 
         // Временное решение
         await new Promise(resolve => setTimeout(resolve, 1000));

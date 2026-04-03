@@ -131,13 +131,15 @@ async function downloadPythonService() {
         // Для демонстрации просто ждем и затем показываем успех
         await new Promise(resolve => setTimeout(resolve, 2000));
 
-        // В реальной реализации здесь будет:
-        // 1. Проверка наличия Docker
-        // 2. Pull образа или build из Dockerfile
-        // 3. Запуск контейнера
+        /* TODO
+
+        1. Проверка наличия Docker
+        2. Pull образа или build из Dockerfile
+        3. Запуск контейнера
         
-        // Временное решение - просто показываем успех
-        // В будущем: invoke('install_python_service')
+        Временное решение - просто показываем успех
+        В будущем: invoke('install_python_service')
+        */
         
         pythonInstalled = true;
         pythonRunning = true;
@@ -170,12 +172,15 @@ async function removePythonService() {
         statusBadge.className = 'badge badge-warning';
         statusBadge.textContent = 'Удаление...';
 
-        // В реальной реализации здесь будет:
-        // 1. Остановка контейнера
-        // 2. Удаление контейнера
-        // 3. Удаление образа
-        // invoke('remove_python_service')
+        /* TODO
         
+        В реальной реализации здесь будет:
+        1. Остановка контейнера
+        2. Удаление контейнера
+        3. Удаление образа
+        invoke('remove_python_service')
+        
+        */
         // Временное решение
         await new Promise(resolve => setTimeout(resolve, 1000));
         
