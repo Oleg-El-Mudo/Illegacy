@@ -5,7 +5,12 @@ use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 use std::path::PathBuf;
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
+use tauri::path::BaseDirectory;
+use std::sync::OnceLock;
+
+/// Кэшированный путь к Docker директории
+static DOCKER_DIR_CACHE: OnceLock<PathBuf> = OnceLock::new();
 
 /// Статус всех Docker сервисов
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -99,28 +104,119 @@ pub fn check_docker_services_status() -> Result<DockerServicesStatus, String> {
 }
 
 /// Получить путь к директории docker
-fn get_docker_dir() -> Result<PathBuf, String> {
-    // Путь относительно текущей рабочей директории (где запущено приложение)
-    let current_dir = std::env::current_dir()
-        .map_err(|e| format!("Ошибка получения текущего каталога: {}", e))?;
-    
-    // Пробуем несколько вариантов расположения docker директории
-    let docker_dir = current_dir.join("docker");
-    
-    if docker_dir.exists() && docker_dir.is_dir() {
-        Ok(docker_dir)
-    } else {
-        // Пробуем относительно src-tauri
-        let parent_dir = current_dir.parent()
-            .ok_or_else(|| "Не удалось получить родительский каталог".to_string())?;
-        let docker_dir = parent_dir.join("docker");
-        
-        if docker_dir.exists() && docker_dir.is_dir() {
-            Ok(docker_dir)
-        } else {
-            Err(format!("Docker директория не найдена. Текущий каталог: {:?}", current_dir))
+/// Приоритет: 1) Ресурсы bundle (с копированием в temp), 2) Относительно текущей директории (dev режим)
+fn get_docker_dir(app: Option<&tauri::AppHandle>) -> Result<PathBuf, String> {
+    // Проверяем кэш
+    if let Some(cached) = DOCKER_DIR_CACHE.get() {
+        return Ok(cached.clone());
+    }
+
+    let docker_dir;
+
+    // Вариант 1: Пробуем получить путь из ресурсов Tauri (для скомпилированного приложения)
+    if let Some(app_handle) = app {
+        if let Ok(resolved_path) = app_handle.path().resolve("docker", BaseDirectory::Resource) {
+            if resolved_path.exists() && resolved_path.is_dir() {
+                info!("Docker директория найдена в ресурсах: {:?}", resolved_path);
+
+                // Копируем во временную директорию для записи (build.sh создаёт контейнеры)
+                let temp_docker = copy_docker_to_temp(&resolved_path)?;
+                let _ = DOCKER_DIR_CACHE.set(temp_docker.clone());
+                return Ok(temp_docker);
+            }
         }
     }
+
+    // Вариант 2: Пробуем относительно текущей рабочей директории (dev режим)
+    let current_dir = std::env::current_dir()
+        .map_err(|e| format!("Ошибка получения текущего каталога: {}", e))?;
+
+    // Пробуем ./docker
+    let docker_dir_dev = current_dir.join("docker");
+    if docker_dir_dev.exists() && docker_dir_dev.is_dir() {
+        info!("Docker директория найдена в текущем каталоге: {:?}", docker_dir_dev);
+        docker_dir = docker_dir_dev;
+        let _ = DOCKER_DIR_CACHE.set(docker_dir.clone());
+        return Ok(docker_dir);
+    }
+
+    // Пробуем ../docker (если мы в src-tauri/)
+    if let Some(parent) = current_dir.parent() {
+        let docker_dir_parent = parent.join("docker");
+        if docker_dir_parent.exists() && docker_dir_parent.is_dir() {
+            info!("Docker директория найдена в родительском каталоге: {:?}", docker_dir_parent);
+            docker_dir = docker_dir_parent;
+            let _ = DOCKER_DIR_CACHE.set(docker_dir.clone());
+            return Ok(docker_dir);
+        }
+    }
+
+    Err(format!("Docker директория не найдена. Текущий каталог: {:?}", current_dir))
+}
+
+/// Копировать Docker директорию во временное хранилище
+fn copy_docker_to_temp(source: &PathBuf) -> Result<PathBuf, String> {
+    let temp_dir = std::env::temp_dir().join("illegacy-docker");
+
+    // Если директория уже существует, удаляем её для чистой копии
+    if temp_dir.exists() {
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    copy_dir_all(source, &temp_dir)?;
+
+    // Делаем скрипты исполняемыми
+    make_scripts_executable(&temp_dir)?;
+
+    info!("Docker директория скопирована во временный каталог: {:?}", temp_dir);
+    Ok(temp_dir)
+}
+
+/// Рекурсивное копирование директории
+fn copy_dir_all(src: &PathBuf, dst: &PathBuf) -> Result<(), String> {
+    std::fs::create_dir_all(dst)
+        .map_err(|e| format!("Ошибка создания директории {:?}: {}", dst, e))?;
+
+    for entry in std::fs::read_dir(src)
+        .map_err(|e| format!("Ошибка чтения директории {:?}: {}", src, e))? {
+        let entry = entry.map_err(|e| format!("Ошибка чтения entry: {}", e))?;
+        let file_type = entry.file_type()
+            .map_err(|e| format!("Ошибка получения типа файла: {}", e))?;
+        let dest_path = dst.join(entry.file_name());
+
+        if file_type.is_dir() {
+            copy_dir_all(&entry.path(), &dest_path)?;
+        } else {
+            std::fs::copy(entry.path(), &dest_path)
+                .map_err(|e| format!("Ошибка копирования {:?} -> {:?}: {}", entry.path(), dest_path, e))?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Сделать shell скрипты исполняемыми
+fn make_scripts_executable(dir: &PathBuf) -> Result<(), String> {
+    for entry in std::fs::read_dir(dir)
+        .map_err(|e| format!("Ошибка чтения директории {:?}: {}", dir, e))? {
+        let entry = entry.map_err(|e| format!("Ошибка чтения entry: {}", e))?;
+        let path = entry.path();
+
+        if path.extension().and_then(|s| s.to_str()) == Some("sh") {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mut perms = std::fs::metadata(&path)
+                    .map_err(|e| format!("Ошибка чтения метаданных {:?}: {}", path, e))?
+                    .permissions();
+                perms.set_mode(0o755);
+                std::fs::set_permissions(&path, perms)
+                    .map_err(|e| format!("Ошибка установки прав для {:?}: {}", path, e))?;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// Выполнить скрипт refresh.sh с передачей логов через events
@@ -130,7 +226,7 @@ pub async fn run_refresh_script(
 ) -> Result<String, String> {
     info!("Запуск скрипта refresh.sh");
 
-    let docker_dir = get_docker_dir()?;
+    let docker_dir = get_docker_dir(Some(&app))?;
     let refresh_script = docker_dir.join("refresh.sh");
 
     if !refresh_script.exists() {
