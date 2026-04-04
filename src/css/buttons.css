@@ -141,10 +141,6 @@
     margin-left: var(--spacing-sm);
 }
 
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
 .jb-button-sm {
     height: var(--component-height-sm);
     padding: 0 var(--spacing-md);
