@@ -11,9 +11,7 @@ import { initSettingsModal } from './ui/settings-modal.js';
 import { initTerminalPanel } from './ui/terminal-panel.js';
 import { initAboutPage } from './ui/about.js';
 import { initPythonExecution } from './features/python-execution.js';
-import { initPythonIntegration } from './features/python-integration.js';
 import { initCExecution } from './features/c-execution.js';
-import { initCIntegration } from './features/c-integration.js';
 import { initProgressModal } from './ui/progress-modal.js';
 
 // Применение сохранённой темы при загрузке
@@ -47,9 +45,7 @@ function initApp() {
     initTerminalPanel(); // Инициализируем панель терминала
     initAboutPage(); // Инициализируем страницу "О программе"
     initPythonExecution(); // Инициализируем выполнение Python кода
-    initPythonIntegration(); // Инициализируем интеграцию Python
     initCExecution(); // Инициализируем выполнение C кода
-    initCIntegration(); // Инициализируем интеграцию C
     initProgressModal(); // Инициализируем модальное окно прогресса
 
     // Проверяем статус Docker при загрузке
