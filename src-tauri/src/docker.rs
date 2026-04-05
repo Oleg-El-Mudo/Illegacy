@@ -1,5 +1,5 @@
 /// Модуль управления Docker интеграцией
-/// Проверка статусов сервисов и выполнение скрипта refresh.sh
+/// Проверка статусов сервисов и выполнение скриптов refresh (кроссплатформенно)
 
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
@@ -165,7 +165,8 @@ fn copy_docker_to_temp(source: &PathBuf) -> Result<PathBuf, String> {
 
     copy_dir_all(source, &temp_dir)?;
 
-    // Делаем скрипты исполняемыми
+    // Делаем скрипты исполняемыми (только Unix)
+    #[cfg(unix)]
     make_scripts_executable(&temp_dir)?;
 
     info!("Docker директория скопирована во временный каталог: {:?}", temp_dir);
@@ -219,19 +220,28 @@ fn make_scripts_executable(dir: &PathBuf) -> Result<(), String> {
     Ok(())
 }
 
-/// Выполнить скрипт refresh.sh с передачей логов через events
+/// Получить путь к скрипту refresh в зависимости от платформы
+fn get_refresh_script_path(docker_dir: &PathBuf) -> PathBuf {
+    if cfg!(windows) {
+        docker_dir.join("refresh.bat")
+    } else {
+        docker_dir.join("refresh.sh")
+    }
+}
+
+/// Выполнить скрипт refresh с передачей логов через events
 #[tauri::command]
 pub async fn run_refresh_script(
     app: tauri::AppHandle,
 ) -> Result<String, String> {
-    info!("Запуск скрипта refresh.sh");
+    info!("Запуск скрипта refresh");
 
     let docker_dir = get_docker_dir(Some(&app))?;
-    let refresh_script = docker_dir.join("refresh.sh");
+    let refresh_script = get_refresh_script_path(&docker_dir);
 
     if !refresh_script.exists() {
-        error!("Скрипт refresh.sh не найден по пути: {:?}", refresh_script);
-        return Err("Скрипт refresh.sh не найден".to_string());
+        error!("Скрипт refresh не найден по пути: {:?}", refresh_script);
+        return Err("Скрипт refresh не найден".to_string());
     }
 
     // Отправляем событие начала процесса
@@ -241,7 +251,7 @@ pub async fn run_refresh_script(
         is_error: false,
     });
 
-    // Делаем скрипт исполняемым
+    // Делаем скрипт исполняемым (только Unix)
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -252,14 +262,25 @@ pub async fn run_refresh_script(
         }
     }
 
-    // Запускаем скрипт
-    let mut child = Command::new("bash")
-        .arg(&refresh_script)
-        .current_dir(&docker_dir)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Ошибка запуска скрипта: {}", e))?;
+    // Запускаем скрипт в зависимости от платформы
+    let mut child = if cfg!(windows) {
+        Command::new("cmd")
+            .arg("/C")
+            .arg(&refresh_script)
+            .current_dir(&docker_dir)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Ошибка запуска скрипта: {}", e))?
+    } else {
+        Command::new("bash")
+            .arg(&refresh_script)
+            .current_dir(&docker_dir)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Ошибка запуска скрипта: {}", e))?
+    };
 
     info!("Скрипт запущен, PID: {:?}", child.id());
 
@@ -324,7 +345,7 @@ pub async fn run_refresh_script(
     let _ = stderr_handle.join();
 
     if result.success() {
-        info!("Скрипт refresh.sh успешно завершен");
+        info!("Скрипт refresh успешно завершен");
 
         let _ = app.emit("refresh-progress", RefreshProgress {
             message: "Переустановка зависимостей завершена успешно!".to_string(),
@@ -349,10 +370,8 @@ pub async fn run_refresh_script(
 
 /// Парсинг прогресса из строки вывода скрипта
 fn parse_progress_from_line(line: &str) -> (f64, String) {
-    // Очищаем строку от ANSI-кодов перед парсингом
     let clean_line = strip_ansi_codes(line);
-    
-    // Этапы выполнения и соответствующий им прогресс
+
     if clean_line.contains("=== Шаг 1: Остановка и удаление контейнеров ===") {
         return (0.1, "Остановка контейнеров...".to_string());
     } else if clean_line.contains("=== Шаг 2: Удаление старых образов ===") {
@@ -371,16 +390,16 @@ fn parse_progress_from_line(line: &str) -> (f64, String) {
         return (0.9, "Запуск сервисов...".to_string());
     } else if clean_line.contains("Перезагрузка завершена") {
         return (1.0, "Завершено!".to_string());
-    } else if clean_line.contains("✓ Контейнер остановлен") || clean_line.contains("✓ Контейнер удалён") {
+    } else if clean_line.contains("Контейнер остановлен") || clean_line.contains("Контейнер удалён") ||
+              clean_line.contains("[OK] Контейнер остановлен") || clean_line.contains("[OK] Контейнер удалён") {
         return (0.2, "Остановка контейнеров...".to_string());
-    } else if clean_line.contains("✓ Образ удалён") {
+    } else if clean_line.contains("Образ удалён") || clean_line.contains("[OK] Образ удалён") {
         return (0.4, "Удаление образов...".to_string());
-    } else if clean_line.contains("Запуск C парсера") || clean_line.contains("Запуск f2c сервиса") || 
+    } else if clean_line.contains("Запуск C парсера") || clean_line.contains("Запуск f2c сервиса") ||
               clean_line.contains("Запуск Python сервиса") || clean_line.contains("Запуск C service") {
         return (0.95, "Запуск сервисов...".to_string());
     }
-    
-    // Возвращаем текущее сообщение без изменения прогресса
+
     (0.0, line.to_string())
 }
 
