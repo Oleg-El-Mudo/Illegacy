@@ -915,8 +915,8 @@ def main():
 
 def foo(x, y):
     # Параметры-указатели (ожидают объекты Reference):
-    # y: Reference
     # x: Reference
+    # y: Reference
     return x + y
 
 if __name__ == "__main__":
