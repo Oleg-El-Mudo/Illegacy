@@ -239,6 +239,9 @@
                     <span id="status-docker">Docker: <span class="text-secondary">Проверка...</span></span>
                 </div>
                 <div class="status-bar-item">
+                    <span id="status-ollama">Ollama: <span class="text-secondary">Проверка...</span></span>
+                </div>
+                <div class="status-bar-item">
                     <span id="status-zoom">100%</span>
                 </div>
             </div>
@@ -345,19 +348,80 @@
                     <section id="integrations" class="settings-section">
                         <h2 class="section-title">Интеграции</h2>
 
-                        <div class="setting-item disabled">
+                        <div class="setting-item">
                             <div class="setting-info">
-                                <label class="setting-label">Локальный LLM</label>
+                                <label class="setting-label">Локальный LLM (Ollama)</label>
                                 <p class="setting-description">Использование локальной языковой модели для улучшения транспиляции</p>
                             </div>
                             <div class="setting-control">
                                 <label class="jb-switch">
-                                    <input type="checkbox" id="llm-toggle" disabled>
+                                    <input type="checkbox" id="llm-toggle">
                                     <span class="switch-track">
                                         <span class="switch-thumb"></span>
                                     </span>
                                 </label>
-                                <span class="badge badge-secondary ml-2">Скоро</span>
+                                <span id="llm-status" class="badge badge-secondary ml-2">Проверка...</span>
+                            </div>
+                        </div>
+
+                        <!-- Управление моделями Ollama -->
+                        <div class="setting-item" id="llm-models-section" style="display: none;">
+                            <div class="setting-info">
+                                <label class="setting-label">Управление моделями</label>
+                                <p class="setting-description">Выбор, загрузка и удаление локальных LLM моделей</p>
+                            </div>
+                            <div class="setting-control">
+                                <div class="llm-models-control">
+                                    <div class="llm-model-selector">
+                                        <label for="llm-active-model">Активная модель:</label>
+                                        <select id="llm-active-model" class="jb-select">
+                                            <option value="">Не выбрано</option>
+                                        </select>
+                                    </div>
+                                    <div class="llm-models-actions">
+                                        <button class="jb-button jb-button-tertiary" id="llm-refresh-models-btn" title="Обновить список моделей">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <polyline points="23 4 23 10 17 10"></polyline>
+                                                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                                            </svg>
+                                            <span>Обновить</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Список установленных моделей -->
+                        <div class="setting-item" id="llm-installed-models-section" style="display: none;">
+                            <div class="setting-info">
+                                <label class="setting-label">Установленные модели</label>
+                                <p class="setting-description">Локальные модели, доступные для использования</p>
+                            </div>
+                            <div class="setting-control">
+                                <div class="llm-models-list" id="llm-installed-models-list">
+                                    <div class="llm-model-item">
+                                        <div class="llm-model-info">
+                                            <span class="llm-model-name">Загрузка...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Доступные модели для скачивания -->
+                        <div class="setting-item" id="llm-available-models-section" style="display: none;">
+                            <div class="setting-info">
+                                <label class="setting-label">Доступные модели</label>
+                                <p class="setting-description">Популярные модели для скачивания</p>
+                            </div>
+                            <div class="setting-control">
+                                <div class="llm-available-models-list" id="llm-available-models-list">
+                                    <div class="llm-available-model-item">
+                                        <div class="llm-available-model-info">
+                                            <span class="llm-available-model-name">Загрузка...</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 

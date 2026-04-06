@@ -1198,3 +1198,302 @@ html[data-bs-theme="light"] .progress-log,
 :root[data-bs-theme="light"] .progress-log {
     background: rgba(0, 0, 0, 0.05);
 }
+
+/* === Стили для управления LLM моделями === */
+
+.llm-models-control {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    width: 100%;
+}
+
+.llm-model-selector {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.llm-model-selector label {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.llm-model-selector .jb-select {
+    flex: 1;
+    min-width: 200px;
+}
+
+.llm-models-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    justify-content: flex-end;
+}
+
+/* Список установленных моделей */
+.llm-models-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    width: 100%;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.llm-model-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-md);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border-subtle);
+    border-radius: var(--radius-lg);
+    transition: all var(--transition-fast);
+}
+
+.llm-model-item:hover {
+    border-color: var(--glass-border);
+    background: var(--glass-bg-light);
+}
+
+.llm-model-item.active {
+    border-color: var(--accent-primary);
+    background: var(--accent-primary-glass);
+}
+
+.llm-model-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.llm-model-name {
+    display: block;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-xxs);
+}
+
+.llm-model-size {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+}
+
+.llm-model-actions {
+    display: flex;
+    gap: var(--spacing-xs);
+    flex-shrink: 0;
+}
+
+/* Список доступных моделей */
+.llm-available-models-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    width: 100%;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.llm-available-model-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-md);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border-subtle);
+    border-radius: var(--radius-lg);
+    transition: all var(--transition-fast);
+}
+
+.llm-available-model-item:hover {
+    border-color: var(--glass-border);
+    background: var(--glass-bg-light);
+}
+
+.llm-available-model-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.llm-available-model-name {
+    display: block;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-xxs);
+}
+
+.llm-available-model-description {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-xxs);
+}
+
+.llm-available-model-meta {
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: center;
+}
+
+.llm-available-model-category {
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    background: var(--glass-bg-heavy);
+    padding: 2px var(--spacing-xs);
+    border-radius: var(--radius-sm);
+}
+
+.llm-available-model-size {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+}
+
+.llm-available-model-actions {
+    display: flex;
+    gap: var(--spacing-xs);
+    flex-shrink: 0;
+}
+
+/* Состояние загрузки */
+.llm-model-item.loading,
+.llm-available-model-item.loading {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+/* Пустое состояние */
+.llm-empty-state {
+    text-align: center;
+    padding: var(--spacing-xl);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.llm-empty-state svg {
+    width: 48px;
+    height: 48px;
+    margin-bottom: var(--spacing-md);
+    opacity: 0.3;
+}
+
+/* Light theme adjustments */
+html[data-bs-theme="light"] .llm-model-item,
+html[data-bs-theme="light"] .llm-available-model-item {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+html[data-bs-theme="light"] .llm-model-item:hover,
+html[data-bs-theme="light"] .llm-available-model-item:hover {
+    background: rgba(255, 255, 255, 0.7);
+}
+
+html[data-bs-theme="light"] .llm-model-item.active {
+    background: rgba(10, 132, 255, 0.1);
+}
+
+/* Прогресс скачивания модели */
+.llm-pull-progress {
+    margin-top: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--glass-border-subtle);
+}
+
+.llm-pull-progress-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--spacing-xxs);
+}
+
+.llm-pull-status {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    padding: 2px var(--spacing-xs);
+    border-radius: var(--radius-sm);
+    background: var(--glass-bg-heavy);
+    border: 1px solid var(--glass-border-subtle);
+}
+
+.llm-pull-status.downloading {
+    color: var(--accent-primary);
+    background: rgba(10, 132, 255, 0.15);
+    border-color: rgba(10, 132, 255, 0.3);
+}
+
+.llm-pull-status.verifying {
+    color: var(--warning);
+    background: rgba(255, 214, 10, 0.15);
+    border-color: rgba(255, 214, 10, 0.3);
+}
+
+.llm-pull-status.success {
+    color: var(--success);
+    background: rgba(48, 209, 88, 0.15);
+    border-color: rgba(48, 209, 88, 0.3);
+}
+
+.llm-pull-status.error {
+    color: var(--error);
+    background: rgba(255, 69, 58, 0.15);
+    border-color: rgba(255, 69, 58, 0.3);
+}
+
+.llm-pull-percent {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    font-family: var(--font-family-code);
+}
+
+.llm-pull-progress-bar {
+    width: 100%;
+    height: 6px;
+    background: var(--glass-bg-heavy);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    margin-bottom: var(--spacing-xxs);
+}
+
+.llm-pull-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-primary), var(--accent-primary-light, #60a5fa));
+    border-radius: var(--radius-full);
+    transition: width 0.3s ease;
+    box-shadow: 0 0 8px rgba(10, 132, 255, 0.4);
+}
+
+.llm-pull-message {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    font-family: var(--font-family-code);
+}
+
+/* Анимация вращения для иконки скачивания */
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spinning {
+    animation: spin 1s linear infinite;
+}
+
+/* Light theme adjustments for pull progress */
+html[data-bs-theme="light"] .llm-pull-progress {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+html[data-bs-theme="light"] .llm-pull-progress-bar {
+    background: rgba(0, 0, 0, 0.1);
+}
+

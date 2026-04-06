@@ -3,6 +3,7 @@ pub mod ast;
 pub mod generators;
 pub mod parsers;
 pub mod docker;
+pub mod ollama;
 
 use tauri::AppHandle;
 use tauri_plugin_dialog::DialogExt;
@@ -1067,6 +1068,12 @@ pub fn run() {
             simple_transpile,
             docker::check_docker_services_status,
             docker::run_refresh_script,
+            ollama::check_ollama_status,
+            ollama::get_available_models,
+            ollama::pull_ollama_model,
+            ollama::delete_ollama_model,
+            ollama::set_active_ollama_model,
+            ollama::get_active_ollama_model,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

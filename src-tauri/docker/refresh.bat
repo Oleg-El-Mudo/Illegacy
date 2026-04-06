@@ -9,6 +9,7 @@ call :cleanup_container "c-parser-service"
 call :cleanup_container "f2c-service"
 call :cleanup_container "python-service"
 call :cleanup_container "c-service"
+call :cleanup_container "illegacy-ollama"
 echo.
 
 echo === Шаг 2: Удаление старых образов ===
@@ -16,6 +17,7 @@ call :remove_image "c-parser:latest"
 call :remove_image "f2c-service:latest"
 call :remove_image "python-service:latest"
 call :remove_image "c-service:latest"
+call :remove_image "ollama/ollama:latest"
 echo.
 
 echo === Шаг 3: Сборка новых образов ===
@@ -28,6 +30,18 @@ echo.
 
 echo === Шаг 4: Запуск сервисов ===
 call run.bat
+echo.
+
+echo === Шаг 5: Запуск Ollama сервиса ===
+echo Запуск Ollama контейнера...
+cd ollama
+docker compose up -d 2>nul || docker-compose up -d 2>nul
+if not errorlevel 1 (
+    echo [OK] Ollama сервис запущен
+) else (
+    echo [!] Ошибка запуска Ollama (это нормально если Docker без GPU)
+)
+cd ..
 echo.
 
 echo === Перезагрузка завершена! ===

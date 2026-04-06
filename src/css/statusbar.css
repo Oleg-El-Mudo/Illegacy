@@ -47,6 +47,23 @@
     color: var(--text-secondary);
 }
 
+/* Статус Ollama */
+#status-ollama {
+    transition: color var(--transition-fast);
+}
+
+#status-ollama.ready {
+    color: var(--success);
+}
+
+#status-ollama.error {
+    color: var(--error);
+}
+
+#status-ollama.warning {
+    color: var(--warning);
+}
+
 /* Адаптивность */
 @media (max-width: 768px) {
     .status-bar {

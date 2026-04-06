@@ -13,6 +13,7 @@ import { initAboutPage } from './ui/about.js';
 import { initPythonExecution } from './features/python-execution.js';
 import { initCExecution } from './features/c-execution.js';
 import { initProgressModal } from './ui/progress-modal.js';
+import { initLLMManager } from './features/llm-manager.js';
 
 // Применение сохранённой темы при загрузке
 const THEME_KEY = 'illegacy-theme';
@@ -47,6 +48,7 @@ function initApp() {
     initPythonExecution(); // Инициализируем выполнение Python кода
     initCExecution(); // Инициализируем выполнение C кода
     initProgressModal(); // Инициализируем модальное окно прогресса
+    initLLMManager(); // Инициализируем управление LLM моделями
 
     // Проверяем статус Docker при загрузке
     checkDockerStatus();
