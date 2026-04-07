@@ -352,6 +352,7 @@ if (typeof window !== 'undefined') {
         getOptimizerState,
         isOptimizing,
         hasOptimizedCode,
-        handleCancelOptimization
+        handleCancelOptimization,
+        updateOptimizeButtonState
     };
 }

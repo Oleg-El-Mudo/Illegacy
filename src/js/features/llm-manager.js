@@ -92,25 +92,43 @@ function setupPullProgressListener() {
 // Обработка переключателя LLM
 async function handleLLMToggle(event) {
     const enabled = event.target.checked;
-    
+
     if (enabled) {
         // Проверяем статус Ollama
         const status = await checkOllamaStatus();
-        
+
         if (!status.available) {
             event.target.checked = false;
             alert('Ollama сервис не доступен. Убедитесь, что Docker запущен и Ollama контейнер работает.');
             return;
         }
-        
+
         // Показываем секции управления моделями
         showModelsSections();
         await loadModels();
+
+        // Отправляем событие об изменении статуса для ИИ-оптимизатора
+        window.dispatchEvent(new CustomEvent('ollama-status-changed', {
+            detail: {
+                available: ollamaStatus.available,
+                activeModel: ollamaStatus.activeModel,
+                models: ollamaStatus.models
+            }
+        }));
     } else {
         // Скрываем секции управления моделями
         hideModelsSections();
+
+        // Отправляем событие о выключении LLM
+        window.dispatchEvent(new CustomEvent('ollama-status-changed', {
+            detail: {
+                available: false,
+                activeModel: null,
+                models: ollamaStatus.models
+            }
+        }));
     }
-    
+
     // Сохраняем состояние
     localStorage.setItem('llm-enabled', enabled.toString());
 }
@@ -650,14 +668,23 @@ function showAvailableModelsError(message) {
 function restoreSavedSettings() {
     const llmEnabled = localStorage.getItem('llm-enabled') === 'true';
     const activeModel = localStorage.getItem('llm-active-model');
-    
+
     if (llmEnabled && elements.llmToggle) {
         elements.llmToggle.checked = true;
         showModelsSections();
     }
-    
+
     if (activeModel) {
         ollamaStatus.activeModel = activeModel;
+
+        // Отправляем событие о восстановленной модели
+        window.dispatchEvent(new CustomEvent('ollama-status-changed', {
+            detail: {
+                available: ollamaStatus.available,
+                activeModel: activeModel,
+                models: ollamaStatus.models
+            }
+        }));
     }
 }
 
@@ -675,6 +702,9 @@ if (typeof window !== 'undefined') {
         deleteModel,
         checkOllamaStatus,
         loadModels,
-        refreshModels
+        refreshModels,
+        // Добавляем статус для доступа из других модулей
+        get ollamaStatus() { return ollamaStatus; },
+        get availableModels() { return availableModels; }
     };
 }

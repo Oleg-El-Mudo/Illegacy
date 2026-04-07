@@ -624,6 +624,8 @@ IMPORTANT RULES:
 - ONLY output the optimized code, no explanations
 - Preserve all comments in the original code
 - Keep the same code structure where it makes sense
+- DO NOT omit important parts of the code under comments like "the same code ..."
+- If there were several similar constructs in the code, optimize EACH of them
 
 Here is the code to optimize:
 
@@ -638,7 +640,7 @@ Output only the optimized {lang} code:"#,
 
     // Создаём HTTP клиент с таймаутом
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(120)) // 2 минуты на оптимизацию
+        .timeout(Duration::from_secs(600)) // 10 минуты на оптимизацию
         .build()
         .map_err(|e| format!("Ошибка создания HTTP клиента: {}", e))?;
 
@@ -653,7 +655,7 @@ Output only the optimized {lang} code:"#,
             "stream": false,
             "options": {
                 "temperature": 0.2, // Низкая температура для детерминированности
-                "num_predict": 4096 // Максимальная длина ответа
+                "num_predict": 12000 // Максимальная длина ответа
             }
         }))
         .send()

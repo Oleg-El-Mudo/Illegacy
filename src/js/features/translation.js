@@ -236,6 +236,11 @@ async function performTranslation(code, fromLang, toLang) {
             console.log('Статистика транспиляции:');
             console.log(`  Исходный код: ${code.length} символов`);
             console.log(`  Сгенерировано: ${result.output.length} символов`);
+
+            // Обновляем состояние кнопки ИИ-оптимизации
+            if (window.aiOptimizer && window.aiOptimizer.updateOptimizeButtonState) {
+                window.aiOptimizer.updateOptimizeButtonState();
+            }
         } else {
             elements.outputCode.value = '';
             updateSyntaxHighlighting();
