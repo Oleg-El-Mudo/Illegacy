@@ -30,6 +30,8 @@ export function getDOMElements() {
         statusFile: document.getElementById('status-file'),
         statusDocker: document.getElementById('status-docker'),
         statusZoom: document.getElementById('status-zoom'),
+        statusAIOptimizer: document.getElementById('status-ai-optimizer'),
+        statusAIOptimizerText: document.getElementById('status-ai-optimizer-text'),
 
         // Zoom indicator
         zoomIndicator: document.getElementById('zoomIndicator'),

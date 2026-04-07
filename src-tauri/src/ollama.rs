@@ -550,6 +550,207 @@ pub async fn get_active_ollama_model() -> Result<Option<String>, String> {
     Ok(None)
 }
 
+/// Результат оптимизации кода
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CodeOptimizationResult {
+    pub success: bool,
+    pub optimized_code: Option<String>,
+    pub error: Option<String>,
+    pub removed_patterns: Option<u32>,
+    pub optimized_lines: Option<u32>,
+}
+
+/// Оптимизация кода через Ollama LLM
+#[tauri::command]
+pub async fn optimize_code_with_ollama(
+    code: String,
+    target_lang: String,
+) -> Result<CodeOptimizationResult, String> {
+    info!(
+        "Запуск оптимизации кода через Ollama, язык: {}, длина: {} символов",
+        target_lang,
+        code.len()
+    );
+
+    // Проверяем доступность Ollama
+    let status = check_ollama_status().await?;
+
+    if !status.available {
+        return Ok(CodeOptimizationResult {
+            success: false,
+            optimized_code: None,
+            error: Some("Ollama сервис не доступен".to_string()),
+            removed_patterns: None,
+            optimized_lines: None,
+        });
+    }
+
+    if status.models.is_empty() {
+        return Ok(CodeOptimizationResult {
+            success: false,
+            optimized_code: None,
+            error: Some("Нет установленных моделей Ollama".to_string()),
+            removed_patterns: None,
+            optimized_lines: None,
+        });
+    }
+
+    // Получаем активную модель
+    let active_model = status
+        .models
+        .first()
+        .ok_or("Нет доступных моделей")?
+        .name
+        .clone();
+
+    info!("Используем модель: {}", active_model);
+
+    // Формируем промпт для оптимизации
+    let prompt = format!(
+        r#"You are a code optimization expert for {lang} programming language.
+Your task is to optimize the following code that was automatically translated from another language.
+
+Optimization goals:
+1. Remove unnecessary variable declarations (e.g., `x = None` before `x = value`)
+2. Remove empty/redundant statements
+3. Simplify overly complex constructions
+4. Remove unused variables
+5. Optimize control flow where possible
+6. Keep the code functionally identical but cleaner
+
+IMPORTANT RULES:
+- DO NOT change the logic or functionality
+- DO NOT add new features or change behavior
+- ONLY output the optimized code, no explanations
+- Preserve all comments in the original code
+- Keep the same code structure where it makes sense
+
+Here is the code to optimize:
+
+```{lang}
+{code}
+```
+
+Output only the optimized {lang} code:"#,
+        lang = target_lang,
+        code = code
+    );
+
+    // Создаём HTTP клиент с таймаутом
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(120)) // 2 минуты на оптимизацию
+        .build()
+        .map_err(|e| format!("Ошибка создания HTTP клиента: {}", e))?;
+
+    info!("Отправка запроса к Ollama API для оптимизации...");
+
+    // Отправляем запрос к Ollama API
+    let response = client
+        .post(format!("{}/api/generate", OLLAMA_BASE_URL))
+        .json(&serde_json::json!({
+            "model": active_model,
+            "prompt": prompt,
+            "stream": false,
+            "options": {
+                "temperature": 0.2, // Низкая температура для детерминированности
+                "num_predict": 4096 // Максимальная длина ответа
+            }
+        }))
+        .send()
+        .await;
+
+    match response {
+        Ok(response) => {
+            let status_code = response.status();
+            info!("HTTP статус от Ollama: {}", status_code);
+
+            if !status_code.is_success() {
+                let error_body = response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "Неизвестная ошибка".to_string());
+                let error_msg = format!("Ошибка Ollama API (HTTP {}): {}", status_code, error_body);
+                error!("{}", error_msg);
+
+                return Ok(CodeOptimizationResult {
+                    success: false,
+                    optimized_code: None,
+                    error: Some(error_msg),
+                    removed_patterns: None,
+                    optimized_lines: None,
+                });
+            }
+
+            // Парсим ответ
+            let result: serde_json::Value = response
+                .json()
+                .await
+                .map_err(|e| format!("Ошибка парсинга ответа Ollama: {}", e))?;
+
+            // Извлекаем сгенерированный код
+            let optimized_code = result
+                .get("response")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .ok_or_else(|| "Ollama вернула пустой ответ".to_string())?;
+
+            info!("Получен ответ от Ollama, длина: {} символов", optimized_code.len());
+
+            // Очищаем код от маркеров языковых блоков (```python ... ```)
+            let cleaned_code = clean_code_blocks(&optimized_code);
+
+            // Считаем статистику
+            let original_lines = code.lines().count() as u32;
+            let optimized_lines = cleaned_code.lines().count() as u32;
+            let removed_patterns = original_lines.saturating_sub(optimized_lines);
+
+            info!(
+                "Оптимизация завершена: {} -> {} строк (удалено: {})",
+                original_lines, optimized_lines, removed_patterns
+            );
+
+            Ok(CodeOptimizationResult {
+                success: true,
+                optimized_code: Some(cleaned_code),
+                error: None,
+                removed_patterns: Some(removed_patterns),
+                optimized_lines: Some(optimized_lines),
+            })
+        }
+        Err(e) => {
+            let error_msg = format!("Ошибка запроса к Ollama: {}", e);
+            error!("{}", error_msg);
+
+            Ok(CodeOptimizationResult {
+                success: false,
+                optimized_code: None,
+                error: Some(error_msg),
+                removed_patterns: None,
+                optimized_lines: None,
+            })
+        }
+    }
+}
+
+/// Очистка кода от markdown блоков
+fn clean_code_blocks(code: &str) -> String {
+    let mut result = code.to_string();
+
+    // Удаляем открывающие маркеры ```language
+    for line in code.lines() {
+        if line.starts_with("```") && line.len() > 3 {
+            let lang_marker = &line[3..];
+            result = result.replace(&format!("```{}", lang_marker), "");
+        }
+    }
+
+    // Удаляем все оставшиеся ```
+    result = result.replace("```", "");
+
+    // Удаляем пустые строки в начале и конце
+    result.trim().to_string()
+}
+
 /// Инициализация Ollama модуля
 pub fn init_ollama_module() {
     info!("Ollama модуль инициализирован");

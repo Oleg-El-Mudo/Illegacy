@@ -1074,6 +1074,7 @@ pub fn run() {
             ollama::delete_ollama_model,
             ollama::set_active_ollama_model,
             ollama::get_active_ollama_model,
+            ollama::optimize_code_with_ollama,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

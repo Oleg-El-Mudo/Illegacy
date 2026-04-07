@@ -204,19 +204,28 @@ function updateStatusUI() {
 function updateStatusBarStatus() {
     const statusOllama = document.getElementById('status-ollama');
     if (!statusOllama) return;
-    
+
     if (ollamaStatus.available) {
         const modelCount = ollamaStatus.models.length;
-        const modelText = modelCount === 0 ? 'нет моделей' : 
-                         modelCount === 1 ? '1 модель' : 
+        const modelText = modelCount === 0 ? 'нет моделей' :
+                         modelCount === 1 ? '1 модель' :
                          modelCount < 5 ? `${modelCount} модели` : `${modelCount} моделей`;
-        
+
         statusOllama.innerHTML = `Ollama: <span style="color: var(--success)">Готов</span> (${modelText})`;
         statusOllama.className = 'ready';
     } else {
         statusOllama.innerHTML = 'Ollama: <span style="color: var(--error)">Не доступен</span>';
         statusOllama.className = 'error';
     }
+
+    // Отправляем событие об изменении статуса Ollama для ИИ-оптимизатора
+    window.dispatchEvent(new CustomEvent('ollama-status-changed', {
+        detail: {
+            available: ollamaStatus.available,
+            activeModel: ollamaStatus.activeModel,
+            models: ollamaStatus.models
+        }
+    }));
 }
 
 // Загрузка моделей
@@ -505,19 +514,28 @@ async function handleActiveModelChange(event) {
 export async function setActiveModel(modelName) {
     try {
         const result = await invoke('set_active_ollama_model', { modelName });
-        
+
         if (result.success) {
             ollamaStatus.activeModel = modelName;
-            
+
             // Обновляем UI
             if (elements.llmActiveModel) {
                 elements.llmActiveModel.value = modelName;
             }
-            
+
             renderInstalledModels();
-            
+
             // Сохраняем выбор
             localStorage.setItem('llm-active-model', modelName);
+
+            // Отправляем событие об изменении активной модели
+            window.dispatchEvent(new CustomEvent('ollama-status-changed', {
+                detail: {
+                    available: ollamaStatus.available,
+                    activeModel: modelName,
+                    models: ollamaStatus.models
+                }
+            }));
         } else {
             alert('Ошибка выбора модели: ' + (result.error || 'Неизвестная ошибка'));
         }

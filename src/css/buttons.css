@@ -141,6 +141,29 @@
     margin-left: var(--spacing-sm);
 }
 
+/* Анимация вращения */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Анимация для иконок вращения */
+.spinning {
+    animation: spin 1s linear infinite;
+}
+
+.jb-button-danger {
+    background: rgba(255, 69, 58, 0.15);
+    color: #ff453a;
+    border-color: rgba(255, 69, 58, 0.3);
+}
+
+.jb-button-danger:hover {
+    background: rgba(255, 69, 58, 0.25);
+    border-color: rgba(255, 69, 58, 0.4);
+    box-shadow: 0 0 12px rgba(255, 69, 58, 0.3);
+}
+
 .jb-button-sm {
     height: var(--component-height-sm);
     padding: 0 var(--spacing-md);

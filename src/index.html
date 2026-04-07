@@ -75,6 +75,14 @@
                     </svg>
                     <span>Перевести</span>
                 </button>
+
+                <button class="jb-button jb-button-secondary" id="aiOptimizeBtn" title="ИИ-оптимизация кода" disabled>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2a10 10 0 0 1 10 10 10 10 0 0 1-10 10A10 10 0 0 1 2 12 10 10 0 0 1 12 2z"></path>
+                        <path d="M12 8v4l3 3"></path>
+                    </svg>
+                    <span>ИИ-оптимизация</span>
+                </button>
             </div>
 
             <div class="toolbar-right">
@@ -240,6 +248,13 @@
                 </div>
                 <div class="status-bar-item">
                     <span id="status-ollama">Ollama: <span class="text-secondary">Проверка...</span></span>
+                </div>
+                <div class="status-bar-item" id="status-ai-optimizer" style="display: none;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2a10 10 0 0 1 10 10 10 10 0 0 1-10 10A10 10 0 0 1 2 12 10 10 0 0 1 12 2z"></path>
+                        <path d="M12 8v4l3 3"></path>
+                    </svg>
+                    <span id="status-ai-optimizer-text">ИИ: Готов</span>
                 </div>
                 <div class="status-bar-item">
                     <span id="status-zoom">100%</span>
