@@ -604,7 +604,7 @@ pub async fn optimize_code_with_ollama(
         .clone();
 
     info!("Используем модель: {}", active_model);
-
+    
     // Формируем промпт для оптимизации
     let prompt = format!(
         r#"You are a code optimization expert for {lang} programming language.
@@ -640,7 +640,7 @@ Output only the optimized {lang} code:"#,
 
     // Создаём HTTP клиент с таймаутом
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(600)) // 10 минуты на оптимизацию
+        .timeout(Duration::from_secs(120)) // минуты на оптимизацию
         .build()
         .map_err(|e| format!("Ошибка создания HTTP клиента: {}", e))?;
 
@@ -655,7 +655,7 @@ Output only the optimized {lang} code:"#,
             "stream": false,
             "options": {
                 "temperature": 0.2, // Низкая температура для детерминированности
-                "num_predict": 12000 // Максимальная длина ответа
+                "num_predict": 8192 // Максимальная длина ответа
             }
         }))
         .send()
