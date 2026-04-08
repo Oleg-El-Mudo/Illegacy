@@ -712,6 +712,7 @@ STRICT OUTPUT RULES:
 3. End with the last line of code — no closing remarks.
 4. Do NOT include ANY text outside the code block.
 5. Do NOT add comments, notes, or explanations of any kind.
+6. Start output with ```{lang} and end with ```. Do not include ANY text outside these markers.
 
 ALLOWED OPTIMIZATIONS:
 - Remove unused variables and unused imports.
