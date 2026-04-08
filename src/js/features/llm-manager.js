@@ -28,7 +28,11 @@ function cacheElements() {
         llmActiveModel: document.getElementById('llm-active-model'),
         llmRefreshModelsBtn: document.getElementById('llm-refresh-models-btn'),
         llmInstalledModelsList: document.getElementById('llm-installed-models-list'),
-        llmAvailableModelsList: document.getElementById('llm-available-models-list')
+        llmAvailableModelsList: document.getElementById('llm-available-models-list'),
+        toggleInstalledModels: document.getElementById('toggle-installed-models'),
+        toggleAvailableModels: document.getElementById('toggle-available-models'),
+        installedModelsHeader: document.getElementById('installed-models-header'),
+        availableModelsHeader: document.getElementById('available-models-header')
     };
 }
 
@@ -59,6 +63,16 @@ function setupEventListeners() {
     // Изменение активной модели
     if (elements.llmActiveModel) {
         elements.llmActiveModel.addEventListener('change', handleActiveModelChange);
+    }
+
+    // Collapsible кнопки для установленных моделей
+    if (elements.toggleInstalledModels) {
+        elements.toggleInstalledModels.addEventListener('click', () => toggleSection('installed'));
+    }
+
+    // Collapsible кнопки для доступных моделей
+    if (elements.toggleAvailableModels) {
+        elements.toggleAvailableModels.addEventListener('click', () => toggleSection('available'));
     }
 
     // Подписка на события прогресса скачивания из Tauri
@@ -159,6 +173,55 @@ function hideModelsSections() {
     }
 }
 
+// Сворачивание/разворачивание секций
+function toggleSection(section) {
+    if (section === 'installed') {
+        const list = elements.llmInstalledModelsList;
+        const icon = elements.toggleInstalledModels?.querySelector('.collapse-icon');
+        
+        if (list) {
+            list.classList.toggle('collapsed');
+            const isCollapsed = list.classList.contains('collapsed');
+            localStorage.setItem('llm-installed-models-collapsed', isCollapsed.toString());
+            
+            if (icon) {
+                icon.classList.toggle('collapsed', isCollapsed);
+            }
+        }
+    } else if (section === 'available') {
+        const list = elements.llmAvailableModelsList;
+        const icon = elements.toggleAvailableModels?.querySelector('.collapse-icon');
+        
+        if (list) {
+            list.classList.toggle('collapsed');
+            const isCollapsed = list.classList.contains('collapsed');
+            localStorage.setItem('llm-available-models-collapsed', isCollapsed.toString());
+            
+            if (icon) {
+                icon.classList.toggle('collapsed', isCollapsed);
+            }
+        }
+    }
+}
+
+// Восстановление состояния свёрнутых секций
+function restoreCollapsedState() {
+    const installedCollapsed = localStorage.getItem('llm-installed-models-collapsed') === 'true';
+    const availableCollapsed = localStorage.getItem('llm-available-models-collapsed') === 'true';
+
+    if (installedCollapsed && elements.llmInstalledModelsList) {
+        elements.llmInstalledModelsList.classList.add('collapsed');
+        const icon = elements.toggleInstalledModels?.querySelector('.collapse-icon');
+        if (icon) icon.classList.add('collapsed');
+    }
+
+    if (availableCollapsed && elements.llmAvailableModelsList) {
+        elements.llmAvailableModelsList.classList.add('collapsed');
+        const icon = elements.toggleAvailableModels?.querySelector('.collapse-icon');
+        if (icon) icon.classList.add('collapsed');
+    }
+}
+
 // Проверка статуса Ollama
 export async function checkOllamaStatus() {
     try {
@@ -252,6 +315,9 @@ export async function loadModels() {
         loadInstalledModels(),
         loadAvailableModels()
     ]);
+    
+    // Восстанавливаем состояние свёрнутых секций после загрузки
+    restoreCollapsedState();
 }
 
 // Обновление моделей (по кнопке)
@@ -374,7 +440,7 @@ function updateActiveModelSelect() {
 // Отрисовка доступных моделей
 function renderAvailableModels() {
     if (!elements.llmAvailableModelsList) return;
-    
+
     if (availableModels.length === 0) {
         elements.llmAvailableModelsList.innerHTML = `
             <div class="llm-empty-state">
@@ -388,12 +454,26 @@ function renderAvailableModels() {
         `;
         return;
     }
-    
+
     elements.llmAvailableModelsList.innerHTML = availableModels.map(model => {
-        const isInstalled = ollamaStatus.models.some(m => m.name === model.name);
+        const isInstalled = ollamaStatus.models.some(m => m.name.startsWith(model.name + ':'));
         const isPulling = pullProgress[model.name] && pullProgress[model.name].status !== 'success' && pullProgress[model.name].status !== 'error';
         const pullProg = pullProgress[model.name];
         
+        // Создаем селектор параметров если есть несколько вариантов
+        const parameterSelector = model.parameters && model.parameters.length > 0 ? `
+            <div class="llm-parameter-selector">
+                <label>Параметры:</label>
+                <select class="jb-select llm-param-select" data-model="${model.name}" onchange="window.llmManager.updateModelParameter('${model.name}', this.value)">
+                    ${model.parameters.map(param => `
+                        <option value="${param}" ${param === model.default_parameter ? 'selected' : ''}>
+                            ${param.toUpperCase()}
+                        </option>
+                    `).join('')}
+                </select>
+            </div>
+        ` : '';
+
         return `
             <div class="llm-available-model-item" id="model-item-${model.name.replace(/[^a-z0-9]/gi, '-')}">
                 <div class="llm-available-model-info">
@@ -403,6 +483,7 @@ function renderAvailableModels() {
                         <span class="llm-available-model-category">${model.category}</span>
                         <span class="llm-available-model-size">${model.size}</span>
                     </div>
+                    ${parameterSelector}
                     ${isPulling && pullProg ? `
                         <div class="llm-pull-progress">
                             <div class="llm-pull-progress-header">
@@ -519,6 +600,13 @@ function updatePullProgressUI(progress) {
     }
 }
 
+// Обновление параметра модели (выбор размера)
+export function updateModelParameter(modelName, parameter) {
+    // Сохраняем выбранный параметр в localStorage
+    localStorage.setItem(`llm-model-param-${modelName}`, parameter);
+    console.log(`Выбран параметр ${parameter} для модели ${modelName}`);
+}
+
 // Обработка изменения активной модели
 async function handleActiveModelChange(event) {
     const modelName = event.target.value;
@@ -566,26 +654,34 @@ export async function setActiveModel(modelName) {
 // Скачивание модели
 export async function pullModel(modelName) {
     try {
+        // Получаем выбранный параметр из localStorage
+        const selectedParam = localStorage.getItem(`llm-model-param-${modelName}`);
+        
+        // Формируем полное имя модели с параметром (например: codellama:7b)
+        const fullModelName = selectedParam ? `${modelName}:${selectedParam}` : modelName;
+        
+        console.log(`Скачивание модели: ${fullModelName}`);
+        
         // Инициализируем прогресс
-        pullProgress[modelName] = {
-            model: modelName,
+        pullProgress[fullModelName] = {
+            model: fullModelName,
             status: 'starting',
             progress: 0.0,
             message: 'Подготовка к скачиванию...'
         };
-        
+
         // Обновляем UI сразу
-        updatePullProgressUI(pullProgress[modelName]);
-        
-        const result = await invoke('pull_ollama_model', { modelName });
-        
+        updatePullProgressUI(pullProgress[fullModelName]);
+
+        const result = await invoke('pull_ollama_model', { modelName: fullModelName });
+
         if (result.success) {
             // Успех уже обработан через event
             console.log(result.message);
         } else {
             alert('Ошибка скачивания модели: ' + (result.error || 'Неизвестная ошибка'));
-            delete pullProgress[modelName];
-            updatePullProgressUI({ model: modelName, status: 'error', progress: 0, message: result.error });
+            delete pullProgress[fullModelName];
+            updatePullProgressUI({ model: fullModelName, status: 'error', progress: 0, message: result.error });
         }
     } catch (error) {
         console.error('Ошибка скачивания модели:', error);
@@ -703,6 +799,7 @@ if (typeof window !== 'undefined') {
         checkOllamaStatus,
         loadModels,
         refreshModels,
+        updateModelParameter,
         // Добавляем статус для доступа из других модулей
         get ollamaStatus() { return ollamaStatus; },
         get availableModels() { return availableModels; }

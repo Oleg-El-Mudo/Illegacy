@@ -409,7 +409,14 @@
                         <!-- Список установленных моделей -->
                         <div class="setting-item" id="llm-installed-models-section" style="display: none;">
                             <div class="setting-info">
-                                <label class="setting-label">Установленные модели</label>
+                                <div class="llm-section-header-collapsible" id="installed-models-header">
+                                    <label class="setting-label">Установленные модели</label>
+                                    <button class="llm-collapse-btn" id="toggle-installed-models" title="Свернуть/Развернуть">
+                                        <svg class="collapse-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                        </svg>
+                                    </button>
+                                </div>
                                 <p class="setting-description">Локальные модели, доступные для использования</p>
                             </div>
                             <div class="setting-control">
@@ -426,8 +433,15 @@
                         <!-- Доступные модели для скачивания -->
                         <div class="setting-item" id="llm-available-models-section" style="display: none;">
                             <div class="setting-info">
-                                <label class="setting-label">Доступные модели</label>
-                                <p class="setting-description">Популярные модели для скачивания</p>
+                                <div class="llm-section-header-collapsible" id="available-models-header">
+                                    <label class="setting-label">Доступные модели</label>
+                                    <button class="llm-collapse-btn" id="toggle-available-models" title="Свернуть/Развернуть">
+                                        <svg class="collapse-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <p class="setting-description">Code-oriented модели для скачивания</p>
                             </div>
                             <div class="setting-control">
                                 <div class="llm-available-models-list" id="llm-available-models-list">

@@ -28,6 +28,8 @@ pub struct AvailableModel {
     pub description: String,
     pub size: String,
     pub category: String,
+    pub parameters: Vec<String>, // Доступные варианты параметров (например: "7b", "13b", "34b")
+    pub default_parameter: String, // Параметр по умолчанию
 }
 
 /// Статус Ollama сервиса
@@ -145,55 +147,71 @@ pub async fn check_ollama_status() -> Result<OllamaStatus, String> {
 pub async fn get_available_models() -> Result<Vec<AvailableModel>, String> {
     info!("Получение списка доступных моделей");
 
-    // Список популярных моделей для легаси-кода
+    // Список code-oriented моделей для легаси-кода
     let models = vec![
         AvailableModel {
-            name: "codellama:7b".to_string(),
-            description: "Code Llama - модель для генерации кода (7B параметров)".to_string(),
-            size: "~3.8 GB".to_string(),
-            category: "Программирование".to_string(),
+            name: "codellama".to_string(),
+            description: "Code Llama - специализированная модель Meta для генерации и понимания кода".to_string(),
+            size: "~3.8-19 GB".to_string(),
+            category: "Code".to_string(),
+            parameters: vec!["7b".to_string(), "13b".to_string(), "34b".to_string(), "70b".to_string()],
+            default_parameter: "7b".to_string(),
         },
         AvailableModel {
-            name: "codellama:13b".to_string(),
-            description: "Code Llama - более точная модель (13B параметров)".to_string(),
-            size: "~7.4 GB".to_string(),
-            category: "Программирование".to_string(),
+            name: "deepseek-coder".to_string(),
+            description: "DeepSeek Coder - модель с превосходной производительностью для кода".to_string(),
+            size: "~1.2-32 GB".to_string(),
+            category: "Code".to_string(),
+            parameters: vec!["1.3b".to_string(), "6.7b".to_string(), "33b".to_string()],
+            default_parameter: "6.7b".to_string(),
         },
         AvailableModel {
-            name: "deepseek-coder:6.7b".to_string(),
-            description: "DeepSeek Coder - специализированная модель для кода".to_string(),
-            size: "~3.8 GB".to_string(),
-            category: "Программирование".to_string(),
+            name: "qwen2.5-coder".to_string(),
+            description: "Qwen Coder - современная модель для работы с кодом от Alibaba".to_string(),
+            size: "~1.8-14 GB".to_string(),
+            category: "Code".to_string(),
+            parameters: vec!["0.5b".to_string(), "1.5b".to_string(), "3b".to_string(), "7b".to_string(), "14b".to_string()],
+            default_parameter: "3b".to_string(),
         },
         AvailableModel {
-            name: "llama3.2:3b".to_string(),
-            description: "Llama 3.2 - легковесная универсальная модель".to_string(),
-            size: "~2.0 GB".to_string(),
-            category: "Универсальная".to_string(),
+            name: "starcoder2".to_string(),
+            description: "StarCoder2 - модель для генерации кода от BigCode".to_string(),
+            size: "~3-14 GB".to_string(),
+            category: "Code".to_string(),
+            parameters: vec!["3b".to_string(), "7b".to_string(), "15b".to_string()],
+            default_parameter: "7b".to_string(),
         },
         AvailableModel {
-            name: "llama3.2:1b".to_string(),
-            description: "Llama 3.2 - сверхлегкая модель для быстрых задач".to_string(),
-            size: "~1.3 GB".to_string(),
-            category: "Универсальная".to_string(),
+            name: "phi3".to_string(),
+            description: "Phi-3 - компактная, но мощная модель от Microsoft для кода".to_string(),
+            size: "~1.5-7 GB".to_string(),
+            category: "Code".to_string(),
+            parameters: vec!["mini".to_string(), "medium".to_string(), "small".to_string()],
+            default_parameter: "mini".to_string(),
         },
         AvailableModel {
-            name: "mistral:7b".to_string(),
-            description: "Mistral - мощная открытая модель общего назначения".to_string(),
+            name: "llama3.1".to_string(),
+            description: "Llama 3.1 - универсальная модель с хорошими способностями к коду".to_string(),
+            size: "~2-70 GB".to_string(),
+            category: "Code/General".to_string(),
+            parameters: vec!["8b".to_string(), "70b".to_string()],
+            default_parameter: "8b".to_string(),
+        },
+        AvailableModel {
+            name: "mistral".to_string(),
+            description: "Mistral - эффективная модель общего назначения с поддержкой кода".to_string(),
             size: "~4.1 GB".to_string(),
-            category: "Универсальная".to_string(),
+            category: "General".to_string(),
+            parameters: vec!["7b".to_string()],
+            default_parameter: "7b".to_string(),
         },
         AvailableModel {
-            name: "qwen2.5-coder:7b".to_string(),
-            description: "Qwen Coder - модель для работы с кодом".to_string(),
-            size: "~4.7 GB".to_string(),
-            category: "Программирование".to_string(),
-        },
-        AvailableModel {
-            name: "phi3:mini".to_string(),
-            description: "Phi-3 Mini - компактная модель от Microsoft".to_string(),
-            size: "~2.2 GB".to_string(),
-            category: "Универсальная".to_string(),
+            name: "gemma2".to_string(),
+            description: "Gemma 2 - легковесная модель от Google с поддержкой кода".to_string(),
+            size: "~2-9 GB".to_string(),
+            category: "General".to_string(),
+            parameters: vec!["2b".to_string(), "9b".to_string()],
+            default_parameter: "2b".to_string(),
         },
     ];
 

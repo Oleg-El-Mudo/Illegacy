@@ -1231,6 +1231,50 @@ html[data-bs-theme="light"] .progress-log,
     justify-content: flex-end;
 }
 
+/* Collapsible заголовки секций */
+.llm-section-header-collapsible {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: var(--spacing-sm);
+}
+
+.llm-collapse-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--glass-border-subtle);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.llm-collapse-btn:hover {
+    background: var(--glass-bg-light);
+    border-color: var(--glass-border);
+    color: var(--text-primary);
+}
+
+.collapse-icon {
+    transition: transform var(--transition-normal);
+}
+
+.collapse-icon.collapsed {
+    transform: rotate(-90deg);
+}
+
+/* Состояние свёрнутого списка */
+.llm-models-list.collapsed,
+.llm-available-models-list.collapsed {
+    display: none;
+}
+
 /* Список установленных моделей */
 .llm-models-list {
     display: flex;
@@ -1337,6 +1381,7 @@ html[data-bs-theme="light"] .progress-log,
     display: flex;
     gap: var(--spacing-sm);
     align-items: center;
+    flex-wrap: wrap;
 }
 
 .llm-available-model-category {
@@ -1350,6 +1395,33 @@ html[data-bs-theme="light"] .progress-log,
 .llm-available-model-size {
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
+}
+
+/* Селектор параметров модели */
+.llm-parameter-selector {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    margin-top: var(--spacing-xxs);
+}
+
+.llm-parameter-selector label {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.llm-parameter-selector .jb-select {
+    min-width: 120px;
+    font-size: var(--font-size-xs);
+    padding: 4px var(--spacing-sm);
+    height: auto;
+}
+
+.llm-parameter-info {
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    font-style: italic;
 }
 
 .llm-available-model-actions {
