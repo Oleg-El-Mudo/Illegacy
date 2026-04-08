@@ -704,36 +704,48 @@ pub async fn optimize_code_with_ollama(
     // Формируем промпт для оптимизации
     info!("Шаг 3: Формирование промпта...");
     let prompt = format!(
-        r#"You are a code optimization expert for {lang} programming language.
-Your task is to optimize the following code that was automatically translated from another language.
+    r#"ROLE: You are a {lang} code refactoring tool. Your ONLY function is to output optimized code — no text, no explanations, no comments about changes.
 
-Optimization goals:
-1. Remove unnecessary variable declarations (e.g., `x = None` before `x = value`)
-2. Remove empty/redundant statements
-3. Simplify overly complex constructions
-4. Remove unused variables
-5. Optimize control flow where possible
-6. Keep the code functionally identical but cleaner
+STRICT OUTPUT RULES:
+1. Output ONLY the cleaned {lang} code in a single code block.
+2. Start with the first line of code immediately — no greetings, headers, or disclaimers.
+3. End with the last line of code — no closing remarks.
+4. Do NOT include ANY text outside the code block.
+5. Do NOT add comments, notes, or explanations of any kind.
 
-IMPORTANT RULES:
-- DO NOT change the logic or functionality
-- DO NOT add new features or change behavior
-- ONLY output the optimized code, no explanations
-- Preserve all comments in the original code
-- Keep the same code structure where it makes sense
-- DO NOT omit important parts of the code under comments like "the same code ..."
-- If there were several similar constructs in the code, optimize EACH of them
+ALLOWED OPTIMIZATIONS:
+- Remove unused variables and unused imports.
+- Eliminate redundant initializations (e.g., `x = None` before `x = value` → keep only `x = value`).
+- Delete empty statements and no‑op lines.
+- Simplify trivial redundancies:
+  * `x = x + 0` → remove line
+  * `x += 0` → remove line
+  * `x = x * 1` → remove line
+- Merge consecutive assignments: `a = 1; a = 2` → `a = 2`.
+- Remove duplicate imports.
 
-Here is the code to optimize:
+MUST PRESERVE:
+- All logic, calculations, and control flow (if/elif/else, for, while, try/except).
+- Function signatures (names, parameters, return types).
+- Overall code structure and nesting levels.
+- All existing comments — copy them exactly as‑is.
+- Required imports (only remove duplicates).
+- Variable and function names — do NOT rename anything.
+- I/O operations (print, logging, file writes, etc.).
+- Exception handling blocks — keep try/except/finally intact.
+- All enum definitions and class structures.
+- All method implementations in classes.
 
+INPUT CODE:
 ```{lang}
 {code}
 ```
 
-Output only the optimized {lang} code:"#,
-        lang = target_lang,
-        code = code
-    );
+
+OUTPUT: The optimized {lang} code only. Begin with code immediately. No other text."#,
+lang = target_lang,
+code = code
+);
     
     info!("Длина промпта: {} символов", prompt.len());
     info!("Промпт сформирован ✓");
@@ -756,10 +768,12 @@ Output only the optimized {lang} code:"#,
         "prompt": prompt,
         "stream": false,
         "options": {
-            "temperature": 0.2,
+            "temperature": 0.1,
             "num_predict": max_tokens,
             "top_p": 0.9,
-            "top_k": 40
+            "top_k": 40,
+            "repeat_penalty": 1.1,
+            "stop": ["\n\n\n"]
         }
     });
     
@@ -935,19 +949,14 @@ Output only the optimized {lang} code:"#,
 /// Очистка кода от markdown блоков
 fn clean_code_blocks(code: &str) -> String {
     let mut result = code.to_string();
-
-    // Удаляем открывающие маркеры ```language
-    for line in code.lines() {
-        if line.starts_with("```") && line.len() > 3 {
-            let lang_marker = &line[3..];
-            result = result.replace(&format!("```{}", lang_marker), "");
-        }
-    }
-
-    // Удаляем все оставшиеся ```
-    result = result.replace("```", "");
-
-    // Удаляем пустые строки в начале и конце
+    
+    // Удаляем ```python, ```rust и т.д.
+    result = result
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("```"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    
     result.trim().to_string()
 }
 

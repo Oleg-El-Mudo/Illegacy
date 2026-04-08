@@ -82,20 +82,22 @@ function setupEventListeners() {
 // Подписка на события прогресса скачивания
 function setupPullProgressListener() {
     const { listen } = window.__TAURI__.event;
-    
+
     listen('ollama-pull-progress', (event) => {
         const progress = event.payload;
-        console.log('Прогресс скачивания:', progress);
-        
+        console.log('Получено событие прогресса скачивания:', progress);
+
         // Сохраняем прогресс
         pullProgress[progress.model] = progress;
-        
+
         // Обновляем UI
         updatePullProgressUI(progress);
-        
+
         // Если скачивание завершено или ошибка, обновляем список моделей
         if (progress.status === 'success' || progress.status === 'error') {
+            console.log('Скачивание завершено со статусом:', progress.status);
             setTimeout(() => {
+                console.log('Удаление прогресса и обновление списка моделей...');
                 delete pullProgress[progress.model];
                 loadModels();
             }, 2000);
@@ -456,10 +458,20 @@ function renderAvailableModels() {
     }
 
     elements.llmAvailableModelsList.innerHTML = availableModels.map(model => {
-        const isInstalled = ollamaStatus.models.some(m => m.name.startsWith(model.name + ':'));
-        const isPulling = pullProgress[model.name] && pullProgress[model.name].status !== 'success' && pullProgress[model.name].status !== 'error';
-        const pullProg = pullProgress[model.name];
+        // Проверяем, есть ли активный прогресс для этой модели (по базовому имени)
+        const isPulling = Object.keys(pullProgress).some(key => 
+            key.startsWith(model.name + ':') && 
+            pullProgress[key].status !== 'success' && 
+            pullProgress[key].status !== 'error'
+        );
         
+        // Получаем прогресс для этой модели
+        const pullProg = Object.keys(pullProgress).find(key => key.startsWith(model.name + ':')) 
+            ? pullProgress[Object.keys(pullProgress).find(key => key.startsWith(model.name + ':'))]
+            : null;
+        
+        const isInstalled = ollamaStatus.models.some(m => m.name.startsWith(model.name + ':'));
+
         // Создаем селектор параметров если есть несколько вариантов
         const parameterSelector = model.parameters && model.parameters.length > 0 ? `
             <div class="llm-parameter-selector">
@@ -537,67 +549,17 @@ function getPullStatusText(status) {
 
 // Обновление UI прогресса скачивания
 function updatePullProgressUI(progress) {
-    const modelName = progress.model;
-    const modelItemId = `model-item-${modelName.replace(/[^a-z0-9]/gi, '-')}`;
-    const modelItem = document.getElementById(modelItemId);
+    console.log('Обновление прогресса скачивания:', progress);
     
-    if (!modelItem) {
-        // Если элемент не найден, перерисовываем весь список
-        renderAvailableModels();
-        return;
-    }
+    // Извлекаем базовое имя модели (например, из "codellama:7b" -> "codellama")
+    const fullModelName = progress.model;
+    const baseModelName = fullModelName.includes(':') ? fullModelName.split(':')[0] : fullModelName;
     
-    // Находим контейнер прогресса или создаём новый
-    let progressContainer = modelItem.querySelector('.llm-pull-progress');
+    console.log('Полное имя:', fullModelName, 'Базовое имя:', baseModelName);
     
-    if (!progressContainer) {
-        // Создаём контейнер прогресса
-        const info = modelItem.querySelector('.llm-available-model-info');
-        const meta = info.querySelector('.llm-available-model-meta');
-        progressContainer = document.createElement('div');
-        progressContainer.className = 'llm-pull-progress';
-        meta.after(progressContainer);
-    }
-    
-    // Обновляем содержимое
-    progressContainer.innerHTML = `
-        <div class="llm-pull-progress-header">
-            <span class="llm-pull-status ${progress.status}">${getPullStatusText(progress.status)}</span>
-            <span class="llm-pull-percent">${(progress.progress * 100).toFixed(1)}%</span>
-        </div>
-        <div class="llm-pull-progress-bar">
-            <div class="llm-pull-progress-fill" style="width: ${progress.progress * 100}%"></div>
-        </div>
-        <div class="llm-pull-message">${progress.message}</div>
-    `;
-    
-    // Обновляем кнопку
-    const actions = modelItem.querySelector('.llm-available-model-actions');
-    if (actions && progress.status !== 'success' && progress.status !== 'error') {
-        actions.innerHTML = `
-            <button class="jb-button jb-button-tertiary jb-button-sm" disabled>
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="spinning">
-                    <path d="M21 12a9 9 0 11-6.219-8.56"></path>
-                </svg>
-                <span>Скачивание...</span>
-            </button>
-        `;
-    } else if (actions && progress.status === 'success') {
-        actions.innerHTML = `
-            <span class="badge badge-success">Установлена</span>
-        `;
-    } else if (actions && progress.status === 'error') {
-        actions.innerHTML = `
-            <button class="jb-button jb-button-primary jb-button-sm" onclick="window.llmManager.pullModel('${modelName}')">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                </svg>
-                <span>Повторить</span>
-            </button>
-        `;
-    }
+    // Принудительно перерисовываем весь список доступных моделей
+    // Это гарантирует корректное отображение прогресса
+    renderAvailableModels();
 }
 
 // Обновление параметра модели (выбор размера)
@@ -656,12 +618,13 @@ export async function pullModel(modelName) {
     try {
         // Получаем выбранный параметр из localStorage
         const selectedParam = localStorage.getItem(`llm-model-param-${modelName}`);
-        
+
         // Формируем полное имя модели с параметром (например: codellama:7b)
         const fullModelName = selectedParam ? `${modelName}:${selectedParam}` : modelName;
-        
-        console.log(`Скачивание модели: ${fullModelName}`);
-        
+
+        console.log(`=== НАЧАЛО СКАЧИВАНИЯ МОДЕЛИ: ${fullModelName} ===`);
+        console.log(`Базовое имя: ${modelName}, Параметр: ${selectedParam || 'не выбран'}`);
+
         // Инициализируем прогресс
         pullProgress[fullModelName] = {
             model: fullModelName,
@@ -670,21 +633,28 @@ export async function pullModel(modelName) {
             message: 'Подготовка к скачиванию...'
         };
 
+        console.log('Инициализирован прогресс:', pullProgress[fullModelName]);
+
         // Обновляем UI сразу
         updatePullProgressUI(pullProgress[fullModelName]);
 
+        console.log('Отправка запроса на скачивание в Tauri...');
         const result = await invoke('pull_ollama_model', { modelName: fullModelName });
+
+        console.log('Получен результат от Tauri:', result);
 
         if (result.success) {
             // Успех уже обработан через event
             console.log(result.message);
         } else {
+            console.error('Ошибка скачивания модели:', result.error);
             alert('Ошибка скачивания модели: ' + (result.error || 'Неизвестная ошибка'));
             delete pullProgress[fullModelName];
             updatePullProgressUI({ model: fullModelName, status: 'error', progress: 0, message: result.error });
         }
     } catch (error) {
-        console.error('Ошибка скачивания модели:', error);
+        console.error('=== ОШИБКА СКАЧИВАНИЯ МОДЕЛИ ===');
+        console.error('Ошибка:', error);
         delete pullProgress[modelName];
         updatePullProgressUI({ model: modelName, status: 'error', progress: 0, message: error });
     }
